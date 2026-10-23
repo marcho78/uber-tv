@@ -148,7 +148,13 @@ Item {
   readonly property int span: slot * slotsShown
   readonly property int maxSlotOffset: 24
   property int slotOffset: 0
-  readonly property real windowStart: Math.floor(now / slot) * slot + slotOffset * slot
+  readonly property real windowStart: slotStart(now) + slotOffset * slot
+  // The half hour a moment falls in, by the clock here: on the hour and half
+  // past where the time zone is a quarter hour off too (UTC+5:45)
+  function slotStart(t) {
+    var off = -new Date(t * 1000).getTimezoneOffset() * 60
+    return Math.floor((t + off) / root.slot) * root.slot - off
+  }
   readonly property real windowEnd: windowStart + span
 
   property int row: 0
@@ -801,7 +807,7 @@ Item {
     root.libDetail = null
     root.screen = "guide"
     root.row = r
-    var base = Math.floor(root.now / root.slot) * root.slot
+    var base = root.slotStart(root.now)
     root.slotOffset = Math.max(0, Math.min(root.maxSlotOffset, Math.floor((start - base) / root.slot)))
     root.cursorTime = start
     keys.forceActiveFocus()
@@ -1512,7 +1518,10 @@ Item {
   property var vod: null
   property bool vodBarShown: false
   property bool vodPaused: false
-  readonly property real playPosition: vod ? player.position : 0
+  readonly property real playPosition: vod ? (seekTarget >= 0 ? seekTarget : player.position) : 0
+  // Where a burst of skips is going (ms), not yet asked of the player; -1: none
+  property real seekTarget: -1
+  onVodChanged: { root.seekTarget = -1; seekGap.stop() }
   readonly property real playDuration: vod ? player.duration : 0
 
   // The TV
@@ -1548,6 +1557,8 @@ Item {
   property var replanning: ({})       // urls whose next listing replaces the plan
   readonly property string listPath: configDir + "/channels.json"
   property bool ownListMissing: false
+  property string listProblem: ""
+  readonly property string filesProblem: [root.settingsProblem, root.listProblem, library.problem].filter(function(p) { return p }).join(" ")
   property string defaultList: ""
   property string demoList: ""
   property string demoSaid: ""          // what Load the demo channels did
@@ -2177,10 +2188,11 @@ Item {
 
   // Channels already loaded keep their listings, so saving the list (or
   // editing the file by hand) doesn't refetch everything.
+  // False if raw isn't a list of channels (nothing changes then)
   function loadChannels(raw) {
     var parsed
-    try { parsed = JSON.parse(raw) } catch (e) { console.warn("om-pg: " + root.listPath + " is not valid JSON"); return }
-    if (!Array.isArray(parsed)) return
+    try { parsed = JSON.parse(raw) } catch (e) { console.warn("om-pg: " + root.listPath + " is not valid JSON"); return false }
+    if (!Array.isArray(parsed)) return false
     var known = {}
     for (var j = 0; j < root.channels.length; j++) known[root.channels[j].url] = root.channels[j]
     var list = []
@@ -2204,6 +2216,7 @@ Item {
     root.applyCache()
     if (root.opened) root.fetchMissing()
     root.migrateVod()
+    return true
   }
 
   // Playlists added before the library put their movies in the guide as
@@ -2558,14 +2571,16 @@ Item {
 
   // The TV day a moment falls in, named by the date it starts on.
   function tvDay(t) {
-    return Qt.formatDateTime(new Date((t - root.dayStartsAt) * 1000), "yyyy-MM-dd")
+    return Qt.formatDateTime(new Date(root.tvDayStart(t) * 1000), "yyyy-MM-dd")
   }
 
-  // When the TV day holding t began (4 AM)
+  // When the TV day holding t began: 4 AM by the clock, on the day the
+  // clocks change too (not 4 hours after midnight, 3 or 5 AM then)
   function tvDayStart(t) {
-    var d = new Date((t - root.dayStartsAt) * 1000)
-    d.setHours(0, 0, 0, 0)
-    return d.getTime() / 1000 + root.dayStartsAt
+    var d = new Date(t * 1000)
+    d.setHours(root.dayStartsAt / 3600, 0, 0, 0)
+    if (d.getTime() > t * 1000) { d.setDate(d.getDate() - 1); d.setHours(root.dayStartsAt / 3600, 0, 0, 0) }
+    return d.getTime() / 1000
   }
 
   // What the schedule airs: today's plan, or the listing if there's none yet.
@@ -2785,8 +2800,10 @@ Item {
 
   // Adding and removing channels
 
+  // Never over a list that couldn't be read: that file is kept as it is,
+  // and listProblem says so
   function saveChannels() {
-    if (root.wiping) return
+    if (root.wiping || root.listProblem) return
     var out = []
     for (var i = 0; i < root.channels.length; i++) {
       var ch = root.channels[i]
@@ -6308,7 +6325,7 @@ Item {
     if (key === "about") return "Version " + ((root.manifest && root.manifest.version) || "1.0.0") + (updatesItem.available ? "  ·  " + updatesItem.latest + " available" : "") + (devPresses.note ? "  ·  " + devPresses.note : "")
     if (key === "updateNotify" || key === "updateCheck" || key === "updateAvailable") return updatesItem.value(key)
     if (key === "backupSave") return backupsItem.value(key)
-    if (key === "files") return root.settingsProblem ? "Settings not read" : "~/.config/om-pg"
+    if (key === "files") return root.filesProblem ? "Files not read" : "~/.config/om-pg"
     if (key === "devHow") return appsStore.developerShown || appsStore.developer ? "In Settings → Developer" : "Press Enter on Uber TV 7 times"
     if (key === "credit") return "W: devsecai.sh"
     if (key === "contributors") return root.contributors.length ? plural(root.contributors.length, "person", "people") : "None yet"
@@ -6404,7 +6421,7 @@ Item {
     if (key === "unknownSources") return "Install signed apps from other developers. You see who made each one before installing it, and it gets updates only from that developer. Turning it on asks for your computer's password."
     if (key === "signedAppFile") return "Pick a signed .tvapp in your home folder. Its developer key and everything it asks for are shown before Install asks for the computer's password. Picking the file contacts nothing." + said
     if (key === "appFile") return "A package (.tar.gz) or an app's folder (pick its app.json). It's checked the same way as the catalog's, and you see what it asks for before it's installed." + said
-    if (key === "files") return (root.settingsProblem ? root.settingsProblem + " " : "") + "Your channels (channels.json), settings (settings.json), library (library.json), where you stopped (history.json) and themes (themes/) are kept in ~/.config/om-pg, readable by you. My Videos' pictures are in ~/.cache/om-pg."
+    if (key === "files") return (root.filesProblem ? root.filesProblem + " " : "") + "Your channels (channels.json), settings (settings.json), library (library.json), where you stopped (history.json) and themes (themes/) are kept in ~/.config/om-pg, readable by you. My Videos' pictures are in ~/.cache/om-pg."
     var recSaid = dvr.said ? " " + dvr.said : ""
     if (key === "recOn") return "Record what's on to watch later: I or Space while watching (▲ on your phone), then Record. Each recording goes on with Uber TV closed while you're logged in. Off takes Record away; your recordings stay, and so does the Recordings tab while there are some."
     if (key === "recPlace") return "Recordings are saved in " + root.shownPath(dvr.placeInfo && dvr.placeInfo.path ? dvr.placeInfo.path : (dvr.settings.place && dvr.settings.place.path) || dvr.defaultFolder + "/Uber TV Recordings")
@@ -7066,16 +7083,27 @@ Item {
     root.turnOff()
   }
 
+  // Skips add up, and the player is asked at most every seekGap ms: each
+  // seek makes FFmpeg find its place in the file, and a held key (or a remote
+  // sending hundreds) asked for more than it could do, until the shell stalled
   function seekVod(seconds) {
     if (!root.vod || !root.started || player.duration <= 0) return
-    player.position = Math.max(0, Math.min(player.duration - 1000, player.position + seconds * 1000))
-    root.showVodBar()
+    var from = root.seekTarget >= 0 ? root.seekTarget : player.position
+    root.seekVodTo((from + seconds * 1000) / 1000)
   }
 
   function seekVodTo(seconds) {
     if (!root.vod || !root.started || player.duration <= 0) return
-    player.position = Math.max(0, Math.min(player.duration - 1000, seconds * 1000))
+    root.seekTarget = Math.max(0, Math.min(player.duration - 1000, seconds * 1000))
+    if (!seekGap.running) root.applySeek()
     root.showVodBar()
+  }
+
+  function applySeek() {
+    if (root.seekTarget < 0) return
+    if (root.vod && player.duration > 0) player.position = root.seekTarget
+    root.seekTarget = -1
+    seekGap.restart()   // a seek asked for during the gap waits for its end
   }
 
   function togglePause() {
@@ -7898,6 +7926,12 @@ Item {
     pipBannerTimer.restart()
   }
 
+  Timer {
+    id: seekGap
+    interval: 300
+    onTriggered: root.applySeek()
+  }
+
   // The system's default sound output: the TV's sound follows it, so
   // switching outputs is picked up (a sound server that restarts isn't: Qt
   // keeps its old device list until the shell restarts)
@@ -8216,9 +8250,14 @@ Item {
     onSaved: privateList.running = true   // saving replaces the file, so after it
     onLoaded: {
       root.ownListMissing = false
-      if (text() !== root.lastSaved) root.loadChannels(text())
+      if (text() === root.lastSaved) return
+      if (root.loadChannels(text())) { root.listProblem = ""; return }
+      // unreadable: the starter list to watch, and that file kept as it is
+      root.listProblem = "Your channel list (channels.json) wasn't read (it isn't a valid list): the guide shows its starter channels, and keeps that file as it is (changes aren't saved until it's fixed or moved away)."
+      if (!root.channels.length && root.defaultList) root.loadChannels(root.defaultList)
     }
     onLoadFailed: {
+      root.listProblem = ""
       root.ownListMissing = true
       if (root.defaultList) root.loadChannels(root.defaultList)
     }
@@ -8796,7 +8835,7 @@ Item {
     path: root.pluginDir + "/channels.json"
     onLoaded: {
       root.defaultList = text()
-      if (root.ownListMissing) root.loadChannels(root.defaultList)
+      if (root.ownListMissing || (root.listProblem && !root.channels.length)) root.loadChannels(root.defaultList)
     }
   }
 

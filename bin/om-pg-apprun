@@ -44,6 +44,8 @@ import tempfile
 import time
 from importlib.machinery import SourceFileLoader
 
+sys.dont_write_bytecode = True   # the plugin's folder is watched: a .pyc written in lib/ would reload the guide
+
 PLUGIN = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BWRAP = "/usr/bin/bwrap"
 PYTHON = "/usr/bin/python3"
@@ -320,11 +322,16 @@ class Secrets:
 
     def set_sign_in(self, name, value):
         self.seen.add(value)
+        if len(value.encode("utf-8", "surrogatepass")) > apps.MAX_SECRET:
+            return "a secret is up to 4 KB of text"   # so the file it's kept in can always be read back
         if not self.path:
             return ""
         private_dir(os.path.dirname(self.path))
         with apps.secrets_locked(self.path):   # read, changed and written whole: see bin/om-pg-apps
-            d = self.read()
+            try:
+                d = apps.read_secrets(self.path, changing=True)
+            except apps.Bad as e:
+                return str(e)   # one it can't read is never written over
             if d["signIn"]["server"] != self.server:
                 d["signIn"] = {"server": self.server, "values": {}}
             if name not in d["signIn"]["values"] and len(d["user"]) + len(d["signIn"]["values"]) >= 32:

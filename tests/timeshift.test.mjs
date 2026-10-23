@@ -378,7 +378,7 @@ const ready = (o) => Object.assign({ state: "ready", reason: "", ready: true, co
   const closed = []
   const rt = { phase: "ready", lease() {}, closeRelay(s) { closed.push(s) } }
   const pb = { session: null, waitingTv: null, epochs: 0, attempted: [], dropPending() {}, attempt(u) { this.attempted.push(u) } }
-  const start = new Function("pb", "guide", "progressTimer", "return function(appId, rt, value) {" + startBody + "}")(pb, guide, { last: 0 })
+  const start = new Function("pb", "guide", "progressTimer", "seekGap", "return function(appId, rt, value) {" + startBody + "}")(pb, guide, { last: 0 }, { stop() {} })
   pb.start = start
   pb.dropWaiting = new Function("pb", "return function(appId) {" + braces(apSrc, apSrc.indexOf("function dropWaiting(appId) {") + "function dropWaiting(appId) ".length) + "}")(pb)
   const url = "http://127.0.0.1:9/" + "a".repeat(32) + "/v"

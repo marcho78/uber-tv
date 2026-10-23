@@ -669,10 +669,30 @@ Item {
     view.learned = apps.withKey(view.learned, cur.app, mine)
   }
 
+  // A new view, or another app: what was deciding for the one before goes
+  // (its pictures' reports are dropped anyway, and its rows start again if
+  // they're shown again), so rows made ahead and never shown don't pile up
+  onEpochChanged: view.dropOldSampling()
+  onShapeKeyChanged: view.dropOldSampling()
+  function dropOldSampling() {
+    var keep = Object.create(null), dropped = false
+    for (var k in view.sampling) {
+      var s = view.sampling[k]
+      if (s.epoch === view.epoch && s.app === view.shapeKey) keep[k] = s
+      else dropped = true
+    }
+    if (dropped) view.sampling = keep
+  }
+  // The 2 s timeout's clock runs only while a row on the screen is deciding
+  // (a row made ahead waits for its pictures, not the clock)
+  readonly property bool sampleClock: {
+    for (var k in view.sampling) if (view.sampling[k].start > 0) return true
+    return false
+  }
   Timer {
     interval: 200
     repeat: true
-    running: Object.keys(view.sampling).length > 0
+    running: view.sampleClock
     onTriggered: {
       var now = Date.now()
       for (var k in view.sampling) { var s = view.sampling[k]; if (s.start > 0 && now - s.start >= 2000) view.decideShape(k, true) }

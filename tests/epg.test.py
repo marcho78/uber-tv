@@ -2,7 +2,8 @@
 """Program listings (bin/om-pg-epg): /usr/bin/python3 tests/epg.test.py
 
 Listings read plain, gzipped and xz'd (streams one after another too, with
-padding between them), and matched to your channels. The limits: an .xz
+padding between them), and matched to your channels; a show with no such
+time is skipped, not the whole file. The limits: an .xz
 file can't make its decoder reserve more than MAX_XZ_MEMORY (a 68-byte file
 asks for 1.5 GB), a file can't unpack past MAX_UNPACKED, one entry can't
 pass MAX_ENTRY (a show of half a million parts, a title of megabytes),
@@ -94,6 +95,15 @@ check("xz streams one after another are read in turn", titles(write("two.xml.xz"
 check("zero padding between xz streams is skipped, and the next stream read",
       titles(write("pad.xml.xz", lzma.compress(LISTING[:half]) + b"\0" * 4 + lzma.compress(LISTING[half:]))) == (1, ["News at noon", "The afternoon"]))
 check("what follows the last xz stream isn't an error", titles(write("tail.xml.xz", lzma.compress(LISTING) + b"\0\0\0\0junk")) == (1, ["News at noon", "The afternoon"]))
+bad_times = LISTING.replace(b"</tv>", b"".join(
+    b'<programme start="%s +0000" stop="20261018150000 +0000" channel="cnn.us"><title>Bad %d</title></programme>' % (t, n)
+    for n, t in enumerate([b"20261318140000", b"20261018240000", b"20261032140000", b"00001018140000"])) + b"</tv>")
+try:
+    got = titles(write("badtime.xml", bad_times))
+except ValueError as e:
+    got = e
+check("a show with no such time (month 13, hour 24, day 32, year 0) is skipped, the rest of the file read",
+      got == (1, ["News at noon", "The afternoon"]), got)
 check("an xz file cut short is an error", raises(lambda: titles(write("cut.xml.xz", lzma.compress(LISTING)[:-20])), (EOFError, lzma.LZMAError)))
 
 # ---- the .xz decoder's memory ----

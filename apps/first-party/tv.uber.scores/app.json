@@ -1,7 +1,7 @@
 {
   "id": "tv.uber.scores",
   "name": "Scores",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "api": 4,
   "kind": "app",
   "author": "Uber TV",

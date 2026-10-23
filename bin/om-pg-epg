@@ -88,11 +88,16 @@ def split_id(tvg_id):
 
 
 def xmltv_time(text):
+    """Seconds since 1970, or None: not a time, or no such time (month 13,
+    hour 24), so one show's bad time skips that show, not the file"""
     m = re.match(r"\s*(\d{4})(\d\d)(\d\d)(\d\d)?(\d\d)?(\d\d)?\s*([+-]\d{4})?", text or "")
     if not m:
         return None
     y, mo, d, h, mi, s = (int(x) if x else 0 for x in m.groups()[:6])
-    t = datetime.datetime(y, mo, d, h, mi, s, tzinfo=datetime.timezone.utc).timestamp()
+    try:
+        t = datetime.datetime(y, mo, d, h, mi, s, tzinfo=datetime.timezone.utc).timestamp()
+    except (ValueError, OverflowError):
+        return None
     zone = m.group(7)
     if zone:
         sign = 1 if zone[0] == "+" else -1

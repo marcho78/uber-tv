@@ -51,6 +51,8 @@ import urllib.request
 
 import yt_dlp
 
+sys.dont_write_bytecode = True   # the plugin's folder is watched: a .pyc written in lib/ would reload the guide
+
 try:
     import gi
     gi.require_version("Gio", "2.0")

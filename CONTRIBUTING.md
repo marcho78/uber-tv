@@ -94,11 +94,16 @@ node tests/playback.test.mjs      # every player's sound follows the system's ou
 node tests/dvr.test.mjs           # Recordings, the guide's side: what Record records, the stop times, the banner's and a recording's choices, the lock, the agent commands
 node tests/timeshift.test.mjs     # pause and rewind, the guide's side: what the buffer takes, each move a new open, the clock, falling back only once the writer's gone, the words, the agents
 node tests/remotepage.test.mjs    # the phone remote's page: a number on GO or OK, the passcode as dots, sent as text
+node tests/files.test.mjs     # a channel list that couldn't be read is never saved over, and the guide says so
+node tests/clock.test.mjs     # the TV day and the grid in local time: clock changes, quarter-hour time zones
+node tests/seek.test.mjs      # a burst of skips makes one seek a gap (a flood stalled the shell); playAt plays from a moment
 python3 tests/apps.test.py    # installing apps: good ones, and ones that try to get past the checks
 python3 tests/appfiles.test.py   # signed app files, updates, withdrawals, transactions and publisher workspaces
 python3 tests/apptransactions.test.py   # install transactions, package caps, no-replace renames and cleanup races
 python3 tests/apprun.test.py  # the app helper: misbehaving apps, escaping requests, the sandbox, try's output
 python3 tests/appstate.test.py   # Apps.qml in a shell of its own, against the real helper
+python3 tests/library.test.py    # Library.qml in a shell of its own: a library or history that couldn't be read is never saved over
+python3 tests/bytecode.test.py   # the helpers write no .pyc into the plugin's folder (run it without PYTHONDONTWRITEBYTECODE)
 python3 tests/themes.test.py  # themes saved as one confirmed transaction, and pictures you pick
 python3 tests/update.test.py  # Uber TV's own updates: version tags, release notes, git's output bounded
 python3 tests/backup.test.py  # backups, restore and reset, in a throwaway home: what a backup holds, bad ones refused, a failed restore put back

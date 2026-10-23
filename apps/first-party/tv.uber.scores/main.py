@@ -4,7 +4,7 @@ are team logos (API 3): drawn whole, with space around them. Live (API 4):
 while its screen or its Home row is on, games in progress update on their
 own."""
 
-from uber_tv import app, get_json, settings, Screen, Row, Item, Detail, AppError, FetchError
+from uber_tv import app, get_json, settings, Screen, Row, Item, Detail, AppError
 
 LEAGUES = {
     "NFL": "football/nfl", "NBA": "basketball/nba", "MLB": "baseball/mlb",
@@ -61,9 +61,21 @@ def games():
     for e in events:
         try:
             groups.setdefault(state(e), []).append(e)
-        except (KeyError, IndexError, StopIteration):
+        except (KeyError, IndexError, StopIteration, TypeError):
             continue
     return name, groups
+
+
+def items(events):
+    """A card for each game; one ESPN sent without what a card needs is left
+    out, never the rest with it"""
+    out = []
+    for e in events:
+        try:
+            out.append(item(e))
+        except (KeyError, IndexError, StopIteration, TypeError, AttributeError):
+            continue
+    return out
 
 
 ROWS = (("in", "Live now"), ("pre", "Coming up"), ("post", "Final"))
@@ -72,7 +84,7 @@ ROWS = (("in", "Live now"), ("pre", "Coming up"), ("post", "Final"))
 def rows_of(groups):
     """Its three rows, each there even when it's empty (the guide draws only
     the ones with games), so a live update can fill any of them"""
-    return [Row(key, title, [item(e) for e in groups.get(key, [])], layout="grid", shape="logo") for key, title in ROWS]
+    return [Row(key, title, items(groups.get(key, [])), layout="grid", shape="logo") for key, title in ROWS]
 
 
 @app.home
@@ -91,8 +103,8 @@ def live(view):
     while view.sleep(15 if busy else 60):
         try:
             _, groups = games()
-        except (FetchError, AppError, ValueError):
-            continue   # tried again at the next turn
+        except Exception:
+            continue   # couldn't be fetched or read: tried again at the next turn
         busy = bool(groups.get("in"))
         if view.method == "homeRow":
             view.update(now_items(groups))
@@ -126,7 +138,7 @@ def details(event_id):
 
 def now_items(groups):
     now = groups.get("in", []) + groups.get("pre", [])
-    return [item(e) for e in (now or groups.get("post", []))][:20]
+    return items(now or groups.get("post", []))[:20]
 
 
 @app.home_row

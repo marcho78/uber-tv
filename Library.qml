@@ -22,6 +22,16 @@ Scope {
   property var myList: []            // ids, newest first
   property bool loaded: false
   property bool historyLoaded: false
+  // A file that couldn't be read is never saved over (the guide keeps
+  // what it had, and says so: Guide.qml filesProblem)
+  property bool libraryUnread: false
+  property bool historyUnread: false
+  readonly property string problem: libraryUnread || historyUnread
+    ? (libraryUnread && historyUnread ? "Your library (library.json) and where you stopped (history.json) weren't read (not valid JSON): the guide keeps both files as they are"
+       : libraryUnread ? "Your library (library.json) wasn't read (not valid JSON): the guide keeps that file as it is"
+       : "Where you stopped (history.json) wasn't read (not valid JSON): the guide keeps that file as it is")
+      + " (changes aren't saved until it's fixed or moved away, and the guide restarted)."
+    : ""
 
   readonly property string path: guide.configDir + "/library.json"
   readonly property string historyPath: guide.configDir + "/history.json"
@@ -252,20 +262,20 @@ Scope {
   Timer {
     id: saver
     interval: 400
-    onTriggered: if (!library.guide.wiping) libraryFile.setText(JSON.stringify({ version: 1, items: library.items, myList: library.myList }) + "\n")
+    onTriggered: if (!library.guide.wiping && !library.libraryUnread) libraryFile.setText(JSON.stringify({ version: 1, items: library.items, myList: library.myList }) + "\n")
   }
 
   Timer {
     id: historySaver
     interval: 2000
-    onTriggered: if (!library.guide.wiping) historyFile.setText(JSON.stringify(library.history) + "\n")
+    onTriggered: if (!library.guide.wiping && !library.historyUnread) historyFile.setText(JSON.stringify(library.history) + "\n")
   }
 
   // Saved right away (closing the guide, stopping a video)
   function flush() {
     if (library.guide.wiping) { historySaver.stop(); saver.stop(); return }   // a restore or a reset: they're being replaced
-    if (historySaver.running) { historySaver.stop(); historyFile.setText(JSON.stringify(library.history) + "\n") }
-    if (saver.running) { saver.stop(); libraryFile.setText(JSON.stringify({ version: 1, items: library.items, myList: library.myList }) + "\n") }
+    if (historySaver.running && !library.historyUnread) { historySaver.stop(); historyFile.setText(JSON.stringify(library.history) + "\n") }
+    if (saver.running && !library.libraryUnread) { saver.stop(); libraryFile.setText(JSON.stringify({ version: 1, items: library.items, myList: library.myList }) + "\n") }
   }
 
   function clean(raw) {
@@ -299,9 +309,11 @@ Scope {
     onLoaded: {
       try {
         var raw = JSON.parse(text())
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("not an object")
         library.items = library.clean(raw)
         library.myList = Array.isArray(raw.myList) ? raw.myList.filter(function(x) { return typeof x === "string" && /^(v[0-9a-f]+|yt:[A-Za-z0-9_-]{11})$/.test(x) }) : []
-      } catch (e) { console.warn("om-pg: " + library.path + " is not valid JSON") }
+        library.libraryUnread = false
+      } catch (e) { console.warn("om-pg: " + library.path + " is not valid JSON"); library.libraryUnread = true }
       library.loaded = true
     }
     onLoadFailed: library.loaded = true
@@ -316,6 +328,7 @@ Scope {
       var h = {}
       try {
         var raw = JSON.parse(text())
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("not an object")
         for (var id in raw) {
           var e = raw[id]
           if (!e || typeof e !== "object" || !/^(v[0-9a-f]+|yt:[A-Za-z0-9_-]{11})$/.test(id)) continue
@@ -327,7 +340,8 @@ Scope {
           h[id].owners = o.owners
           h[id].ownersMore = o.more
         }
-      } catch (e) {}
+        library.historyUnread = false
+      } catch (e) { console.warn("om-pg: " + library.historyPath + " is not valid JSON"); library.historyUnread = true }
       library.history = h
       library.historyLoaded = true
     }

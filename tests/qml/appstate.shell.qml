@@ -279,18 +279,18 @@ ShellRoot {
               waitFor(function() { return root.apps.loaded }, function() {
                 var r = root.apps.record(id)
                 check(r.api === 3 && r.layout && r.layout.rows.length === 3 && r.layout.look === "", "a restart keeps api 3 and its layout: " + JSON.stringify([r.api, r.layout]))
-                // 4d: the plugin's own Scores (1.2.0, api 4, live) waits for you: a change of api is reviewed
+                // 4d: the plugin's own Scores (1.2.1, api 4, live) waits for you: a change of api is reviewed
                 root.apps.on = true
                 root.apps.listBundled()
-                waitFor(function() { return bundledVersion(id) === "1.2.0" }, function() {
+                waitFor(function() { return bundledVersion(id) === "1.2.1" }, function() {
                   root.apps.queueUpdates([root.apps.queued(root.apps.record(id))])
-                  waitFor(function() { var x = root.apps.record(id); return !root.apps.updating && x && (x.update || x.version === "1.2.0") }, function() {
+                  waitFor(function() { var x = root.apps.record(id); return !root.apps.updating && x && (x.update || x.version === "1.2.1") }, function() {
                     var u = root.apps.record(id)
-                    check(u.version === "1.1.0" && u.update && u.update.version === "1.2.0" && /version 4/.test(u.update.asks.join(" ")),
+                    check(u.version === "1.1.0" && u.update && u.update.version === "1.2.1" && /version 4/.test(u.update.asks.join(" ")),
                           "api 3 to 4 isn't quiet: it waits, saying why: " + JSON.stringify([u.version, u.update]))
                     step4c()
                   }, "the api 4 update", 1500)
-                }, "the plugin's Scores 1.2.0")
+                }, "the plugin's Scores 1.2.1")
               }, "reload")
             }, "quiet update", 1500)
           }, "the plugin's Scores")

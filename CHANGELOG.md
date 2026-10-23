@@ -10,6 +10,28 @@ versions (0.2.1…) bring fixes and small additions. 1.0.0 will be the public re
 and id are final (the rename to Uber TV) and the app interface is declared
 stable.
 
+## [Unreleased]
+
+### Added
+
+- **`playAt <id> <time>`** for agents: a library movie from a moment (seconds, `mm:ss` or `h:mm:ss`), to show a scene without skipping there.
+
+### Fixed
+
+- **Holding → (or a remote sending a burst of skips) no longer stalls the shell.** Every 10-second skip asked the player to seek at once; a few hundred in a row on a long HEVC movie stalled the shell until Omarchy restarted it. Skips now add up, the bar shows where they're going, and the player seeks at most every 0.3 seconds. Apps' videos too.
+- **The guide no longer closes by itself when apps start working.** The helpers wrote compiled Python into the plugin's folder, which Omarchy watches, so the guide reloaded and closed. They no longer write it.
+- **A channel list, library or history that couldn't be read is never saved over.** It was read as empty, and the next change saved that over the whole file. Now, like settings, it's kept as it is until it's fixed or moved away, Settings → Files says so, and an unreadable channel list shows the starter channels meanwhile.
+- **The TV day starts at 4 AM on the days the clocks change too,** and the guide's grid starts on the hour or half past in time zones a quarter hour off (like Nepal).
+- **Program listings:** a show with an impossible time is skipped instead of failing the whole source.
+- **Apps:**
+  - half a character (a lone surrogate) in an app's answer no longer leaves the call unanswered and the app stopped;
+  - every secret an app may keep can be read back, and a secrets file that can't be read is never written over;
+  - rows made ahead no longer pile up or keep a timer running;
+  - a play that couldn't start because its app stopped says so.
+- **Scores 1.2.1:** a game ESPN sends incomplete is left out instead of breaking the screen and stopping live updates.
+- **Agents:** `watch` puts on the channel it asked for, even if channels moved or were removed just before.
+- **`tests/appstate.test.py` runs on any clone:** it read old Scores versions from a commit that isn't in the repository's history; they're kept in the test now.
+
 ## [0.4.0-beta] - 2026-10-21
 
 ### Added

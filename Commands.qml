@@ -345,6 +345,7 @@ Scope {
   ]
 
   IpcHandler {
+    id: ipc
     target: "om-pg"
 
     function help(): string {
@@ -369,7 +370,8 @@ Scope {
                                           scheduled: guide.recorder.recordings.filter(DvrRules.waiting).length, series: guide.recorder.rules.length },
                             pauseAndRewind: { on: guide.pauser.turnedOn, running: guide.pauser.active, paused: guide.pauser.active && guide.pauser.paused,
                                               behindSeconds: guide.pauser.active && !guide.pauser.atLive ? Math.round(guide.pauser.behind / 1000) : 0 },
-                            settingsProblem: guide.settingsProblem || undefined })
+                            settingsProblem: guide.settingsProblem || undefined,
+                            filesProblem: guide.filesProblem || undefined })
     }
 
     function open(): string {
@@ -399,7 +401,7 @@ Scope {
       if (guide.recorder.needsAsk(guide.channels[r]))
         return commands.failReply("a recording is using that channel's provider: watching it takes a 2nd stream, and a one-stream plan may stop the recording. Ask the user (the guide asks them when they go to it)")
       if (!guide.opened) guide.guidePip()
-      commands.pendingWatch = r
+      commands.pendingWatch = guide.channels[r].url
       watchSoon.restart()
       return commands.okReply({ channel: commands.channelInfo(r) })
     }
@@ -1273,6 +1275,18 @@ Scope {
       return commands.okReply({ playing: entry.title, from: guide.resumeAt(entry.id) })
     }
 
+    // play, from a moment: seconds, or h:mm:ss / mm:ss (a scene, not a burst of skips)
+    function playAt(id: string, at: string): string {
+      var m = String(at).trim().match(/^(?:(\d{1,2}):)?(?:(\d{1,2}):)?(\d{1,6})$/)
+      if (!m) return commands.failReply("a time is seconds, or h:mm:ss or mm:ss")
+      var parts = String(at).trim().split(":").map(Number)
+      var secs = parts.reduce(function(a, b) { return a * 60 + b }, 0)
+      var said = JSON.parse(ipc.play(id))
+      if (!said.ok) return JSON.stringify(said)
+      commands.pendingFrom = secs
+      return commands.okReply({ playing: said.playing, from: secs })
+    }
+
     function channels(words: string): string {
       var terms = String(words).toLowerCase().split(/\s+/).filter(function(t) { return t })
       var out = []
@@ -1474,8 +1488,10 @@ Scope {
     onTriggered: if (commands.pendingPlay) { guide.playVod(commands.pendingPlay, commands.pendingFrom); commands.pendingPlay = null; commands.pendingFrom = undefined }
   }
 
-  // watch, from the command: once the mini player (or the guide) is up
-  property int pendingWatch: -1
+  // watch, from the command: once the mini player (or the guide) is up. The
+  // channel by its address, found again then: a category set or a channel
+  // removed meanwhile moves the rows, and another channel would come on
+  property string pendingWatch: ""
   property var pendingMultiview: null
   Timer {
     id: multiviewSoon
@@ -1491,6 +1507,10 @@ Scope {
   Timer {
     id: watchSoon
     interval: 600
-    onTriggered: if (commands.pendingWatch >= 0) { guide.watch(commands.pendingWatch); commands.pendingWatch = -1 }
+    onTriggered: {
+      var r = guide.indexOf(commands.pendingWatch)
+      commands.pendingWatch = ""
+      if (r >= 0) guide.watch(r)
+    }
   }
 }

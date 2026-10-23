@@ -297,6 +297,35 @@ app.run()
         self.assertEqual(r["kind"], "error")
         await h.stop()
 
+    async def test_half_a_character_is_still_answered(self):
+        """A lone surrogate (half of a character, which UTF-8 can't carry):
+        the toolkit's text drops it, and an answer it's left in elsewhere is
+        answered as an error, never left to time out and stop the app"""
+        main = """from uber_tv import app, Screen, Row, Item, Message
+@app.home
+def home():
+    return Screen("x", rows=[Row("r", "R", [Item("a", "A", image="https://img.example.com/\\ud800.png")])])
+@app.action
+def action(item, how):
+    return Message("half \\ud800 a character")
+app.run()
+"""
+        old = apprun.DEFAULT_DEADLINE
+        apprun.DEFAULT_DEADLINE = 2.0
+        try:
+            h = Harness(make_app("surrogate", main, perms={"net": ["img.example.com"]}))
+            await h.start()
+            r = await h.call("action", {"item": "a", "action": "go"}, wait=5)
+            self.assertEqual((r["kind"], r["value"]), ("message", {"text": "half a character"}))
+            r = await h.call("home", wait=5)
+            self.assertEqual((r["kind"], r["value"]["code"]), ("error", "crash"), r)
+            r = await h.call("action", {"item": "a", "action": "go"}, wait=5)
+            self.assertEqual(r["kind"], "message", "the app goes on")
+            self.assertEqual(h.rt.state, "ready")
+            await h.stop()
+        finally:
+            apprun.DEFAULT_DEADLINE = old
+
     async def test_deadline_then_stop(self):
         main = "import time\nfrom uber_tv import app\n@app.home\ndef home():\n    time.sleep(30)\napp.run()\n"
         old = dict(apprun.DEADLINES), apprun.DEFAULT_DEADLINE, apprun.GRACE
@@ -1188,6 +1217,43 @@ app.run()
         self.assertIsNone(s.get("token"), "after it, only once the guide says signed in")
         s.signed_in = True
         self.assertEqual(s.get("token"), "fresh")
+
+    def test_every_secret_kept_is_read_back(self):
+        """32 secrets of the most text each may be, however JSON writes it:
+        the file is read back whole and the next one kept loses none; a
+        sign-in's value past 4 KB of UTF-8 is refused when it's set"""
+        path = os.path.join(WORK, "bigsecrets", "secrets.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        s = apprun.Secrets(path, "http://127.0.0.1:9/jf", [], True, [], False)
+        self.assertEqual(s.set_sign_in("one", "\u00e9" * 2049), "a secret is up to 4 KB of text")
+        for i in range(31):
+            self.assertEqual(s.set_sign_in("k%d" % i, "\u00e9" * 2048), "")   # 4 KB of UTF-8, 12 KB of JSON
+        self.assertGreater(os.path.getsize(path), 256 * 1024)
+        self.assertEqual(s.set_sign_in("last", "x"), "")
+        self.assertEqual(len(apps.read_secrets(path)["signIn"]["values"]), 32, "none lost")
+        # what you type in its settings, through bin/om-pg-apps: control characters, 6 bytes each in JSON
+        path = os.path.join(WORK, "bigsecrets", "typed.json")
+        for i in range(32):
+            apps.do_secret_set(path, "k%d" % i, "\x01" * 4096)
+        self.assertGreater(os.path.getsize(path), 768 * 1024)
+        self.assertEqual(len(apps.read_secrets(path)["user"]), 32, "none lost")
+
+    def test_a_secrets_file_that_cant_be_read_is_left_as_it_is(self):
+        path = os.path.join(WORK, "badsecrets", "secrets.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        for bad in (b"{not json", b"[]", b'{"user": {}}' + b" " * (1024 * 1024)):
+            with open(path, "wb") as f:
+                f.write(bad)
+            s = apprun.Secrets(path, "http://127.0.0.1:9/jf", [], True, [], False)
+            self.assertIn("couldn't be read", s.set_sign_in("token", "fresh"))
+            with self.assertRaises(apps.Bad):
+                apps.do_secret_set(path, "apiKey", "typed")
+            with self.assertRaises(apps.Bad):
+                apps.do_secret_clear(path, "apiKey")
+            s.forget_sign_in()
+            self.assertEqual(open(path, "rb").read(), bad, "never written over")
+        apps.do_secret_clear(path, "*")
+        self.assertEqual(apps.read_secrets(path), {"user": {}, "signIn": {"server": "", "values": {}}}, "forgetting all of it needs nothing from it")
 
     async def test_sign_in_values_only_for_an_app_that_signs_in(self):
         main = "from uber_tv import app, secret, Message\n@app.action\ndef action(i, a):\n    return Message(str(secret('token')))\napp.run()\n"
@@ -3563,6 +3629,52 @@ class LiveViews(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(blocks.Invalid):
                 blocks.plain(bad, 10, "a title")
         self.assertEqual(blocks.plain("\U0001f600", 10, "a title"), "\U0001f600")
+
+
+class ScoresMissingKeys(unittest.IsolatedAsyncioTestCase):
+    """The bundled scores app, with ESPN sending a game without what a card
+    needs: that game is left out, the rest shown, and its live view goes on
+    updating (it used to end at the first such game)"""
+
+    async def asyncSetUp(self):
+        board = json.load(open(os.path.join(ROOT, "tests", "fixtures", "espn-nfl-scoreboard.json")))
+        live = next(e for e in board["events"] if e["competitions"][0]["status"]["type"]["state"] == "in")
+        no_team = json.loads(json.dumps(live))
+        no_team["id"] = "bad-1"
+        del no_team["competitions"][0]["competitors"][0]["team"]
+        no_home = json.loads(json.dumps(live))
+        no_home["id"] = "bad-2"
+        for c in no_home["competitions"][0]["competitors"]:
+            c["homeAway"] = "away"
+        board["events"] = [no_team, no_home] + board["events"]
+        self.good = len(board["events"]) - 2
+        data = json.dumps(board).encode()
+        self.real = net.exchange
+
+        async def exchange(url, method, headers, body, gate, kind, pin="", resolver=None):
+            gate.allow(url)
+            return FakeRes(url, method, 200, None, data)
+        net.exchange = exchange
+        self.h = Harness(os.path.join(ROOT, "apps", "first-party", "tv.uber.scores"))
+        await self.h.start()
+
+    async def asyncTearDown(self):
+        await self.h.stop()
+        net.exchange = self.real
+
+    async def test_a_bad_game_is_left_out(self):
+        r = await self.h.call("home")
+        self.assertEqual(r["kind"], "screen", r)
+        ids = [it["id"] for row in r["value"]["rows"] for it in row["items"]]
+        self.assertEqual(len(ids), self.good)
+        self.assertFalse({"bad-1", "bad-2"} & set(ids))
+        await self.h.rt.from_guide({"t": "viewOn", "view": self.h.n})
+        end = time.monotonic() + 25   # its first turn comes after 15 seconds
+        while time.monotonic() < end and not [f for f in self.h.frames if f.get("t") == "update"]:
+            await asyncio.sleep(0.2)
+        ups = [f for f in self.h.frames if f.get("t") == "update"]
+        self.assertTrue(ups, "the live view updated")
+        self.assertEqual(sum(len(row["items"]) for row in ups[0]["rows"]), self.good)
 
 
 class StreamRedirects(unittest.IsolatedAsyncioTestCase):

@@ -145,6 +145,8 @@ import urllib.parse
 import urllib.request
 import zlib
 
+sys.dont_write_bytecode = True   # the plugin's folder is watched: a .pyc written in lib/ would reload the guide
+
 API = 4                              # the newest app API this guide speaks (1: launchers, 2 to 4: apps with code)
 NAMESPACE = PRINCIPAL = "uber-tv-catalog"
 MAX_PACKAGE = 20 * 1024 * 1024       # downloaded
@@ -3344,16 +3346,32 @@ def secrets_locked(path):
         os.close(fd)
 
 
-def read_secrets(path):
+# a secrets file at its biggest: 32 values of up to 4 KB of UTF-8 each,
+# every byte written as up to 6 in JSON (\u0001), with their names and
+# server, fit with room to spare. Whatever the code can write, it can read.
+MAX_SECRETS_FILE = 1024 * 1024
+MAX_SECRET = 4096
+
+
+def read_secrets(path, changing=False):
     """An app's secrets file: {"user": {name: value}} for what you typed in
     its settings, {"signIn": {"server", "values"}} for what its sign-in kept
-    (good only for that server)"""
+    (good only for that server). changing: read to be written back. One
+    there that can't be read (too big, not JSON) is then Bad, never taken
+    as empty and written over (what it holds would be lost)."""
+    data = None
     try:
         with open_plain(path, follow=False) as f:
-            data = json.loads(f.read(256 * 1024).decode("utf-8"))
-    except (OSError, ValueError):
+            raw = f.read(MAX_SECRETS_FILE + 1)
+        if len(raw) <= MAX_SECRETS_FILE:
+            data = json.loads(raw.decode("utf-8"))
+    except FileNotFoundError:
         data = {}
+    except (OSError, ValueError):
+        pass
     if not isinstance(data, dict):
+        if changing:
+            raise Bad("the app's secrets file couldn't be read, so it was left as it is")
         data = {}
     user = data.get("user") if isinstance(data.get("user"), dict) else {}
     sign = data.get("signIn") if isinstance(data.get("signIn"), dict) else {}
@@ -3368,10 +3386,10 @@ def do_secret_set(path, name, value):
     secrets_file(path)
     if not isinstance(name, str) or not re.match(r"^[A-Za-z][A-Za-z0-9_.:-]{0,63}\Z", name):
         raise Bad("not a secret's name")
-    if len(value.encode("utf-8")) > 4096 or "\0" in value:
+    if len(value.encode("utf-8")) > MAX_SECRET or "\0" in value:
         raise Bad("a secret is up to 4 KB of text")
     with secrets_locked(path):
-        data = read_secrets(path)
+        data = read_secrets(path, changing=True)
         if name not in data["user"] and len(data["user"]) + len(data["signIn"]["values"]) >= 32:
             raise Bad("an app keeps up to 32 secrets")
         data["user"][name] = value
@@ -3386,7 +3404,9 @@ def do_secret_clear(path, *names):
     if not names or not all(isinstance(n, str) and (n in ("*", "signIn") or re.match(r"^[A-Za-z][A-Za-z0-9_.:-]{0,63}\Z", n)) for n in names):
         raise Bad("not a secret's name")
     with secrets_locked(path):
-        data = read_secrets(path)
+        # forgetting every secret needs nothing from the file; anything less
+        # keeps the rest, so it must be read
+        data = {"user": {}, "signIn": {"server": "", "values": {}}} if "*" in names else read_secrets(path, changing=True)
         for name in names:
             if name == "*":
                 data = {"user": {}, "signIn": {"server": "", "values": {}}}

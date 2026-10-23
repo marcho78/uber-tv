@@ -30,6 +30,14 @@ Item {
     function states() { return rt.calls.filter(function(c) { return c.method === "playback" }).map(function(c) { return c.args.state }) }
   }
 
+  // another app's runtime, for a play queued from it
+  QtObject {
+    id: other
+    property string phase: "ready"
+    property var closed: []
+    function closeRelay(handle) { other.closed = other.closed.concat([handle]) }
+  }
+
   QtObject {
     id: guide
     property bool muted: true
@@ -139,6 +147,21 @@ Item {
       tryVerify(function() { return pb.active && pb.session.handle === "s11" }, 10000, "the newest plays")
       pb.close("user", null)
       tryVerify(function() { return !pb.active }, 10000)
+    }
+
+    function test_8_a_play_whose_app_stopped_meanwhile_is_said_and_closed() {
+      other.phase = "ready"
+      other.closed = []
+      pb.start("tv.example.app", rt, play("media.mp4", "s12"))
+      tryVerify(function() { return rt.states().indexOf("started") >= 0 }, 15000)
+      pb.start("tv.other.app", other, play("media.mp4", "s13"))   // queued behind the close...
+      other.phase = "stopping"                                      // ...and its app stops meanwhile
+      tryVerify(function() { return !pb.active && guide.ended !== "" && guide.ended !== "ok" }, 10000, "it's said it didn't play: " + guide.ended)
+      compare(guide.ended, "The app stopped before it could play.")
+      compare(other.closed, ["s13"], "and the relay session its app opened for it is closed")
+      verify(pb.pendingPlay === null)
+      wait(500)
+      verify(!pb.active, "it never plays")
     }
 
     function test_5_replacement_waits_for_finalize() {

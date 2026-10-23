@@ -6,7 +6,8 @@
 // background, its picture as a full path; an agent sets it, a color too;
 // an agent opens Multiview with channels, adds, takes off, picks the layout
 // and the sound, and closes it (never a locked channel), and state says so;
-// the phone's ▲ in full screen opens the banner's choices, ◀ ▶ change channel.
+// the phone's ▲ in full screen opens the banner's choices, ◀ ▶ change channel;
+// an agent's watch, a moment later, puts on the channel asked for.
 //   node tests/multiview.test.mjs
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -319,6 +320,38 @@ const block = (text, opener) => {
 {
   const dialogSrc = readFileSync(new URL("../ui/DialogBox.qml", import.meta.url), "utf8")
   assert.match(dialogSrc, /Key_Escape\) guide\.pickImages && guide\.pickArea !== "home" && guide\.pickArea !== "multiview" \? guide\.backToStyle\(\) : guide\.closeDialog\(\)/)
+}
+
+// ---- an agent's watch, a moment later: the channel asked for ----
+// The guide (or the mini player) comes up first, so watch goes on 600 ms
+// later; a category set or a channel removed meanwhile moves the rows, and
+// it's the channel asked for that comes on, not whatever took its row
+{
+  const watch = new Function("guide", "commands", "watchSoon", "number", block(commandsSrc, "function watch(number: string): string {"))
+  const watchSoonSrc = commandsSrc.slice(commandsSrc.indexOf("id: watchSoon"))
+  const fired = new Function("guide", "commands", watchSoonSrc.match(/onTriggered: \{/) ? block(watchSoonSrc, "onTriggered: {") : watchSoonSrc.match(/onTriggered: (.*)\n/)[1])
+  const watched = []
+  const guide = {
+    channels: [{ url: "u/news", name: "News" }, { url: "u/kids", name: "Kids" }, { url: "u/film", name: "Films" }], numbers: [101, 102, 103],
+    opened: true, airs: () => true, channelLock: { blocks: () => false, isLocked: () => false }, recorder: { needsAsk: () => false }, visibleRows: [0, 1, 2], watch: r => watched.push(guide.channels[r].url),
+    indexOf(url) { for (let i = 0; i < guide.channels.length; i++) if (url && guide.channels[i].url === url) return i; return -1 },
+  }
+  const commands = { pendingWatch: commandsSrc.match(/property int pendingWatch/) ? -1 : "", okReply: o => ({ ok: true, ...o }), failReply: e => ({ ok: false, error: e }),
+                     rowsFor: n => guide.numbers.indexOf(Number(n)) >= 0 ? [guide.numbers.indexOf(Number(n))] : [],
+                     channelInfo: r => ({ number: guide.numbers[r], name: guide.channels[r].name }) }
+  const watchSoon = { restart() {} }
+  assert.equal(watch(guide, commands, watchSoon, "102").ok, true)
+  // meanwhile: News moved into another category, after Films
+  guide.channels = [guide.channels[1], guide.channels[2], guide.channels[0]]
+  fired(guide, commands)
+  assert.deepEqual(watched, ["u/kids"], "Kids comes on, as asked, wherever it is now")
+  // meanwhile: the channel asked for was removed: nothing comes on
+  watch(guide, commands, watchSoon, "101")                 // Kids again (row 0 now)
+  guide.channels = [guide.channels[1], guide.channels[2]]
+  fired(guide, commands)
+  assert.deepEqual(watched, ["u/kids"], "removed meanwhile: no other channel comes on in its place")
+  fired(guide, commands)
+  assert.deepEqual(watched, ["u/kids"], "and it goes on once only")
 }
 
 console.log("multiview: ok")

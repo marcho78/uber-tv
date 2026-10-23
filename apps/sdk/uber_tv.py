@@ -83,9 +83,10 @@ class Cancelled(BaseException):
 # ---- text --------------------------------------------------------------------
 
 def text(v, n, lines=False):
-    """Plain text that fits: control characters become spaces (newlines kept
-    only where lines is true, or a number of lines), cut to n characters
-    with an ellipsis"""
+    """Plain text that fits: control characters, and halves of a character
+    that lost its other half (lone surrogates, which can't be sent), become
+    spaces (newlines kept only where lines is true, or a number of lines),
+    cut to n characters with an ellipsis"""
     if v is None:
         return ""
     s = str(v)
@@ -94,7 +95,8 @@ def text(v, n, lines=False):
         o = ord(c)
         if c == "\n" and lines:
             out.append(c)
-        elif o < 0x20 or 0x7F <= o < 0xA0 or o in (0x2028, 0x2029) or 0x202A <= o <= 0x202E or 0x2066 <= o <= 0x2069:
+        elif (o < 0x20 or 0x7F <= o < 0xA0 or o in (0x2028, 0x2029) or 0x202A <= o <= 0x202E or 0x2066 <= o <= 0x2069
+              or 0xD800 <= o <= 0xDFFF):
             out.append(" ")
         else:
             out.append(c)
@@ -988,6 +990,12 @@ class App:
             _send(out)
         except AppError as e:
             _send({"t": "result", "id": cid, "error": {"code": "toobig", "text": str(e)}})
+        except (ValueError, TypeError) as e:
+            # something in it can't be sent (half a character, a number JSON
+            # doesn't have): the call is still answered, so the app isn't
+            # stopped for never answering it
+            traceback.print_exc()
+            _send({"t": "result", "id": cid, "error": {"code": "crash", "text": "its answer couldn't be sent (" + type(e).__name__ + ")"}})
 
     def _live(self, view):
         _local.owner = view

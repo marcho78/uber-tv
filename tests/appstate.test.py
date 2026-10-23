@@ -40,6 +40,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SD = "9866a2d1833b76c1"   # bin/om-pg-apps source_dir("file:0123456789abcdef")
 work = tempfile.mkdtemp(prefix="om-pg-appstate-test-")
 
+# Scores' app.json before API 4 (1.0.2 at api 2, 1.1.0 at api 3 with its
+# rows), asking for what it asks for now
+SCORES = {
+    "id": "tv.uber.scores", "name": "Scores", "kind": "app", "author": "Uber TV",
+    "description": "Live scores, today's games and finals for the NFL, NBA, MLB, NHL, the Premier League and MLS, from ESPN.",
+    "color": "#d62828", "icon": "icon.png", "main": "main.py",
+    "permissions": {"net": ["site.api.espn.com", "a.espncdn.com"]},
+    "settings": [{"key": "league", "type": "choice", "label": "League",
+                  "choices": ["NFL", "NBA", "MLB", "NHL", "Premier League", "MLS"]}],
+    "home": [{"key": "now", "label": "Scores now"}],
+}
+SCORES_ROWS = [
+    {"id": "in", "label": "Live now", "shape": "logo", "layout": "grid"},
+    {"id": "pre", "label": "Coming up", "shape": "logo", "layout": "grid"},
+    {"id": "post", "label": "Final", "shape": "logo", "layout": "grid"},
+]
+
 # The stand-in helper (step 9): <answers>/<command>.json, if it's there and
 # not empty, is that command's next answer (taken once), given once
 # <answers>/<command>.hold (or the file its "_hold" names, for an answer
@@ -102,23 +119,22 @@ try:
     put("xdgc/om-pg/app-secrets/%s/tv.example.code.json" % SD,
         {"user": {}, "signIn": {"server": "https://s.example", "values": {"token": "t2"}}})
     put("data/om-pg/app-store/%s/tv.example.launch.json" % SD, {"v": 1, "keys": {}})
-    # the plugin as it was before API 3: its Scores, 1.0.2, api 2 (from git)
-    old = os.path.join(work, "oldplugin", "apps", "first-party", "tv.uber.scores")
-    os.makedirs(old)
-    for name in ("app.json", "main.py", "icon.png"):
-        with open(os.path.join(old, name), "wb") as f:
-            f.write(subprocess.run(["git", "-C", ROOT, "show", "7b0c780:apps/first-party/tv.uber.scores/" + name],
-                                   capture_output=True, check=True).stdout)
-    # (its helper is the plugin's own: it finds its modules where it really is)
-    os.symlink(os.path.join(ROOT, "bin"), os.path.join(work, "oldplugin", "bin"))
-    # and as it was at API 3, before Scores went live: 1.1.0
-    mid = os.path.join(work, "midplugin", "apps", "first-party", "tv.uber.scores")
-    os.makedirs(mid)
-    for name in ("app.json", "main.py", "icon.png"):
-        with open(os.path.join(mid, name), "wb") as f:
-            f.write(subprocess.run(["git", "-C", ROOT, "show", "569f1c3:apps/first-party/tv.uber.scores/" + name],
-                                   capture_output=True, check=True).stdout)
-    os.symlink(os.path.join(ROOT, "bin"), os.path.join(work, "midplugin", "bin"))
+    # the plugin as it was before API 3: its Scores, 1.0.2, api 2; and as it
+    # was at API 3, before Scores went live: 1.1.0. Their app.json as they
+    # were (the history they came from isn't in every clone), beside the
+    # plugin's own main.py and icon (what step 4b checks is their app.json)
+    for plugin, version, api, layout in (("oldplugin", "1.0.2", 2, None), ("midplugin", "1.1.0", 3, SCORES_ROWS)):
+        folder = os.path.join(work, plugin, "apps", "first-party", "tv.uber.scores")
+        os.makedirs(folder)
+        old = dict(SCORES, version=version, api=api)
+        if layout:
+            old["layout"] = {"rows": layout}
+        with open(os.path.join(folder, "app.json"), "w") as f:
+            json.dump(old, f)
+        for name in ("main.py", "icon.png"):
+            shutil.copy(os.path.join(ROOT, "apps", "first-party", "tv.uber.scores", name), os.path.join(folder, name))
+        # (its helper is the plugin's own: it finds its modules where it really is)
+        os.symlink(os.path.join(ROOT, "bin"), os.path.join(work, plugin, "bin"))
     # one of your sources (milestone 6), its list kept and signed, at an
     # address that never resolves (.invalid): an install fails to get its
     # package without anything leaving this computer

@@ -1163,6 +1163,38 @@ Item {
       view.sampling = ({})
     }
 
+    // Rows made ahead and never shown don't pile up, and keep no clock
+    // running: the 200 ms clock runs only while a shown row decides, and a
+    // new view drops what was deciding for the one before
+    function sampleTimer() {
+      for (var i = 0; i < view.data.length; i++) {
+        var t = view.data[i]
+        if (t && t.interval === 200 && t.repeat === true && t.triggered !== undefined) return t
+      }
+      return null
+    }
+    function test_rows_made_ahead_dont_pile_up_or_keep_the_clock_running() {
+      openAndLoad()
+      view.learned = ({})
+      view.sampling = ({})
+      var timer = sampleTimer()
+      verify(timer !== null, "the sampling clock")
+      verify(!timer.running, "nothing deciding: no clock")
+      view.settleNow("ahead", 0, 0.66, 5)                 // made ahead, off the screen
+      var k = view.shapeKey + "\n" + "ahead"
+      compare(view.sampling[k].start, 0)
+      verify(!timer.running, "a row made ahead keeps no clock running")
+      view.rowShown("shown", 5)
+      verify(timer.running, "a shown row deciding: the clock runs")
+      view.epoch += 1                                    // another screen
+      compare(Object.keys(view.sampling).length, 0, "what was deciding for the old view goes")
+      verify(!timer.running, "and the clock stops")
+      view.settleNow("ahead", 0, 0.66, 5)
+      view.epoch += 1
+      compare(Object.keys(view.sampling).length, 0, "a row made ahead goes with its view too")
+      view.sampling = ({})
+    }
+
     // ---- milestone 1, ycodex round 2 ---------------------------------------
     // Three pictures that settle before their row is shown decide it then,
     // and the same three decide the same on the screen, in any order: the

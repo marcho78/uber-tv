@@ -83,6 +83,8 @@ Item {
     pb.buffering = true
     pb.position = 0
     pb.duration = 0
+    pb.seekTarget = -1
+    seekGap.stop()
     rt.lease("playback", true)
     guide.appPlaying = true
     pb.attempt(value.url)
@@ -279,13 +281,11 @@ Item {
       // a replacement only once the old player is really gone, and only for
       // a runtime still running
       if (next && !ok) { pb.dropPending(); guide.appPlaybackEnded(next.app, "The player before didn't let go, so it didn't play.") }
-      else if (next) { pb.pendingPlay = null; if (next.rt.phase === "ready") pb.start(next.app, next.rt, next.value) }
+      else if (next && next.rt.phase === "ready") { pb.pendingPlay = null; pb.start(next.app, next.rt, next.value) }
+      else if (next) { pb.dropPending(); guide.appPlaybackEnded(next.app, "The app stopped before it could play.") }
     })
   }
 
-  // A play that waited and won't happen after all: the relay session its
-  // app opened for it is closed (it never started, so no report is owed;
-  // a runtime that stopped took its relay with it)
   // A play waiting for the TV's buffer, given up (its app's, or any): its relay closed
   function dropWaiting(appId) {
     var w = pb.waitingTv
@@ -294,10 +294,14 @@ Item {
     if (w.rt.phase === "ready") w.rt.closeRelay(w.value.session)
   }
 
+  // A play that waited and won't happen after all: the relay session its
+  // app opened for it is closed (it never started, so no report is owed;
+  // a runtime that's stopping or stopped takes it with it, and nothing is
+  // sent to one that's gone)
   function dropPending() {
     var p = pb.pendingPlay
     pb.pendingPlay = null
-    if (p && p.rt.phase === "ready") p.rt.closeRelay(p.value.session)
+    if (p) p.rt.closeRelay(p.value.session)
   }
 
   function runAfter() {
@@ -313,11 +317,28 @@ Item {
     else pb.player.play()
   }
 
+  // Skips add up, and the player is asked at most every 300 ms (as the
+  // guide's own: a burst of seeks stalled the shell)
+  property real seekTarget: -1
   function seek(seconds) {
     if (!pb.player || pb.closing || !pb.player.seekable) return
-    var to = Math.max(0, Math.min(pb.player.duration - 1000, pb.player.position + seconds * 1000))
-    pb.player.position = to
-    pb.event("seeked")
+    var from = pb.seekTarget >= 0 ? pb.seekTarget : pb.player.position
+    pb.seekTarget = Math.max(0, Math.min(pb.player.duration - 1000, from + seconds * 1000))
+    if (!seekGap.running) pb.applySeek()
+  }
+  function applySeek() {
+    if (pb.seekTarget < 0) return
+    if (pb.player && !pb.closing) {
+      pb.player.position = pb.seekTarget
+      pb.event("seeked")
+    }
+    pb.seekTarget = -1
+    seekGap.restart()
+  }
+  Timer {
+    id: seekGap
+    interval: 300
+    onTriggered: pb.applySeek()
   }
 
   // the runtime stopping on its own: the media stops, and it's said
