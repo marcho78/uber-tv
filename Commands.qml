@@ -7,6 +7,7 @@ import "AppAsks.js" as Asks
 import "Dvr.js" as DvrRules
 import "Timeshift.js" as Ts
 import "Remote.js" as Remote
+import "Touch.js" as Touch
 
 // The guide's commands, for scripts and AI agents: omarchy-shell om-pg <command> ...
 // (skills/program-guide/SKILL.md says how to use them). Each answers with
@@ -25,6 +26,12 @@ Scope {
   }
 
   function failReply(message) { return JSON.stringify({ ok: false, error: message }) }
+
+  // Tablet mode: the setting, whether the touch controls are on now, what was
+  // used last, and how much room the screen gives
+  function touchInfo() {
+    return { setting: guide.touchSetting, on: guide.touchMode, lastInput: guide.lastInput, fit: guide.screenFit }
+  }
 
   function onOff(v) {
     var t = String(v).trim().toLowerCase()
@@ -354,6 +361,7 @@ Scope {
     ["removeChannels <numbers>", "removes channels (only when the user asks)"],
     ["logos <on|off>", "channel logos in the guide"],
     ["keyHints <on|off>", "the key hints along the bottom"],
+    ["touchControls <auto|on|off|\"\">", "tablet mode's touch controls: auto (on once a finger touches the screen, until Uber TV closes), on or off; \"\" just says which, and whether they're on now. Only when the user asks"],
     ["refresh", "fetches the listings again"],
     ["apps", "apps: whether they're on, Developer mode, the catalog, and the installed apps (id, name, version, on or off, on the screen now, where from, whether it's been checked, what each is allowed to do, any problem, an update waiting)"],
     ["appOff <id>", "turns one installed app off; it stays installed. Turning apps or an app on, installing, updating and removing them stay the user's, in Settings → Apps: there's no command for those"],
@@ -377,7 +385,7 @@ Scope {
                             channels: guide.channels.length, iptv: guide.channels.filter(function(c) { return c.kind === "iptv" }).length,
                             shownNow: guide.visibleRows.length, categories: guide.categories.length,
                             source: guide.shownSource, shownCategories: guide.shownCategories,
-                            theme: guide.themeId, logos: guide.showLogos, keyHints: guide.showKeyHints, lineup: guide.lineupMode,
+                            theme: guide.themeId, logos: guide.showLogos, keyHints: guide.showKeyHints, touch: commands.touchInfo(), lineup: guide.lineupMode,
                             awake: guide.awake, keptAwake: guide.keptAwake, omarchySaver: !!guide.nativeSaver && guide.nativeSaver.up,
                             screenSaver: guide.screenSaver ? { on: guide.screenSaver.settings.on, showing: guide.screenSaver.showing } : null,
                             channelLock: guide.channelLock ? { passcode: guide.channelLock.set, on: guide.channelLock.on, locked: guide.channelLock.entries.length } : null,
@@ -1485,6 +1493,13 @@ Scope {
       if (v === null) return commands.failReply("on or off")
       guide.setKeyHints(v)
       return commands.okReply({ keyHints: guide.showKeyHints })
+    }
+
+    function touchControls(mode: string): string {
+      var m = String(mode).trim().toLowerCase()
+      if (m && Touch.SETTINGS.indexOf(m) < 0) return commands.failReply("auto, on, off or \"\"")
+      if (m) guide.setTouch(m)
+      return commands.okReply({ touch: commands.touchInfo() })
     }
 
     function refresh(): string {

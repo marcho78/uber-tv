@@ -14,6 +14,7 @@ import "Saver.js" as SaverRules
 import "ChannelLock.js" as LockRules
 import "Dvr.js" as DvrRules
 import "Timeshift.js" as Ts
+import "Touch.js" as Touch
 import "ui"
 
 // The guide: a full-screen, old-school program grid of YouTube channels with
@@ -89,6 +90,13 @@ Item {
 
   // The key hints under the guide (K), on unless hidden. Also in settings.json.
   property bool showKeyHints: true
+  // Tablet mode, the touch controls (Touch.js): "auto" (on once a finger
+  // touches the screen, until Uber TV closes), "on" or "off". In settings.json.
+  property string touchSetting: "auto"
+  property bool touchLatched: false
+  readonly property bool touchMode: Touch.on(touchSetting, touchLatched)
+  // what was used last: keyboard, pointer, touch or remote (focus and hints follow it)
+  property string lastInput: "keyboard"
   // the splash when Uber TV turns on (Settings → General), and whether it's
   // off now: closed with nothing playing on (the mini player keeps it on)
   property bool splashOn: true
@@ -1922,6 +1930,11 @@ Item {
   readonly property var layout: Look.effectiveLayout(currentTheme.layout, layoutOverrides)
 
   readonly property real u: Math.max(10, Math.round((windowed && guideWindow.height > 100 ? guideWindow.height : panel.height) / 60))
+  // A finger in the guide's pixels, from the screen it's on, and how much room
+  // that screen gives: compact, medium or expanded (Touch.js)
+  readonly property var shownScreen: windowed ? guideWindow.screen : panel.screen
+  readonly property real fingerPx: Touch.fingerPx(shownScreen ? shownScreen.physicalPixelDensity : 0, shownScreen ? shownScreen.devicePixelRatio : 1, u)
+  readonly property string screenFit: Touch.fit(windowed && guideWindow.width > 100 ? guideWindow.width : panel.width, u)
 
   // Text that reads on a fill: the color asked for, or dark on a light
   // fill and light on a dark one when the two are too alike
@@ -2395,6 +2408,20 @@ Item {
     return String(root.showLogos)
   }
 
+  // Tablet mode's setting: auto, on or off
+  function setTouch(mode) {
+    root.touchSetting = Touch.setting(mode)
+    root.saveSettings()
+    return root.touchSetting
+  }
+
+  // A finger let go of the screen: in Auto the touch controls come on (after
+  // the press, so nothing moves under it) and stay until Uber TV closes
+  function touchReleased() {
+    root.lastInput = "touch"
+    if (root.touchSetting === "auto") root.touchLatched = true
+  }
+
   // Saved only once the file has been read (before that, the guide's own
   // defaults would go over yours), and never over one that couldn't be read
   // (too big, a link, not a plain file): that file is kept as it is, and
@@ -2402,7 +2429,7 @@ Item {
   function saveSettings() {
     if (!root.settingsLoaded || root.settingsProblem || root.wiping) return
     settings.setText(JSON.stringify({
-      shownCategories: root.shownCategories, sources: root.shownSource, logos: root.showLogos, keyHints: root.showKeyHints, splash: root.splashOn, railCredits: root.railCredits, updates: { on: updatesItem.on, asked: updatesItem.asked }, lineup: root.lineupMode,
+      shownCategories: root.shownCategories, sources: root.shownSource, logos: root.showLogos, keyHints: root.showKeyHints, touch: root.touchSetting, splash: root.splashOn, railCredits: root.railCredits, updates: { on: updatesItem.on, asked: updatesItem.asked }, lineup: root.lineupMode,
       remote: { enabled: root.remoteEnabled, port: root.remotePort, rules: root.remoteRules, template: root.remoteTemplate },
       pip: { width: Math.round(root.pipW), right: Math.round(root.pipRight), bottom: Math.round(root.pipBottom) },
       colors: root.colorOverrides,
@@ -7720,6 +7747,7 @@ Item {
     // Omarchy's screen saver is up: a key closes it (a phone press can't yet)
     if (nativeSaverItem.up || nativeSaverItem.settling) return "Omarchy's screen saver is up"
     if (by === root.byUser) {
+      root.lastInput = "remote"
       // a press on your phone is you here: Hyprland's idle timers start over
       // as for a key (a hold, like a playing video's, still wins)
       if (Hyprland.usingLua) Hyprland.dispatch("hl.dsp.force_idle(0)")
@@ -8049,7 +8077,10 @@ Item {
     else root.summonTo("home")
   }
 
-  onOpenedChanged: remoteStateTimer.restart()
+  onOpenedChanged: {
+    remoteStateTimer.restart()
+    if (!root.opened) root.touchLatched = false   // Auto starts over next time
+  }
   onScreenChanged: remoteStateTimer.restart()
   onVodPausedChanged: remoteStateTimer.restart()
   onWatchingChanged: {
@@ -8668,6 +8699,7 @@ Item {
         root.shownSource = ["youtube", "iptv"].indexOf(saved.sources) >= 0 ? saved.sources : "both"
         root.showLogos = saved.logos !== false
         root.showKeyHints = saved.keyHints !== false
+        root.touchSetting = Touch.setting(saved.touch)
         root.splashOn = saved.splash !== false
         root.railCredits = saved.railCredits !== false
         updatesItem.on = !!saved.updates && saved.updates.on === true
@@ -9597,6 +9629,14 @@ Item {
           capStyle: root.look.keycap
           labelColor: appSplash.ink
         }
+      }
+
+      // Tablet mode: notices a finger (or a real mouse) without taking it
+      TouchWatch {
+        anchors.fill: parent
+        z: 1000000
+        onTouched: root.touchReleased()
+        onPointed: if (root.lastInput !== "pointer") root.lastInput = "pointer"
       }
     }
   }
