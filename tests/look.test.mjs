@@ -765,7 +765,7 @@ assert.equal(L.bgFloored("image", "", "theme"), false)
   // the phone is you too: any of your phone's commands ends an agent's open
   // of an app before it does anything else; another caller's doesn't
   {
-    const remoteCommand = new Function("root", "appViewItem", "nativeSaverItem", "screenSaverItem", "Hyprland", "channelLockItem", "cmd", "number", "by", block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"))
+    const remoteCommand = new Function("root", "appViewItem", "nativeSaverItem", "screenSaverItem", "Hyprland", "channelLockItem", "cmd", "number", "by", block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"))
     const you = {}
     const run = by => {
       let ended = 0

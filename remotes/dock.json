@@ -1,0 +1,61 @@
+{
+  "id": "dock",
+  "name": "Dock",
+  "description": "What's on in large type, with a small dock that grows into the full remote.",
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": ["now"], "height": 60, "grow": true },
+      { "panel": "dock", "rows": [
+        { "row": [{ "control": "chdown", "face": "both" }, "playpause", { "control": "chup", "face": "both" }, { "control": "gap", "weight": 0.4 }, "expand"], "height": 10.5 }
+      ] }
+    ],
+    "expanded": [
+      { "row": [{ "control": "now", "side": "number", "show": ["name", "title", "progress"] }], "height": 17 },
+      { "row": ["gap"], "height": 4, "grow": true },
+      { "panel": "dock", "rows": [
+        { "row": ["power", "mute", "window", "options", "collapse"], "height": 7 },
+        { "row": [{ "control": "dpad", "variant": "ring" }], "height": 31 },
+        { "row": [{ "control": "pad", "scale": 0.94 }], "height": 26, "pad": "on" },
+        { "row": [{ "control": "back", "face": "label", "alt": true }, { "control": "guide", "face": "label", "alt": true }, { "control": "home", "face": "label", "alt": true }], "height": 7 },
+        { "row": [{ "control": "rewind", "alt": true }, { "control": "playpause", "alt": true }, { "control": "forward", "alt": true }, { "control": "live", "alt": true }], "height": 7 },
+        { "row": [{ "control": "rocker", "variant": "split", "weight": 2.1 }, { "control": "padToggle", "alt": true }], "height": 7 }
+      ] }
+    ],
+    "landscape": { "left": ["now", "dpad"] }
+  },
+  "now": { "show": ["name", "hero", "title", "times", "progress", "dvr"], "side": "none" },
+  "elements": {
+    "settingsButton": { "text": { "color": "textDim" } },
+    "card": { "fill": "none", "border": "none", "padding": 2.2 },
+    "nowName": { "text": { "color": "textDim", "size": 3.3, "weight": "semibold", "letterSpacing": 0.24, "case": "upper" } },
+    "nowHero": { "text": { "color": "text", "size": 38, "weight": 200, "letterSpacing": -0.05 } },
+    "nowNumber": { "text": { "color": "text", "size": 15, "weight": 200, "letterSpacing": -0.05 } },
+    "nowTitle": { "text": { "color": "text", "size": 8, "weight": "semibold", "letterSpacing": -0.025 } },
+    "nowTimes": { "text": { "color": "textDim", "size": 4.1 } },
+    "nowDvr": { "text": { "color": "alert", "size": 3.6, "weight": "semibold" } },
+    "bar": { "fill": "text", "track": "cardEdge", "knob": "text", "height": 0.55, "radius": 0 },
+    "barLabel": { "text": { "color": "textDim", "size": 3.4, "weight": "medium" } },
+    "dock": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 11, "padding": 2.2, "shadow": { "color": "#e6000000", "blur": 11, "x": 0, "y": 5.5 } },
+    "key": { "fill": "cardEdge", "border": "none", "shape": "circle", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 }, "icon": 6 },
+    "key:alt": { "shape": "pill" },
+    "key:pressed": { "opacity": 0.7 },
+    "key:on": { "fill": "accent", "text": { "color": "accentText" } },
+    "power": { "fill": "cardEdge", "text": { "color": "alert" } },
+    "playpause": { "fill": "accent", "text": { "color": "accentText" }, "icon": 7 },
+    "chup": { "fill": "none", "text": { "color": "textDim", "size": 2.6, "weight": "bold" }, "icon": 6 },
+    "chdown": { "fill": "none", "text": { "color": "textDim", "size": 2.6, "weight": "bold" }, "icon": 6 },
+    "live": { "text": { "color": "accent" } },
+    "dpad": { "fill": "cardEdge", "border": "none" },
+    "arrow": { "text": { "color": "textDim" }, "icon": 5 },
+    "ok": { "fill": "accent", "border": "none", "text": { "color": "accentText", "size": 4.1, "weight": "bold", "letterSpacing": 0.12 } },
+    "rocker": { "fill": "cardEdge", "border": "none", "shape": "pill", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 } },
+    "digit": { "text": { "size": 7, "weight": "light" } },
+    "go": { "fill": "accent", "text": { "color": "accentText", "size": 4.4, "weight": "bold" } },
+    "erase": { "fill": "none", "text": { "color": "textDim" }, "icon": 7 },
+    "sheet": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge", "sides": ["top"] }, "radius": [8.2, 8.2, 0, 0], "padding": 4.4 },
+    "typed": { "fill": "card", "border": { "width": 0.27, "color": "text" }, "radius": 6, "text": { "color": "text", "size": 9, "weight": "light", "letterSpacing": 0.3 } }
+  }
+}

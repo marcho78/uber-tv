@@ -391,6 +391,19 @@ Item {
     ts.openAt(ts.win.live, true)
     return "ok"
   }
+  // To a point in the buffer's time (a scrub let go, the phone's bar):
+  // never before its oldest part; at Live or past it, Live. One reopen;
+  // paused stays paused, there
+  function seekTo(t) {
+    if (!ts.active) return ts.cantPauseText
+    if (!isFinite(t)) return "no such point"
+    if (t >= ts.win.live - Ts.NEAR) return ts.live()
+    ts.openAt(Math.max(ts.win.oldest, t), false)
+    return "ok"
+  }
+  // Where Live is now, as the chip counts it (the end of the bar)
+  readonly property real liveEnd: active ? point + behind : 0
+
   // An agent's move by seconds (back when negative), as far as the buffer goes
   function seekBy(seconds) {
     if (!ts.active) return ts.cantPauseText

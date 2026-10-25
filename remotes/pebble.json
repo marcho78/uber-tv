@@ -1,0 +1,59 @@
+{
+  "id": "pebble",
+  "name": "Pebble",
+  "description": "Just a big round d-pad, back and pause; the rest slides up when you need it.",
+  "colors": { "bg": "#f6f4f0", "bgTo": "#e7e4dd", "card": "#ffffff", "cardEdge": "#e2ded6", "key": "#f1eee8", "keyText": "#1c1c1e", "keyEdge": "#e2ded6",
+              "accent": "#f2602f", "accentText": "#ffffff", "text": "#1c1c1e", "textDim": "#8a867e", "alert": "#e5484d" },
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": [{ "control": "now", "show": ["channel", "title", "times", "dvr"], "align": "center" }], "height": 15 },
+      { "row": [{ "control": "dpad", "variant": "ring", "scale": 0.92 }], "height": 46, "grow": true },
+      { "row": [{ "control": "gap", "weight": 0.4 }, { "control": "back", "scale": 0.79 }, "playpause", { "control": "expand", "scale": 0.79 }, { "control": "gap", "weight": 0.4 }], "height": 10.5 }
+    ],
+    "expanded": [
+      { "row": [{ "control": "now", "show": ["channel"], "align": "center" }], "height": 5 },
+      { "row": [{ "control": "dpad", "variant": "ring", "scale": 0.92 }], "height": 32, "grow": true },
+      { "panel": "sheet", "handle": true, "rows": [
+        { "row": [{ "control": "power", "alt": true }, { "control": "mute", "alt": true }, { "control": "window", "alt": true }, { "control": "options", "alt": true }], "height": 7.6 },
+        { "row": [{ "control": "rewind", "alt": true }, { "control": "playpause", "alt": true }, { "control": "forward", "alt": true }, { "control": "live", "alt": true }], "height": 7.6 },
+        { "row": [{ "control": "back", "face": "label", "alt": true }, { "control": "guide", "face": "label", "alt": true }, { "control": "home", "face": "label", "alt": true }], "height": 7.6 },
+        { "row": [{ "control": "pad", "scale": 0.94 }], "height": 26, "pad": "on" },
+        { "row": [{ "control": "rocker", "variant": "split", "weight": 2.1 }, { "control": "padToggle", "alt": true }, { "control": "collapse", "alt": true }], "height": 7.6 }
+      ] }
+    ],
+    "landscape": { "left": ["now", "dpad"] }
+  },
+  "now": { "show": ["channel", "title", "times", "dvr"], "side": "none", "align": "center" },
+  "elements": {
+    "page": { "fill": { "from": "bg", "to": "bgTo", "direction": "down" } },
+    "settingsButton": { "text": { "color": "textDim" } },
+    "card": { "fill": "none", "border": "none", "padding": 1 },
+    "nowChannel": { "text": { "color": "textDim", "size": 3.1, "weight": "semibold", "letterSpacing": 0.18, "case": "upper" } },
+    "nowTitle": { "text": { "color": "text", "size": 6.3, "weight": "semibold", "letterSpacing": -0.02 } },
+    "nowTimes": { "text": { "color": "textDim", "size": 3.6, "weight": "medium" } },
+    "nowDvr": { "text": { "color": "alert", "size": 3.4, "weight": "semibold" } },
+    "key": { "fill": "#ffffff", "border": "none", "shape": "circle", "shadow": { "color": "#593c321e", "blur": 6.5, "x": 0, "y": 2.7 },
+             "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 }, "icon": 6 },
+    "key:alt": { "fill": "key", "shape": "pill", "shadow": "none", "icon": 5.8 },
+    "key:pressed": { "fill": "#e7e3db" },
+    "key:on": { "fill": "text", "text": { "color": "#ffffff" } },
+    "playpause": { "fill": "#1d1d20", "text": { "color": "#ffffff" }, "icon": 7.7, "shadow": { "color": "#66000000", "blur": 6, "x": 0, "y": 3 } },
+    "playpause:pressed": { "fill": "#3a3a40" },
+    "playpause:alt": { "fill": "#1d1d20" },
+    "power": { "fill": "#ffffff", "text": { "color": "alert" } },
+    "live": { "text": { "color": "accent" } },
+    "dpad": { "fill": "#1d1d20", "border": "none", "shadow": { "color": "#73000000", "blur": 16, "x": 0, "y": 9 } },
+    "arrow": { "text": { "color": "#8e8e95" }, "icon": 5.5 },
+    "ok": { "fill": "#2e2e33", "border": "none", "shadow": { "color": "#b3000000", "blur": 5.5, "x": 0, "y": 2.2 }, "text": { "color": "#ffffff", "size": 4.4, "weight": "medium", "letterSpacing": 0.14 } },
+    "rocker": { "fill": "key", "border": "none", "shape": "pill", "shadow": "none", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 } },
+    "digit": { "fill": "key", "shadow": "none", "text": { "size": 7, "weight": "light" } },
+    "go": { "fill": "accent", "shadow": "none", "text": { "color": "accentText", "size": 4.4, "weight": "bold" } },
+    "erase": { "fill": "none", "shadow": "none", "text": { "color": "textDim" }, "icon": 7 },
+    "sheet": { "fill": "#ffffff", "radius": [9.3, 9.3, 0, 0], "padding": 4.4, "shadow": { "color": "#473c321e", "blur": 16, "x": 0, "y": -6 } },
+    "handle": { "fill": "#dcd8d0", "radius": 1 },
+    "typed": { "fill": "#ffffff", "border": "none", "radius": 6, "shadow": { "color": "#403c321e", "blur": 8, "x": 0, "y": 3 }, "text": { "color": "text", "size": 8, "weight": "semibold", "letterSpacing": 0.3 } }
+  }
+}

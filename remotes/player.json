@@ -1,0 +1,52 @@
+{
+  "id": "player",
+  "name": "Player",
+  "description": "What's on first, with a bar you drag to rewind; big pause, rewind and forward.",
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": ["power", { "control": "gap", "weight": 4 }, "mute", "options"], "height": 6.2 },
+      { "row": ["now"], "height": 27 },
+      { "row": [{ "control": "live", "scale": 0.8 }, "rewind", { "control": "playpause", "weight": 1.55 }, "forward", { "control": "window", "scale": 0.8 }], "height": 13 },
+      { "row": [{ "control": "dpad", "variant": "plus", "arrows": "chevron" }], "height": 26, "grow": true },
+      { "row": [{ "control": "pad", "scale": 0.94 }], "height": 30, "pad": "on" },
+      { "row": [{ "control": "back", "face": "label" }, { "control": "guide", "face": "label" }, { "control": "home", "face": "label" }, { "control": "rocker", "variant": "split", "weight": 1.9 }], "height": 7 }
+    ],
+    "landscape": { "left": ["now", "power", "mute", "options", "live", "rewind", "playpause", "forward", "window"] }
+  },
+  "now": { "show": ["channel", "title", "times", "progress", "dvr"], "side": "logo", "align": "left" },
+  "elements": {
+    "settingsButton": { "text": { "color": "textDim" } },
+    "card": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 8.2, "padding": 6, "shadow": { "color": "#b3000000", "blur": 8, "x": 0, "y": 4 } },
+    "nowLogo": { "fill": "cardEdge", "border": "none", "radius": 5.5, "size": 21, "text": { "color": "text", "size": 5, "weight": "black" } },
+    "nowChannel": { "text": { "color": "accent", "size": 3.3, "weight": "semibold", "case": "upper", "letterSpacing": 0.14 } },
+    "nowTitle": { "text": { "color": "text", "size": 6, "weight": "bold", "letterSpacing": -0.02 } },
+    "nowTimes": { "text": { "color": "textDim", "size": 3.7, "weight": "medium" } },
+    "nowDvr": { "text": { "color": "alert", "size": 3.6, "weight": "semibold" } },
+    "bar": { "fill": "accent", "track": "cardEdge", "knob": "#ffffff", "height": 1.65, "radius": 0.8, "shadow": { "color": "#80000000", "blur": 2.7, "x": 0, "y": 0.5 } },
+    "barLabel": { "text": { "color": "textDim", "size": 3, "weight": "bold", "letterSpacing": 0.1 } },
+    "key": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "shape": "circle", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.1 }, "icon": 5.5 },
+    "key:pressed": { "fill": "cardEdge" },
+    "key:on": { "fill": "accent", "text": { "color": "accentText" } },
+    "power": { "fill": "card", "text": { "color": "alert" } },
+    "playpause": { "fill": "accent", "border": "none", "text": { "color": "accentText" }, "icon": 10.5, "shadow": { "color": "#8c000000", "blur": 6, "x": 0, "y": 3 } },
+    "playpause:pressed": { "fill": "accent", "opacity": 0.8 },
+    "rewind": { "icon": 7.7 },
+    "forward": { "icon": 7.7 },
+    "live": { "text": { "size": 3.3, "weight": "bold", "letterSpacing": 0.12 } },
+    "back": { "shape": "pill" },
+    "guide": { "shape": "pill" },
+    "home": { "shape": "pill" },
+    "rocker": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "shape": "pill", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.1 } },
+    "dpad": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 6 },
+    "arrow": { "text": { "color": "textDim" }, "icon": 6 },
+    "ok": { "fill": "none", "border": { "width": 0.41, "color": "accent" }, "text": { "color": "accent", "size": 4.1, "weight": "bold", "letterSpacing": 0.06 } },
+    "digit": { "text": { "size": 7, "weight": "light" } },
+    "go": { "fill": "accent", "border": "none", "text": { "color": "accentText", "size": 4.4, "weight": "bold" } },
+    "erase": { "fill": "none", "border": "none", "text": { "color": "textDim" }, "icon": 7 },
+    "typed": { "fill": "card", "border": { "width": 0.4, "color": "accent" }, "radius": 6, "text": { "color": "accent", "size": 8, "weight": "semibold", "letterSpacing": 0.3 } },
+    "sheet": { "fill": "bg", "border": { "width": 0.27, "color": "cardEdge", "sides": ["top"] }, "radius": [7, 7, 0, 0], "padding": 4.4 }
+  }
+}

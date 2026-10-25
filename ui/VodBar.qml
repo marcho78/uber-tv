@@ -16,8 +16,10 @@ Box {
   readonly property var progressStyle: guide.look.vodProgress
   property real dragAt: -1            // where a drag along it is, in seconds (-1: none)
   property var dragFor: null          // the video the drag began on: letting go seeks only that one
-  readonly property real shownAt: dragAt >= 0 ? dragAt : position
-  readonly property bool held: scrub.containsMouse || scrub.pressed
+  // a held ← → scrubs too (Guide.qml): its mark, until it's let go
+  readonly property bool keyScrub: !!guide.scrub && guide.scrub.movie === true
+  readonly property real shownAt: dragAt >= 0 ? dragAt : keyScrub ? guide.scrub.at : position
+  readonly property bool held: scrub.containsMouse || scrub.pressed || keyScrub
   function atX(x) { return Math.max(0, Math.min(1, x / Math.max(1, track.width))) * duration }
 
   function hms(t) {

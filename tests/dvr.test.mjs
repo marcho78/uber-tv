@@ -149,7 +149,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   assert.deepEqual([root.recStopMenu, seen.splice(0)], [false, []], "Esc in the stop times: back out, not away")
   back(root, timer)
   assert.deepEqual(seen.splice(0), ["hide"], "then away")
-  assert.ok(block(guideSrc, "function remoteCommand(cmd, number, by, digits) {").includes('else if (cmd === "down" || cmd === "back") root.bannerBack()'), "the phone's ▼ and BACK too")
+  assert.ok(block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {").includes('else if (cmd === "down" || cmd === "back") root.bannerBack()'), "the phone's ▼ and BACK too")
   assert.match(read("GuideKeys.qml"), /Key_Escape \|\| k === Qt\.Key_Backspace \|\| k === Qt\.Key_Down\) guide\.bannerBack\(\)/)
 }
 
@@ -293,9 +293,9 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   assert.match(block(guideSrc, "function surf(delta) {"), /if \(!root\.streamOk\(to,/, "surfing asks before it tunes")
   assert.match(block(guideSrc, "function watch(r) {"), /!root\.streamOk\(r,/, "and watching")
   assert.match(block(guideSrc, "function previewRow() {"), /dvr\.needsAsk\(ch\)/, "the preview waits on those channels")
-  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"), /if \(!root\.streamOk\(i, function\(\) \{ root\.remoteCommand\("tune", number, by\) \}\)\) return/, "a phone's number too")
-  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"), /if \(root\.dialog === "recStream"\) \{[^}]*cmd === "ok"\) root\.answerStream\(true\)/, "the phone answers the box")
-  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"), /if \(cmd === "up"\) root\.libEpisodeMove\(-1\)\n\s*else if \(cmd === "down"\) root\.libEpisodeMove\(1\)\n\s*else if \(cmd === "ok"\) root\.libDetailOk\(\)/,
+  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"), /if \(!root\.streamOk\(i, function\(\) \{ root\.remoteCommand\("tune", number, by\) \}\)\) return/, "a phone's number too")
+  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"), /if \(root\.dialog === "recStream"\) \{[^}]*cmd === "ok"\) root\.answerStream\(true\)/, "the phone answers the box")
+  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"), /if \(cmd === "up"\) root\.libEpisodeMove\(-1\)\n\s*else if \(cmd === "down"\) root\.libEpisodeMove\(1\)\n\s*else if \(cmd === "ok"\) root\.libDetailOk\(\)/,
                "the phone's OK in a recording's details picks the choice under the cursor")
 
   // the small-disk defaults: only the system disk
@@ -348,7 +348,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   act(root, d)
   assert.deepEqual(seen.splice(0), ["record Evening News"], "Record: that show")
   assert.match(read("GuideKeys.qml"), /else if \(k === Qt\.Key_Return \|\| k === Qt\.Key_Enter\) guide\.watch\(guide\.row\)\n\s*else if \(k === Qt\.Key_I \|\| k === Qt\.Key_Space\) guide\.openShowChoices\(\)/, "Enter still watches; I or Space opens the choices")
-  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"), /else if \(root\.screen === "guide"\) root\.openShowChoices\(\)/, "phone ⋯ in the guide too")
+  assert.match(block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"), /else if \(root\.screen === "guide"\) root\.openShowChoices\(\)/, "phone ⋯ in the guide too")
 
   // a locked channel's cell (its show hidden): on now, Record (after the
   // passcode, what's on); later, Record and Record every episode, the
@@ -1050,7 +1050,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
 // L on a recording; the agents' shows and startOver ----
 {
   const remoteCommand = new Function("root", "appViewItem", "nativeSaverItem", "screenSaverItem", "Hyprland", "channelLockItem", "appPanelItem", "appsStore", "cmd", "number", "by",
-                                     block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"))
+                                     block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"))
   const you = {}
   const idle = { up: false, settling: false, showing: false, activity() {}, wake() {} }
   const make = extra => {
@@ -1121,7 +1121,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   assert.match(guideSrc, /readonly property string remotePause: timeshift\.active && !vod \? \(timeshift\.paused \? "paused" : timeshift\.atLive \? "live" : "behind " \+ Math\.round\(timeshift\.behind \/ 15000\)\) : ""\n  onRemotePauseChanged: remoteStateTimer\.restart\(\)/,
                "told when it pauses, goes live or moves 15 s; not each second")
   for (const p of ["onRecBadgeChanged", "onStripAsksChanged", "onStripPlaceChanged"]) assert.match(guideSrc, new RegExp("\\n  " + p + ": remoteStateTimer\\.restart\\(\\)\\n"), p)
-  assert.match(read("bin/om-pg-remote"), /"code",\n\s+"yes", "no"\}/, "the helper lets yes and no through")
+  assert.match(read("bin/om-pg-remote"), /"code",\n\s+"yes", "no"[,}]/, "the helper lets yes and no through")
 
   // the mini player's keys while it asks
   const miniSrc = read("ui/MiniPlayer.qml")
@@ -1282,7 +1282,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   const shown = { "ui/ProgramGrid.qml": 2, "ui/InfoPanel.qml": 3, "ui/TvScreen.qml": 1, "ui/MiniPlayer.qml": 2, "ui/ChannelTable.qml": 3, "ui/FlapBoard.qml": 2,
                   "ui/Multiview.qml": 2, "ui/CardRows.qml": 2, "ui/HomeScreen.qml": 4, "ui/DetailBox.qml": 1, "ui/VodBar.qml": 1 }
   for (const [f, n] of Object.entries(shown)) assert.equal((read(f).match(/showTitle\(/g) || []).length, n, f)
-  assert.equal((guideSrc.match(/root\.showTitle\(/g) || []).length, 5, "the phones' titles and the media widget's")
+  assert.equal((guideSrc.match(/root\.showTitle\(/g) || []).length, 6, "the phones' titles (an app's video's too) and the media widget's")
   // ● REC in the channel column while it records; the cell's mark in its recording state
   const grid = read("ui/ProgramGrid.qml")
   assert.match(grid, /readonly property bool recording: guide\.recordingOn\(rowItem\.channel\)/)
@@ -1341,7 +1341,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   release(b2, { x: 7 })
   assert.deepEqual(seeks, [42], "another video came on during the drag: it isn't moved")
   assert.match(vb, /onPressed: function\(mouse\) \{ bar\.dragFor = bar\.guide\.vod;/, "the drag remembers its video")
-  assert.match(vb, /readonly property real shownAt: dragAt >= 0 \? dragAt : position/)
+  assert.match(vb, /readonly property real shownAt: dragAt >= 0 \? dragAt : keyScrub \? guide\.scrub\.at : position/, "a drag, a held key's scrub, or where it is")
   assert.equal((vb.match(/bar\.shownAt/g) || []).length, 4, "the bar, the mark and both times show the drag")
   assert.match(read("ui/TvScreen.qml"), /guide\.reception !== "on" \|\| vodBar\.held\)/, "it stays while the pointer's on it")
 }

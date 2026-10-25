@@ -23,7 +23,9 @@ description: >
   channel lists, sort channels into categories, rename or remove channels,
   choose what the guide shows, and open it on a channel. Record channels and
   shows (DVR): what's on now, later shows and every episode of a series; pause
-  and rewind live TV. Triggers: program guide, TV guide, EPG, om-pg, IPTV, m3u,
+  and rewind live TV. Lay out and style the phone remote (remote templates:
+  which buttons, where, how they look, a card or the channel list on the
+  phone). Triggers: remote, "phone remote layout", "remote template", program guide, TV guide, EPG, om-pg, IPTV, m3u,
   m3u8, playlist, VOD, movies, record, recording, DVR, "record channel",
   "record every episode", "pause the TV", "rewind", "make a
   theme for the guide", "make the guide look like…", "round the cells", "change
@@ -100,6 +102,13 @@ or the Uber TV plugin isn't installed or is turned off.
 | `omarchy-shell om-pg addTheme "<json>"` | saves a theme (the JSON itself, not a path) and puts it on once it's saved; the same name again replaces it. Answers a `saving` token (see Saving a look as a theme) |
 | `omarchy-shell om-pg saveTheme "<name>" "<description>"` | saves the look on screen as a theme: the theme on with the user's own colors, styles, fonts, layout and pictures over it, the banner and card, and how every app's screen looks. The name of the theme that's on saves the changes into it; another taken name is refused (`""` description: kept, or made). Put on once it's saved; answers a `saving` token |
 | `omarchy-shell om-pg removeTheme <id>` | deletes one of the user's themes (`state`'s `saving` says when it's gone). Only when the user asks |
+| `omarchy-shell om-pg remoteTemplates` | the phone remote's templates (built in, and the user's in `~/.config/om-pg/remotes`), the `default`, and each paired phone: `{id, name, prefs: {template, pad, size}, uses}`; also `saved` (the last save or removal) and `last` (the last change to a phone) |
+| `omarchy-shell om-pg remoteTemplate <id>` | one template: its layout, card, list and styles, the colors it has with the TV's theme on now, what its file had that was `dropped`, and where each control lands on a 360×640 and a 390×844 phone (`under44` names keys too small) |
+| `omarchy-shell om-pg remoteControls` | what a template can use: controls, card lines, list columns, panels, elements and their properties, states, shapes, fonts, color roles and the caps |
+| `omarchy-shell om-pg addRemoteTemplate "<json>"` | checks a template (the JSON itself, not a path) and saves it; the same id replaces the user's own, never a built-in. Answers what it `dropped` and why; `remoteTemplates`' `saved` says once it's written |
+| `omarchy-shell om-pg setRemoteTemplate <id> <phone id\|default>` | the default template (saved at once, the remote on or off), or one paired phone's (only while the phone remote is on; `remoteTemplates`' `last` says once it's saved) |
+| `omarchy-shell om-pg setRemotePrefs <phone id> '<json>'` | a paired phone's number pad and size: `{"pad": "on" or "off", "size": -2 to 2}` (only while the phone remote is on) |
+| `omarchy-shell om-pg removeRemoteTemplate <id>` | deletes one of the user's templates: the default goes back to Classic if it was it, and phones on it follow the default. Only when the user asks |
 | `omarchy-shell om-pg elements ""` | every part of the guide you can style, the property formats, the layout settings and fonts on now |
 | `omarchy-shell om-pg elements <name>` | one part: what it is, what it takes, its states, and Retro's, the theme's, the user's and the style now |
 | `omarchy-shell om-pg setStyle <element> '<json>'` | styles one part (or `part:state`) over the theme, as the user's: `setStyle programCell '{"radius": 0.4}'`; `null` takes one property off, `theme` (instead of JSON) takes all of it off |
@@ -140,7 +149,8 @@ or the Uber TV plugin isn't installed or is turned off.
 | `omarchy-shell om-pg openApp <app id> "<handle or empty>"` | opens an app that comes with the guide at its first screen, or (with a live item handle from `appScreen`) at that item. Answers the `view` it asked for |
 | `omarchy-shell om-pg appSnapshot <view>` | a PNG of an app's screen, only while that view is on the screen with nothing of the guide's over it. Answers its file's `name`; `state`'s `snapshot` says when it's written |
 
-There's no command for the phone remote or the firewall, to keep the screen
+There's no command for turning the phone remote on, pairing a phone or the
+firewall (its layouts and looks are yours: see Phone remote templates), to keep the screen
 awake (it can keep the computer from locking), for the channel lock (setting
 its passcode, locking, unlocking or watching a locked channel: `watch` and
 `play` refuse a locked channel and its videos, `channels` says `locked`, and
@@ -341,7 +351,7 @@ each is, its states, and whether the theme or the user styles it); `elements
 | Board | `flapTile` (`:status`) |
 | Home | `homeTile` (`:current`), `homeCard` (`:current`), `homeCardTitle`, `homeCardSub`, `homeRowTitle`, `heroKicker`, `heroTitle`, `heroMeta`, `statusChip`, `homeShade` |
 | Library | `libraryTab` (`:current`), `rowTitle`, `posterCard` (`:current`), `posterTitle`, `posterSub`, `liveBadge`, `cardBadge` |
-| Recordings | `recordBadge` (follows `liveBadge`: ● REC and its stop time on the banner), `recordChoice` (follows `menuRow`, `:focused`: Record, Save video, Stop recording and the stop times among the banner's choices; Record, Record every episode, Cancel recording and Stop recording this series among a show's choices in the guide; a recording's choices in its details), `recordNote` (follows `posterSub`: the line under a Record choice), `recordWarning` (follows `cardBadge`: the word above the banner while watching one channel and recording another from the same provider), `recordDot` (`:recording`, red: ● Recording, Scheduled or Conflict in a program cell), `channelRec` (● REC beside a recording channel's name in the channel column), `mastheadRec` (what's recording, at the top of the guide), `recordingCard` (follows `posterCard`, `:current`), `upcomingRecording` (follows `posterCard`, `:current`: a scheduled one's card), `recordingState` (`:recording`, `:scheduled`, `:attention`: the word on a card: Recording, Saving; Scheduled; Failed, Missed, Incomplete, Conflict, Drive missing; none for Done), `recordingProgress` (follows `vodProgress`: how far a recording is to its stop), `liveChip` (`:behind`: Live, or how far behind live, on the banner while pause and rewind is on, and on the picture while it's behind). "A red REC badge with white text" is `setStyle recordBadge '{"fill": "alert", "text": {"color": "#ffffff"}}'` |
+| Recordings | `recordBadge` (follows `liveBadge`: ● REC and its stop time on the banner), `recordChoice` (follows `menuRow`, `:focused`: Record, Save video, Stop recording and the stop times among the banner's choices; Record, Record every episode, Cancel recording and Stop recording this series among a show's choices in the guide; a recording's choices in its details), `recordNote` (follows `posterSub`: the line under a Record choice), `recordWarning` (follows `cardBadge`: the word above the banner while watching one channel and recording another from the same provider), `recordDot` (`:recording`, red: ● Recording, Scheduled or Conflict in a program cell), `channelRec` (● REC beside a recording channel's name in the channel column), `mastheadRec` (what's recording, at the top of the guide), `recordingCard` (follows `posterCard`, `:current`), `upcomingRecording` (follows `posterCard`, `:current`: a scheduled one's card), `recordingState` (`:recording`, `:scheduled`, `:attention`: the word on a card: Recording, Saving; Scheduled; Failed, Missed, Incomplete, Conflict, Drive missing; none for Done), `recordingProgress` (follows `vodProgress`: how far a recording is to its stop), `liveChip` (`:behind`: Live, or how far behind live, on the banner while pause and rewind is on, over the mark on its player controls (↑ on the banner's choices), and on the picture while it's behind). "A red REC badge with white text" is `setStyle recordBadge '{"fill": "alert", "text": {"color": "#ffffff"}}'` |
 | Multiview | `mvBackground` (follows `background`), `mvTile` (`:current`, the tile with the sound: every tile is framed by a thin border, the current one thicker), `mvStrip` (the band with the channel and what's on), `mvName` (follows `posterTitle`), `mvShow` (follows `posterSub`), `mvSound` (follows `cardBadge`): Multiview's screen, up to four channels at once. "Thicker borders between the tiles" is `setStyle mvTile '{"border": {"width": 0.15}}'` |
 | Apps | `appCard` (`:current`, its `grow`), `appCardTitle`, `appCardSub`, `appRowTitle`, `appBadge`, `appProgress`, `appTopKicker`, `appTopTitle`, `appTopMeta`, `appTopText`, `appDetailTitle`, `appDetailMeta`, `appDetailText`, `appFactLabel`, `appFactValue`, `appChip`, `appButton` (`:focused`), `appShade`, `appTableHead`, `appTable` (`:focused`), `appTicker`, `appChart`, `appOrigin`, `appPageTitle`, `appPageHeading`, `appPageText`: an app's screen. Each follows the guide part it's like (`elements <name>` says which: `appCard` follows `posterCard`, `appButton` follows `menuRow`…), state by state, until styled. Whatever the style, the guide keeps its own focus ring round the selected card, keeps the selected title readable and its text no smaller than its floor, and keeps the strip naming the app on top |
 | Player | `vodBar`, `vodTitle`, `vodInfo`, `vodTime`, `vodProgress` (on demand: the bar over a movie or video) |
@@ -426,6 +436,118 @@ lists every setting with its range, Retro's value and what's on now.
 
 The user's key hints setting decides whether the keys show: a theme can
 restyle them, or make them a status line, but not hide them.
+
+## Phone remote templates
+
+The phone remote (the user's phone, paired with the TV) draws its whole page
+from a template: which controls, where, how big, how they look, and what the
+now-playing card and the channel list show. Twelve are built in (Classic,
+Minimal, Player, Surfer, Big buttons, Premium, Techie, Pebble, Swipe, Dock,
+Glance, Tiles); the user's and yours are kept in `~/.config/om-pg/remotes/`, a
+folder of their own, apart from the TV's themes. There's a default (Classic
+to start), and each phone can pick its own (⚙ on its remote page, or
+`setRemoteTemplate`). Changing one redraws the open phones at once. You can't
+see the phone: `remoteTemplate <id>` says where each control lands on a small
+and an ordinary phone, and the user looks.
+
+To make one: read a built-in close to what the user wants
+(`remoteTemplate player`), write yours from it with your own `id` and `name`,
+`addRemoteTemplate` it, then put it on (`setRemoteTemplate <id> default`, or
+one phone's id from `remoteTemplates`). The same id again replaces yours; a
+built-in's id is refused.
+
+```json
+{
+  "id": "sofa",
+  "name": "Sofa",
+  "description": "Big d-pad, pause and channel keys; the rest behind the squares.",
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": [{ "control": "now", "show": ["channel", "title", "progress"] }], "height": 18 },
+      { "row": [{ "control": "dpad", "variant": "ring" }], "height": 44, "grow": true },
+      { "row": ["back", { "control": "playpause", "weight": 1.4 }, { "control": "rocker", "variant": "split", "weight": 1.6 }, "expand"], "height": 10 }
+    ],
+    "expanded": [
+      { "row": [{ "control": "now", "show": ["channel", "title"] }], "height": 10 },
+      { "panel": "sheet", "handle": true, "rows": [
+        { "row": ["power", "mute", "window", "options"], "height": 8 },
+        { "row": ["rewind", "playpause", "forward", "live"], "height": 8 },
+        { "row": [{ "control": "guide", "face": "label" }, { "control": "home", "face": "label" }, "padToggle", "collapse"], "height": 8 },
+        { "row": ["pad"], "height": 28, "pad": "on" }
+      ] }
+    ]
+  },
+  "now": { "show": ["channel", "title", "times", "dvr"], "side": "logo" },
+  "elements": {
+    "card": { "fill": "card", "radius": 6, "padding": 4 },
+    "key": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "shape": "circle", "text": { "color": "text", "size": 3.4, "weight": "semibold" }, "icon": 6 },
+    "playpause": { "fill": "accent", "text": { "color": "accentText" }, "icon": 8 },
+    "ok": { "fill": "accent", "text": { "color": "accentText", "weight": "bold" } },
+    "sheet": { "fill": "bg", "radius": [7, 7, 0, 0], "padding": 4.4 }
+  }
+}
+```
+
+- **Rows** fill the phone top to bottom: `height` is a percent of the space
+  under the header (4 to 60); rows with `"grow": true` share what's left; a
+  key row is never under 44 px (the page scrolls rather). `"pad": "on"` or
+  `"off"` shows a row only with the number pad shown or hidden (the 123 key,
+  or the phone's ⚙); `gap` is the space between its items; `"dim": true`
+  shades a row behind a sheet. At most 16 rows, 6 items a row, 40 controls.
+- **Items** are a control's name, or `{control, weight, scale, face, variant,
+  alt}`: weights share the row's width; `scale` (0.3 to 1) draws a key
+  smaller than its place (round keys of different sizes in one row); `face`
+  is `label`, `icon` or `both`; `alt: true` draws a key with its element's
+  `alt` state on top (round when minimized, a pill in the sheet). Each control
+  at most once a layout (`gap` as often as you like). `remoteControls` lists
+  them all with their labels, icons, faces and variants (the d-pad: cross,
+  plus or ring; the rocker: vertical, row, tall or split).
+- **Panels**: `{"panel": "sheet" | "dock" | "group", "rows": [...]}` draws its
+  rows in one box: a sheet from the bottom (`"handle": true` for a grab
+  handle), a floating dock, a plain group.
+- **Expanded**: `layout.expanded` is a second layout; the `expand` key (in the
+  first) shows it and `collapse` (in it) goes back. `landscape.left` names the
+  controls that go in the left column when the phone is sideways.
+- **The card** (`now`): its lines in order (`channel`, `name`, `number`,
+  `hero`: the number very large, `title`, `times`, `progress`: the bar,
+  `dvr`: REC and pause and rewind, `mode`), what sits beside them (`side`:
+  `logo`, `number` or `none`; the bar and what follows run under both) and
+  `align`. A `now` item can give its own `show`, `side` and `align`. Logos are
+  there only for YouTube channels: a card must look finished without one.
+  `guideList.show` picks the channel list's columns (`number`, `logo`,
+  `name`, `title`, `live`, `rec`).
+- **Elements** style it, as a theme's do: box properties (`fill`: a color or
+  `{from, to, direction}`, `border`, `radius`, `shape`: rect, pill, circle or
+  chamfer, `shadow`, `padding`, `opacity`; keys also `icon`, their icon's
+  size, and `place`: `corner` for a tile) and `text` (`color`, `font`: body,
+  display or mono, `size`, `weight`, `case`, `letterSpacing`). States:
+  `pressed`, `on`, `unavailable`, `alert`, `alt` (`key:pressed`). Every key
+  starts from `key`, then its own (`power`, `ok`, `digit`…). Units are 1% of
+  the phone's width. At most 40 entries, states included.
+- **Colors** are roles, which follow the TV's theme unless the template
+  gives its own hex in `colors`: `bg` and `bgTo` (the page), `card` and
+  `cardEdge`, `key`, `keyText`, `keyEdge`, `accent` and `accentText` (text on
+  it), `text`, `textDim`, `alert`. Pair them as the theme does: `card` keys
+  with `text`, `key` keys with `keyText` (light keycaps in some themes, dark in
+  others). A hex is `#rrggbb` or `#aarrggbb`. Give all twelve in `colors` for
+  a look of its own on every theme.
+- **Fonts**: `fonts` gives each role `system` (the phone's own), `dm-mono`,
+  `dm-mono-medium` or `orbitron`.
+
+Making one people will like: the keys used most (OK, the arrows, pause,
+channel) in the bottom half, where a thumb reaches; nothing under 44 px
+(`remoteTemplate`'s `under44` names any); text at about 4.5:1 against what's
+under it; one accent for OK and pause, alerts red; icons or words, not a mix
+in one row. Words come only from the controls' own labels: a template never
+writes text of its own, apart from its `name` and `description`.
+
+Turning the phone remote on, pairing a phone and the firewall stay the
+user's. Change a phone's template, number pad or size (`setRemotePrefs`)
+only when the user asks; with the remote off, a phone's choices can't change
+(the default can). `removeRemoteTemplate` only when the user asks.
 
 ## Home
 

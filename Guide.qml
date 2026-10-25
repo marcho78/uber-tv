@@ -69,6 +69,7 @@ Item {
   // what it opens. See bin/om-pg-remote. Enabled, port and the firewall
   // rules it added are kept in settings.json.
   property bool remoteEnabled: false
+  property string remoteTemplate: "classic"   // the phone remote's default template (RemoteTemplates.qml)
   property int remotePort: 24750
   property var remoteRules: []        // "subnet port" rules this guide added to the firewall
   property var remoteNet: null        // { address, subnet, hostname, port }
@@ -2402,7 +2403,7 @@ Item {
     if (!root.settingsLoaded || root.settingsProblem || root.wiping) return
     settings.setText(JSON.stringify({
       shownCategories: root.shownCategories, sources: root.shownSource, logos: root.showLogos, keyHints: root.showKeyHints, splash: root.splashOn, railCredits: root.railCredits, updates: { on: updatesItem.on, asked: updatesItem.asked }, lineup: root.lineupMode,
-      remote: { enabled: root.remoteEnabled, port: root.remotePort, rules: root.remoteRules },
+      remote: { enabled: root.remoteEnabled, port: root.remotePort, rules: root.remoteRules, template: root.remoteTemplate },
       pip: { width: Math.round(root.pipW), right: Math.round(root.pipRight), bottom: Math.round(root.pipBottom) },
       colors: root.colorOverrides,
       images: root.imageOverrides,
@@ -5119,6 +5120,7 @@ Item {
 
   function readThemes() {
     themesItem.load()
+    remoteTemplatesItem.load()
   }
 
   // A picture of the guide as it is on screen, so an agent can look at what
@@ -5926,6 +5928,7 @@ Item {
         { key: "splash", label: "Splash screen", kind: "switch" },
         { key: "remote", label: "Phone remote", kind: "opens" },
         { key: "phones", label: "Paired phones", kind: "opens" },
+        { key: "remoteTemplate", label: "Remote template", kind: "choice" },
         { key: "skill", label: "AI agent skill", kind: "switch" },
         { key: "skillSave", label: "Save the agent skill", kind: "action" },
         { key: "style", label: "Style and themes", kind: "opens" },
@@ -6292,6 +6295,7 @@ Item {
     if (key === "filter") return root.hasIptv && root.shownSource !== "both" ? root.sourceName(root.shownSource) : root.filtered ? "Some categories" : "Everything"
     if (key === "phones") return !root.remoteEnabled ? "Phone remote is off" : !root.remoteDevices.length ? "None" : plural(root.remoteDevices.length, "phone", "phones")
     if (key === "remote") return root.remoteEnabled ? "On" + (root.remoteDevices.length ? " · " + plural(root.remoteDevices.length, "phone", "phones") : "") : "Off"
+    if (key === "remoteTemplate") return remoteTemplatesItem.nameOf(remoteTemplatesItem.defaultId) || "Classic"
     if (key === "refresh") return root.fetchedAt ? "Listings " + Math.max(0, Math.round((root.now - root.fetchedAt) / 60)) + " min old" : ""
     if (key === "libraryInfo") return plural(library.items.length, "movie", "movies") + " · " + plural(library.genres.length, "genre", "genres")
     if (key === "source") return root.settingsArmed === "source:" + (row || {}).source ? "Enter again to remove" : (row ? row.count : 0) + " · Remove"
@@ -6370,6 +6374,7 @@ Item {
     if (key === "filter") return root.hasCategories || root.hasIptv ? "Which categories show, and YouTube, IPTV or both. Also F, in the guide." : "Once your channels have categories (or there are IPTV channels), choose which show here."
     if (key === "phones") return "The phones paired as remotes, with when each was paired and last used. Pick one and press Enter twice to unpair it: it needs a new code to pair again. A phone can also unpair itself (UNPAIR on its remote page)."
     if (key === "remote") return "Your phone as a remote, on the same network: turn it on, pair a phone (a QR code, or a code to type), see the paired phones. Also T, on Home and in the guide."
+    if (key === "remoteTemplate") return "How the phone remote looks and is laid out. Each phone can pick its own with ⚙ on its remote page."
     if (key === "refresh") return "Fetches every channel's listings again and plans today's lineups anew. Also R, in the guide."
     if (key === "libraryInfo") return "Movies and series from your playlists: a playlist's video files come here when you add it (A), its live channels go in the guide. V opens the library."
     if (key === "source") return "Takes the movies that playlist brought in out of the library (and off My List). The playlist's live channels stay in the guide. Press Enter twice."
@@ -6534,6 +6539,12 @@ Item {
     else if (row.key === "home") { root.homeEnabled = !root.homeEnabled; root.saveSettings() }
     else if (row.key === "display") root.toggleDisplay()
     else if (row.key === "awake") { if (!you) return "only the user, at the screen"; root.awake = AwakeRules.next(root.awake); root.saveSettings() }
+    else if (row.key === "remoteTemplate") {
+      var tl = remoteTemplatesItem.list
+      if (!tl.length) return
+      var at = tl.findIndex(function(x) { return x.id === remoteTemplatesItem.defaultId })
+      remoteTemplatesItem.setDefault(tl[((at < 0 ? 0 : at) + (d < 0 ? tl.length - 1 : 1)) % tl.length].id)
+    }
     else if (row.key === "saverOn") { if (!you) return "only the user, at the screen"; root.setSaver({ on: !screenSaverItem.settings.on }) }
     else if (row.key === "saverAfter") root.setSaver({ after: SaverRules.next(SaverRules.AFTER, screenSaverItem.settings.after) })
     else if (row.key === "saverPictures") root.setSaver({ pictures: SaverRules.next(SaverRules.PICTURES, screenSaverItem.settings.pictures) })
@@ -6737,16 +6748,16 @@ Item {
   property bool recStopMenu: false
   // J K L with pause and rewind off: the banner says so, with Turn on
   property bool tsOffMenu: false
-  // Pause and rewind's choices, first (Pause focused): on a live channel
-  // with it on; Pause dimmed, saying why, while it can't run
-  readonly property var tsActions: !watching || vod || !timeshift.turnedOn || !Ts.supported(onAir) ? []
-    : timeshift.active ? [{ key: "tsPause", label: timeshift.paused ? "Resume" : "Pause", icon: "" },
-                          { key: "tsBack", label: "Back 30 s", icon: "" },
-                          { key: "tsForward", label: "Forward 30 s", icon: "" },
-                          { key: "tsLive", label: "Live", icon: "", unavailable: timeshift.atLive }]
-    : [{ key: "tsPause", label: "Pause", icon: "", unavailable: true, note: timeshift.cantPauseText }]
+  // ▲ again with it on but not running: Pause, dimmed, saying why
+  property bool tsCantMenu: false
+  // either of those reached by ▲ from the choices: ▼ goes back to them
+  property bool tsMenuFromChoices: false
+  // ▲ again, with pause and rewind running: the player controls (the bar of
+  // what's kept, back 30 s, pause / play, forward 30 s)
+  property bool playerControls: false
   readonly property var bannerActions: {
     if (tsOffMenu) return [{ key: "tsOn", label: "Turn on", icon: "", note: "Pause and rewind is off" }]
+    if (tsCantMenu) return [{ key: "tsPause", label: "Pause", icon: "", unavailable: true, note: timeshift.cantPauseText || "Can't pause right now" }]
     if (streamAsk) return [{ key: "streamYes", label: streamAskLabel, icon: "", rec: true, note: streamAskNote }, { key: "streamNo", label: "Stay", icon: "" }]
     if (recStopMenu && recOnTuned)
       return DvrRules.stopChoices(recOnTuned, onAir && onAir.epg ? onAir.end : 0, now, root.clock).map(function(c) { return { key: "recEnd", end: c.end, label: c.label, rec: true } })
@@ -6756,7 +6767,7 @@ Item {
                             { key: "recUntil", label: "Until " + root.clock(recOnTuned.end) + "  ›", icon: "", rec: true }]
             : recOffer ? [{ key: "record", label: dvr.busy ? "Starting…" : recOffer.label, icon: "record", rec: true, note: dvr.said || recOffer.note, unavailable: recOffer.unavailable }]
             : []
-    return tsActions.concat([{ key: "multiview", label: "Multiview", icon: "apps" }]).concat(rec).concat([{ key: "mini", label: "Mini player", icon: "window" },
+    return [{ key: "multiview", label: "Multiview", icon: "apps" }].concat(rec).concat([{ key: "mini", label: "Mini player", icon: "window" },
             { key: "guide", label: "Guide", icon: "tv" }, { key: "mute", label: root.muted ? "Sound on" : "Mute", icon: "" }])
   }
   // The REC badge on the banner: only on the channel that's recording, until
@@ -6775,6 +6786,9 @@ Item {
     root.bannerAct = 0
     root.recStopMenu = false
     root.tsOffMenu = false
+    root.tsCantMenu = false
+    root.tsMenuFromChoices = false
+    root.playerControls = false
     dvr.said = ""
     root.bannerOptions = true
     root.bannerShown = true
@@ -6787,11 +6801,17 @@ Item {
     root.bannerShown = false
     root.recStopMenu = false
     root.tsOffMenu = false
+    root.tsCantMenu = false
+    root.tsMenuFromChoices = false
+    root.playerControls = false
+    root.cancelScrub()
     bannerTimer.stop()
   }
-  // Esc, ↓ or BACK on the banner's choices: out of the stop times first, then away
+  // Esc, ↓ or BACK on the banner's choices: out of the stop times first, then away.
+  // ↓ from the player controls (or from what ▲ again said) goes back to the choices
   function bannerBack() {
     if (root.streamAsk) { root.answerStream(false); return }
+    if (root.playerControls || ((root.tsOffMenu || root.tsCantMenu) && root.tsMenuFromChoices)) { root.cancelScrub(); root.openBannerOptions(); return }
     if (root.recStopMenu) {
       root.recStopMenu = false
       root.bannerAct = Math.max(0, root.bannerActions.findIndex(function(a) { return a.key === "recUntil" }))
@@ -6809,6 +6829,7 @@ Item {
     if (!a) return
     if (a.key === "mute") { root.muted = !root.muted; bannerTimer.restart(); return }
     if (a.key === "tsOn") { root.hideBanner(); dvr.set({ timeshift: 5 }); return }
+    if (a.key === "tsPause" && root.tsCantMenu) { bannerTimer.restart(); return }
     if (a.key.indexOf("ts") === 0) {
       bannerTimer.restart()
       if (a.unavailable) return
@@ -6847,16 +6868,169 @@ Item {
       root.bannerAct = 0
       root.recStopMenu = false
       root.tsOffMenu = true
+      root.tsCantMenu = false
+      root.tsMenuFromChoices = false
+      root.playerControls = false
       root.bannerOptions = true
       root.bannerShown = true
       bannerTimer.restart()
       return
     }
-    if (!timeshift.active) { root.openBannerOptions(); return }
+    if (!timeshift.active) { root.openPlayerControls(false); return }
     if (what === "pause") timeshift.togglePause()
     else if (what === "back") timeshift.back()
     else timeshift.forward()
-    root.showBanner()
+    if (root.playerControls) bannerTimer.restart()
+    else root.showBanner()
+  }
+
+  // ▲ again (from the choices; the keyboard's ↑ too): the player controls
+  // while pause and rewind runs; off, the banner says so with Turn on; on but
+  // not running, Pause dimmed saying why. ▼ goes back to the choices.
+  function openPlayerControls(fromChoices) {
+    if (!root.watching || root.vod) return
+    root.recStopMenu = false
+    root.bannerAct = 0
+    root.tsMenuFromChoices = fromChoices === true
+    if (!timeshift.turnedOn || !timeshift.active) {
+      root.tsOffMenu = !timeshift.turnedOn
+      root.tsCantMenu = timeshift.turnedOn
+      root.playerControls = false
+      root.bannerOptions = true
+    } else {
+      root.tsOffMenu = false
+      root.tsCantMenu = false
+      root.bannerOptions = false
+      root.playerControls = true
+    }
+    root.bannerShown = true
+    bannerTimer.restart()
+  }
+  // the player controls' buttons (a click, or the phone's arrows and OK)
+  function controlsAct(what) {
+    if (!root.playerControls) return
+    if (what === "pause") timeshift.togglePause()
+    else if (what === "back") timeshift.back()
+    else if (what === "forward") timeshift.forward()
+    else if (what === "live") timeshift.live()
+    bannerTimer.restart()
+  }
+
+  // ---- Scrubbing: a held key (or the mouse on the bar) moves a mark on the
+  // player controls' bar, on its own clock (four steps a second: 10 s for the
+  // first second, 30 s the next, then a minute; a key's auto-repeat doesn't
+  // count), and the picture jumps there once, when it's let go. A scrub
+  // belongs to what was playing when it began: a channel, buffer, video or
+  // mode changing cancels it, and letting go then does nothing.
+  // What's playing, as one string (never sent: the phones get playToken,
+  // a number that changes with it)
+  readonly property string playSig: (timeshift.session || "") + "|" + tunedRow + "|" + (vod ? (vod.id || vod.url || vod.videoId || "vod") : "")
+                                    + "|" + (appPlaybackItem.session ? appPlaybackItem.session.epoch : "")
+  property int playToken: 1
+  onPlaySigChanged: { playToken += 1; cancelScrub() }
+  onPlayTokenChanged: remoteStateTimer.restart()
+  property var scrub: null            // { at (the buffer's ms, or a movie's s), dir, since, for, movie }
+  // the player controls' bar: where the picture is along what's kept, and
+  // how far behind live (the scrub's mark while one runs; nothing at Live)
+  readonly property real controlsAt: timeshift.active && timeshift.liveEnd > timeshift.win.oldest
+                                     ? Math.max(0, Math.min(1, (timeshift.point - timeshift.win.oldest) / (timeshift.liveEnd - timeshift.win.oldest))) : 0
+  readonly property string controlsChip: scrub && !scrub.movie ? (timeshift.liveEnd - scrub.at < Ts.NEAR ? "" : Ts.chip(false, timeshift.liveEnd - scrub.at))
+                                         : timeshift.active && (!timeshift.atLive || timeshift.paused) ? Ts.chip(false, timeshift.behind) : ""
+  readonly property real scrubFrac: {
+    if (!scrub) return -1
+    if (scrub.movie) return playDuration > 0 ? Math.max(0, Math.min(1, scrub.at * 1000 / playDuration)) : -1
+    var span = timeshift.liveEnd - timeshift.win.oldest
+    return span > 0 ? Math.max(0, Math.min(1, (scrub.at - timeshift.win.oldest) / span)) : -1
+  }
+  function scrubStart(dir, byKey, at) {
+    if (root.vod) {
+      if (!root.started || player.duration <= 0) return false
+      root.scrub = { at: at !== undefined ? at : player.position / 1000, dir: dir, since: Date.now(), for: root.playSig, movie: true }
+      root.vodBarShown = true
+      vodBarTimer.stop()
+    } else {
+      if (!timeshift.active) return false
+      root.scrub = { at: at !== undefined ? at : timeshift.point, dir: dir, since: Date.now(), for: root.playSig, movie: false }
+      if (!root.playerControls) root.openPlayerControls(false)
+      bannerTimer.stop()
+    }
+    if (byKey) scrubClock.start()
+    return true
+  }
+  // one step of a held key
+  function scrubStep() {
+    var s = root.scrub
+    if (!s || s.dir === 0) return
+    var held = Date.now() - s.since
+    if (held > 60000) { root.cancelScrub(); return }   // a key that never came back up
+    var step = held < 1000 ? 10 : held < 2000 ? 30 : 60
+    var c = { at: s.at, dir: s.dir, since: s.since, for: s.for, movie: s.movie }
+    if (s.movie) c.at = Math.max(0, Math.min(player.duration / 1000 - 1, s.at + s.dir * step))
+    else c.at = Math.max(timeshift.win.oldest, Math.min(timeshift.liveEnd, s.at + s.dir * step * 1000))
+    root.scrub = c
+  }
+  // the mouse along the bar: a fraction of it
+  function scrubTo(frac) {
+    var s = root.scrub
+    if (!s) return
+    var f = Math.max(0, Math.min(1, Number(frac) || 0))
+    var c = { at: 0, dir: 0, since: s.since, for: s.for, movie: s.movie }
+    c.at = s.movie ? f * player.duration / 1000 : timeshift.win.oldest + f * (timeshift.liveEnd - timeshift.win.oldest)
+    root.scrub = c
+  }
+  // let go: the picture goes there, if it's still what was playing
+  function scrubEnd() {
+    var s = root.scrub
+    root.scrub = null
+    scrubClock.stop()
+    if (!s) return
+    if (s.movie) {
+      vodBarTimer.restart()
+      if (s.for === root.playSig && root.vod) root.seekVodTo(s.at)
+      return
+    }
+    bannerTimer.restart()
+    if (s.for === root.playSig && root.watching && timeshift.active) timeshift.seekTo(s.at)
+  }
+  function cancelScrub() {
+    if (!root.scrub) return
+    root.scrub = null
+    scrubClock.stop()
+    if (root.playerControls) bannerTimer.restart()
+  }
+  Timer { id: scrubClock; interval: 250; repeat: true; onTriggered: root.scrubStep() }
+
+  // ← → (and J, L) while watching: a tap or a hold, told apart by when it's
+  // let go (300 ms). A movie: a tap 10 s, a hold scrubs. A live channel with
+  // pause and rewind running: a hold scrubs (from nothing open or the player
+  // controls); a tap steps 30 s on the player controls, and J or L does with
+  // nothing open (← → then do nothing, as before). Not running: J's answer.
+  property var keyHold: null          // { dir, jl, began }
+  Timer { id: holdTimer; interval: 300; onTriggered: root.holdBegan() }
+  function scrubKeyDown(dir, jl) {
+    // a press while one is held: the letting go was missed (the focus went
+    // elsewhere): that one's over, and nothing of it happens
+    if (root.keyHold) { root.keyHold = null; holdTimer.stop(); root.cancelScrub() }
+    root.keyHold = { dir: dir, jl: jl === true, began: false }
+    holdTimer.restart()
+  }
+  function holdBegan() {
+    var h = root.keyHold
+    if (!h || !root.watching) return
+    root.keyHold = { dir: h.dir, jl: h.jl, began: true }
+    if (root.vod || timeshift.active) root.scrubStart(h.dir, true)
+    else root.tsKey(h.dir < 0 ? "back" : "forward")
+  }
+  function scrubKeyUp() {
+    var h = root.keyHold
+    root.keyHold = null
+    holdTimer.stop()
+    if (!h) return
+    if (h.began) { if (root.scrub) root.scrubEnd(); return }
+    if (!root.watching) return
+    if (root.vod) root.seekVod(h.dir * 10)
+    else if (root.playerControls) root.controlsAct(h.dir < 0 ? "back" : "forward")
+    else if (h.jl) root.tsKey(h.dir < 0 ? "back" : "forward")
   }
 
   // The TV
@@ -6941,7 +7115,10 @@ Item {
   // overtake it: it's not a choice of yours).
   property int mvRequest: 0
   property int mvWaitingFor: -1        // the request on its way, if it's still the latest
-  onAppPlayingChanged: if (appPlaying) { mvRequest += 1; timeshift.end() }   // an app's video, chosen since, overtakes it too (and the TV's buffer goes)
+  onAppPlayingChanged: {
+    if (appPlaying) { mvRequest += 1; timeshift.end() }   // an app's video, chosen since, overtakes it too (and the TV's buffer goes)
+    remoteStateTimer.restart()                            // and the phones' buttons follow what plays
+  }
   function requestMultiview() { root.mvRequest += 1; root.mvWaitingFor = root.mvRequest; return root.mvRequest }
   function startMultiview(urls, request) {
     if (request !== root.mvRequest || !root.opened) { if (root.mvWaitingFor === request) root.mvWaitingFor = -1; return "overtaken" }
@@ -7423,20 +7600,25 @@ Item {
     if (by !== root.byUser) return
     var m
     try { m = JSON.parse(line) } catch (e) { return }
-    if (m.ready) {
+    if (!m || typeof m !== "object") return
+    if (m.done !== undefined) {
+      remoteTemplatesItem.answered(m)    // a change to a phone's choices, saved or not
+    } else if (m.ready) {
       root.remoteNet = m.ready
       root.remoteReady = true
       root.sendRemoteState()
+      remoteTemplatesItem.send()
       if (root.dialog === "remote") root.remoteSend({ pairing: true })
     } else if (m.probe) {
       root.remoteNet = m.probe
     } else if (m.pairing) {
       root.remotePairing = m.pairing
     } else if (m.devices) {
-      root.remoteDevices = m.devices
+      root.remoteDevices = JSON.parse(JSON.stringify(m.devices))
       root.remoteCursor = Math.max(0, Math.min(root.remoteCursor, m.devices.length - 1))
+      remoteTemplatesItem.tidyPhones()
     } else if (m.command) {
-      root.remoteCommand(m.command.cmd, m.command.number, by, m.command.digits)
+      root.remoteCommand(m.command.cmd, m.command.number, by, m.command.digits, m.command)
     } else if (m.error) {
       root.remoteMessage = m.error
     }
@@ -7480,9 +7662,18 @@ Item {
       }
       var lockedNow = channelLockItem.blocks(c)
       list.push({ number: root.numbers[r], name: c.name, category: c.category || "", channelId: lockedNow ? "" : c.channelId || "",
-                  title: root.titlesHidden(c) ? "Locked" : root.showTitle(title), live: !!c.live && !root.titlesHidden(c), locked: lockedNow })
+                  title: root.titlesHidden(c) ? "Locked" : root.showTitle(title), live: !!c.live && !root.titlesHidden(c), locked: lockedNow,
+                  rec: !!dvr.onChannel(c) })
     }
     var vod = on && root.vod ? root.vod : null
+    // pause and rewind on a live channel watched with it on: whether it runs,
+    // paused, at Live or how far behind and how much is kept (seconds), or why not
+    var ts = on && !vod && timeshift.turnedOn && Ts.supported(root.onAir)
+      ? { on: true, running: timeshift.active, paused: timeshift.paused, atLive: timeshift.atLive, behind: Math.round(timeshift.behind / 1000),
+          window: timeshift.active ? Math.max(0, Math.round((timeshift.liveEnd - timeshift.win.oldest) / 1000)) : 0, why: timeshift.cantPauseText } : null
+    var media = root.appPlaying ? "app" : vod ? "movie" : on && (root.watching || root.pip) ? "live" : ""
+    // an app's video: its title and place, as a movie's (never its address)
+    var app = root.appPlaying && appPlaybackItem.session ? appPlaybackItem.session : null
     return {
       on: on, muted: root.muted, screen: root.opened ? root.screen : "",
       passcode: channelLockItem.boxUp && channelLockItem.typing,
@@ -7492,7 +7683,12 @@ Item {
       rec: on ? root.recBadge : "",
       pause: on && !vod && timeshift.active ? (timeshift.paused ? "Paused" : timeshift.atLive ? "" : timeshift.chipText) : "",
       mode: root.pip && on ? "mini" : root.watching && on ? "full" : root.opened ? root.screen : "off",
-      now: vod ? { vod: true, title: root.showTitle(vod.title), name: vod.subtitle || "", paused: root.vodPaused }
+      signal: root.reception, recHere: on && !!root.recOnTuned, media: media, ts: ts, play: root.playToken,
+      paused: media === "app" ? appPlaybackItem.paused : media === "movie" ? root.vodPaused : !!(ts && ts.paused),
+      now: app ? { vod: true, app: true, title: root.showTitle(String(app.title || "").slice(0, 200)), name: String(app.subtitle || "").slice(0, 200),
+                   paused: appPlaybackItem.paused, position: Math.round(appPlaybackItem.position), length: app.live ? 0 : Math.round(appPlaybackItem.duration) }
+         : vod ? { vod: true, title: root.showTitle(vod.title), name: vod.subtitle || "", paused: root.vodPaused,
+                   position: Math.round(root.playPosition / 1000), length: Math.round(root.playDuration / 1000) }
          : on && ch ? { number: root.numbers[root.tunedRow], name: ch.name, category: ch.category || "", channelId: ch.channelId || "",
                        title: root.showTitle(root.onAir.title), live: !!root.onAir.live, start: root.onAir.start, end: root.onAir.end } : null,
       channels: list
@@ -7518,7 +7714,7 @@ Item {
   }
 
   // A button on a phone, doing what the same key would on the TV.
-  function remoteCommand(cmd, number, by, digits) {
+  function remoteCommand(cmd, number, by, digits, extra) {
     // the phone is you too: it ends an agent's open of an app
     if (by === root.byUser && appViewItem.agentOpen) appViewItem.userActs()
     // Omarchy's screen saver is up: a key closes it (a phone press can't yet)
@@ -7584,6 +7780,16 @@ Item {
       else if (!root.opened) root.remotePowerOn(-1)
       return
     }
+    // One full / mini button: full screen ↔ the mini player; elsewhere, as FULL
+    if (cmd === "window") {
+      if (root.pip) root.expandPip()
+      else if (root.watching && on) root.goPip()
+      else if (root.appPlaying) return
+      else if (root.opened) root.watch(root.row)
+      else root.remotePowerOn(-1)
+      return
+    }
+    if (cmd === "home") return root.remoteHome()
     // The apps boxes: the d-pad picks, OK says it (a paired phone is yours)
     if (["appsOn", "unknownOn", "devOn", "appCatalog", "appReview", "appInfo"].indexOf(root.dialog) >= 0) {
       if (appsStore.installing || (appsStore.inspecting && root.dialog !== "appInfo")) return
@@ -7619,7 +7825,7 @@ Item {
       if (root.dialog || root.railOpen) return
       // as I: the mini player's bar; full screen, the player bar or the banner's choices
       if (root.pip) { if (!root.streamAsk) root.showPipBanner(); return }
-      if (root.watching) { root.vod ? root.showVodBar() : root.bannerOptions ? root.hideBanner() : root.openBannerOptions(); return }
+      if (root.watching) { root.vod ? root.showVodBar() : root.bannerOptions || root.playerControls ? root.hideBanner() : root.openBannerOptions(); return }
       if (!root.opened) return
       if (root.screen === "home" && !root.homeEditing) root.openHomePanel()
       else if (root.screen === "guide") root.openShowChoices()
@@ -7642,6 +7848,8 @@ Item {
       if (cmd === "back") root.closeDialog()
       return
     }
+    // Pause / play, rewind, forward and Live: what's playing (J K L on a live channel)
+    if (["playpause", "rewind", "forward", "live", "seek"].indexOf(cmd) >= 0) return root.remoteTransport(cmd, extra)
     if (cmd === "chup" || cmd === "chdown") {
       var d = cmd === "chup" ? 1 : -1
       if (root.pip) root.pipSurf(d)
@@ -7668,9 +7876,17 @@ Item {
       else if (cmd === "down") root.pipSurf(-1)
       else if (cmd === "ok") root.expandPip()
       else if (cmd === "back") root.guidePip()
+    } else if (root.watching && root.playerControls) {
+      // the player controls: ◀ ▶ 30 s, OK pause / play, ▼ back to the choices, BACK closes
+      if (cmd === "left") root.controlsAct("back")
+      else if (cmd === "right") root.controlsAct("forward")
+      else if (cmd === "ok") root.controlsAct("pause")
+      else if (cmd === "down") root.bannerBack()
+      else if (cmd === "back") root.hideBanner()
     } else if (root.watching && root.bannerOptions) {
-      // the banner's choices: ◀ ▶ choose, OK picks, ▼ or BACK closes them
-      if (cmd === "left") root.moveBannerAct(-1)
+      // the banner's choices: ◀ ▶ choose, OK picks, ▲ the player controls, ▼ or BACK closes them
+      if (cmd === "up") { if (!root.recStopMenu && !root.streamAsk && !root.tsOffMenu && !root.tsCantMenu) root.openPlayerControls(true) }
+      else if (cmd === "left") root.moveBannerAct(-1)
       else if (cmd === "right") root.moveBannerAct(1)
       else if (cmd === "ok") root.pickBannerAct()
       else if (cmd === "down" || cmd === "back") root.bannerBack()
@@ -7789,15 +8005,61 @@ Item {
     }
   }
 
+  // The phone's transport buttons, per what's playing: a live channel full
+  // screen (as J K L, with pause and rewind's answers when it's off or can't
+  // run), a movie or video (10 s), an app's video; the mini player only for
+  // a movie. seek: the card's bar let go at a point (at: 0 to 1 along it),
+  // only for what it was drawn for (play: the playToken it had)
+  function remoteTransport(cmd, extra) {
+    if (cmd === "seek") return root.remoteSeek(extra ? extra.at : NaN, extra ? extra.play : NaN)
+    if (root.appPlaying) {
+      if (cmd === "playpause") appPlaybackItem.togglePause()
+      else if (cmd === "rewind" || cmd === "forward") appPlaybackItem.seek(cmd === "rewind" ? -10 : 10)
+      return
+    }
+    if (root.vod && (root.watching || root.pip)) {
+      if (cmd === "playpause") root.togglePause()
+      else if (cmd === "rewind" || cmd === "forward") root.seekVod(cmd === "rewind" ? -10 : 10)
+      return
+    }
+    if (!root.watching || root.reception === "off") return
+    if (cmd === "live") { if (timeshift.active) { timeshift.live(); root.showBanner() } return }
+    root.tsKey(cmd === "playpause" ? "pause" : cmd === "rewind" ? "back" : "forward")
+  }
+
+  function remoteSeek(at, play) {
+    if (typeof at !== "number" || !isFinite(at) || at < 0 || at > 1) return "not a point along the bar"
+    if (play !== root.playToken) return "something else is playing now"
+    if (root.appPlaying) { appPlaybackItem.seekTo(at * appPlaybackItem.duration); return }
+    if (root.vod && (root.watching || root.pip)) { if (player.duration > 0) root.seekVodTo(at * player.duration / 1000); return }
+    if (!root.watching || root.reception === "off") return
+    if (!timeshift.active) { root.tsKey("back"); return }   // its answer: Turn on, or why it can't run
+    timeshift.seekTo(timeshift.win.oldest + at * (timeshift.liveEnd - timeshift.win.oldest))
+    root.showBanner()
+  }
+
+  // HOME on the phone: Home, the picture stopped first (a movie keeps its
+  // place, an app's video closes as BACK closes it, Multiview's tiles stop,
+  // the mini player closes); nothing with Home off
+  function remoteHome(closed) {
+    if (!root.homeEnabled) return "Home is off"
+    if (root.appPlaying && !closed) { appPlaybackItem.close("user", function() { root.remoteHome(true) }); return }
+    root.turnOff()
+    if (root.opened) root.openHome()
+    else root.summonTo("home")
+  }
+
   onOpenedChanged: remoteStateTimer.restart()
   onScreenChanged: remoteStateTimer.restart()
   onVodPausedChanged: remoteStateTimer.restart()
   onWatchingChanged: {
     remoteStateTimer.restart()
+    root.cancelScrub()
+    if (!watching) { root.playerControls = false; root.keyHold = null }
     // a channel from the guide's preview (on, or still tuning), now full screen: through pause and rewind's buffer
     if (watching && timeshift.turnedOn && !timeshift.busy && !vod && (reception === "on" || reception === "tuning") && tunedRow >= 0 && timeshift.takes(onAir)) root.tune(tunedRow)
   }
-  onPipChanged: remoteStateTimer.restart()
+  onPipChanged: { remoteStateTimer.restart(); root.cancelScrub() }
   onMutedChanged: remoteStateTimer.restart()
   onChannelsChanged: remoteStateTimer.restart()
   onRecBadgeChanged: remoteStateTimer.restart()
@@ -7807,6 +8069,17 @@ Item {
   // that moves by 15 s, a seek; not each second)
   readonly property string remotePause: timeshift.active && !vod ? (timeshift.paused ? "paused" : timeshift.atLive ? "live" : "behind " + Math.round(timeshift.behind / 15000)) : ""
   onRemotePauseChanged: remoteStateTimer.restart()
+  // a movie's place (again when it moves by 15 s: a seek; the phone counts between)
+  readonly property string remoteMovie: vod ? Math.round(playPosition / 15000) + ":" + Math.round(playDuration / 1000) : ""
+  onRemoteMovieChanged: remoteStateTimer.restart()
+  // and an app's video's (its place every 15 s or a seek, its length, its title)
+  readonly property string remoteApp: appPlaying && appPlaybackItem.session
+                                      ? Math.round(appPlaybackItem.position / 15) + ":" + Math.round(appPlaybackItem.duration) + ":" + appPlaybackItem.session.title : ""
+  onRemoteAppChanged: remoteStateTimer.restart()
+  Connections {
+    target: appPlaybackItem
+    function onPausedChanged() { remoteStateTimer.restart() }
+  }
   onVisibleRowsChanged: remoteStateTimer.restart()
 
   // Media keys and the bar (MPRIS)
@@ -8178,8 +8451,12 @@ Item {
 
   Timer {
     id: bannerTimer
-    interval: root.bannerOptions ? 10000 : root.ltSeconds * 1000   // choosing: ten seconds from the last key
-    onTriggered: { root.bannerShown = false; root.bannerOptions = false; root.recStopMenu = false; root.streamAsk = null }
+    interval: root.bannerOptions || root.playerControls ? 10000 : root.ltSeconds * 1000   // choosing: ten seconds from the last key
+    onTriggered: {
+      if (root.scrub) return   // up through a scrub: its ten seconds start when it ends
+      root.bannerShown = false; root.bannerOptions = false; root.recStopMenu = false; root.streamAsk = null
+      root.playerControls = false; root.tsOffMenu = false; root.tsCantMenu = false; root.tsMenuFromChoices = false
+    }
   }
 
   // yt-dlp, by its path ("--": a URL can never be read as an option, some
@@ -8401,6 +8678,7 @@ Item {
           root.remoteRules = Array.isArray(saved.remote.rules)
             ? saved.remote.rules.filter(function(r) { return /^\d+\.\d+\.\d+\.\d+\/\d+ \d+$/.test(r) }) : []
           root.remoteEnabled = saved.remote.enabled === true
+          root.remoteTemplate = typeof saved.remote.template === "string" && /^[a-z0-9][a-z0-9-]{0,31}$/.test(saved.remote.template) ? saved.remote.template : "classic"
           if (root.remoteEnabled) root.startRemoteHelper()
         }
         root.lineupMode = saved.lineup === "latest" ? "latest" : "daily"
@@ -8702,6 +8980,14 @@ Item {
     id: themesItem
     guide: root
   }
+  // The phone remote's templates: read, saved, sent to the phones
+  RemoteTemplates {
+    id: remoteTemplatesItem
+    guide: root
+  }
+  readonly property var remotes: remoteTemplatesItem
+  // the TV's colors color the templates that follow the theme: open phones redraw
+  onColorsChanged: remoteTemplatesItem.sendSoon()
   Timer { id: styleRefusedTimer; interval: 4000; onTriggered: root.styleRefused = "" }
 
   // pictures of the guide for agents (snapshot "", appSnapshot): checked, written whole

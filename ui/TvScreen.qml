@@ -73,13 +73,23 @@ Rectangle {
     note: guide.recNote
     optionFocus: guide.bannerAct
     onOptionPicked: function(i) { guide.bannerAct = i; guide.pickBannerAct(i) }
+    controls: guide.playerControls && guide.vod === null
+    controlsAt: guide.controlsAt
+    controlsMark: guide.scrub && !guide.scrub.movie ? guide.scrubFrac : -1
+    controlsChip: guide.controlsChip
+    controlsPaused: guide.pauser.paused
+    onControlsPicked: function(what) { guide.controlsAct(what) }
+    onControlsPressed: function(f) { if (guide.scrubStart(0, false)) guide.scrubTo(f) }
+    onControlsMoved: function(f) { guide.scrubTo(f) }
+    onControlsReleased: guide.scrubEnd()
+    onControlsCanceled: guide.cancelScrub()
   }
 
   // Behind live (pause and rewind), on the picture while the banner's away
   Box {
     id: behindChip
     z: 2
-    visible: guide.pauser.active && !guide.pauser.atLive && guide.vod === null && !guide.bannerShown && !guide.bannerOptions
+    visible: guide.pauser.active && !guide.pauser.atLive && guide.vod === null && !guide.bannerShown && !guide.bannerOptions && !guide.playerControls
     readonly property var st: guide.look["liveChip:behind"] || guide.look.liveChip || ({})
     anchors.right: parent.right
     anchors.top: parent.top
@@ -107,6 +117,19 @@ Rectangle {
     size: guide.u * 1.55
     capStyle: guide.look.keycap
     labelStyle: guide.look.keyLabel
-    model: [{ keys: ["←", "→"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: guide.recStopMenu ? "Back" : "Hide" }]
+    model: [{ keys: ["←", "→"], label: "Choose" }].concat(guide.recStopMenu || guide.streamAsk || guide.tsOffMenu || guide.tsCantMenu ? [] : [{ keys: ["↑"], label: "Controls" }])
+             .concat([{ keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: guide.recStopMenu ? "Back" : "Hide" }])
+  }
+  // The player controls: their keys, top left
+  KeyHints {
+    z: 2
+    visible: guide.playerControls && guide.vod === null
+    anchors.left: parent.left
+    anchors.top: parent.top
+    anchors.margins: guide.u * 1.5
+    size: guide.u * 1.55
+    capStyle: guide.look.keycap
+    labelStyle: guide.look.keyLabel
+    model: [{ keys: ["←", "→"], label: "30 s" }, { keys: ["ENTER"], label: guide.pauser.paused ? "Play" : "Pause" }, { keys: ["↓"], label: "Back" }, { keys: ["ESC"], label: "Hide" }]
   }
 }

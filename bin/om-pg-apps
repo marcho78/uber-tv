@@ -102,7 +102,11 @@ confirmed write (saved, unconfirmed or failed). theme-save, theme-tidy,
 theme-sweep and theme-remove (a JSON request on stdin): a theme saved as one
 confirmed transaction (its pictures checked and copied in under new names),
 what only its old theme.json named taken away once the new one is on, a
-crash's leftovers swept, and a theme removed. picture-import: a picture you
+crash's leftovers swept, and a theme removed. remote-list, remote-save and
+remote-remove (a JSON request on stdin): the phone remote's templates in a
+folder of their own (~/.config/om-pg/remotes), read without following links,
+saved whole under a lock (a copy never replaces a file already there, built-in
+ids refused, at most 50 of 64 KB), and removed. picture-import: a picture you
 picked, checked and copied into the guide's own folder; picture-prune: the
 copies no choice names any more. saver-pictures: the screen saver's pictures
 (Omarchy's backgrounds, and your folder), each checked when listed;
@@ -3829,6 +3833,301 @@ def do_theme_remove(raw):
     return {"ok": True, "outcome": "saved"}
 
 
+# ---- the phone remote's templates: ~/.config/om-pg/remotes/<id>.json --------
+#
+# A folder of their own, apart from the TV's themes. Only Uber TV writes
+# there, through these, one at a time under a lock file in the folder: a
+# template is written whole under a temporary name (0600, never through a
+# link), synced, read back, then renamed over its file (replace) or linked
+# in under the first free id (copy: link() never replaces a file that's
+# there), and the folder synced. The built-in templates (the plugin's own
+# remotes/) are never written or removed; at most 50 of yours, 64 KB each.
+
+MAX_REMOTE_TEXT = 64 * 1024
+MAX_REMOTES = 50
+REMOTE_FILE = re.compile(r"^([a-z0-9][a-z0-9-]{0,31})\.json\Z")
+REMOTE_TEMP = re.compile(r"^\.remote-[0-9a-f]{16}\.json\.tmp\Z")
+REMOTE_LOCK = ".lock"
+BUILTIN_REMOTES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "remotes")
+
+
+def builtin_remote_ids():
+    """The built-in templates' ids (the plugin's remotes/<id>.json), or None
+    when that folder can't be read: then nothing is saved or removed"""
+    try:
+        names = os.listdir(BUILTIN_REMOTES)
+    except OSError:
+        return None
+    return {m.group(1) for m in map(REMOTE_FILE.match, names) if m}
+
+
+def remote_request(raw):
+    try:
+        req = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise Bad("not a request")
+    folder = req.get("dir") if isinstance(req, dict) else None
+    if not isinstance(folder, str) or not folder.startswith("/") or "\0" in folder or len(folder) > 4096:
+        raise Bad("not a request")
+    return req, folder
+
+
+def remote_folder(folder, make):
+    """The templates folder opened as itself (never a link at its own name):
+    its descriptor, or None when it isn't there and make is False"""
+    if make:
+        try:
+            _fs.makedirs(folder, mode=0o700, exist_ok=True)
+        except OSError:
+            raise Bad("the remote templates folder couldn't be made")
+    try:
+        return _fs.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        if make:
+            raise Bad("the remote templates folder couldn't be made")
+        return None
+    except OSError:
+        raise Bad("the remote templates folder isn't a folder")
+
+
+@contextlib.contextmanager
+def remote_lock(dfd):
+    """The folder's lock file, held for one change"""
+    fd = _fs.open(REMOTE_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600, dir_fd=dfd)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise Bad("the remote templates folder's lock isn't a file")
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def remote_names(dfd):
+    """The template files there by their names (<id>.json), A to Z"""
+    return sorted(n for n in os.listdir(dfd) if REMOTE_FILE.match(n))
+
+
+def remote_entry(dfd, name):
+    """What's at a name: missing, a plain file, or something else (a link, a folder)"""
+    try:
+        st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+    except FileNotFoundError:
+        return "missing"
+    return "file" if stat.S_ISREG(st.st_mode) else "other"
+
+
+def remote_text(template, rid):
+    """The template as written, its id the one it's saved under"""
+    t = dict(template)
+    t["id"] = rid
+    try:
+        text = (json.dumps(t, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+    except (TypeError, ValueError, RecursionError):
+        raise Bad("the template isn't plain JSON")
+    if len(text) > MAX_REMOTE_TEXT:
+        raise Bad("the template is bigger than 64 KB")
+    return text
+
+
+def remote_candidates(rid):
+    """The ids a copy may take: the one asked for, then -2, -3… (32 at most)"""
+    yield rid
+    for n in range(2, 100):
+        suffix = "-" + str(n)
+        yield rid[:32 - len(suffix)] + suffix
+
+
+def remote_temp(dfd, text, made):
+    """A new temporary file holding text: ours from the first byte (0600,
+    exclusive, never a link), synced and read back. Its name joins made
+    as soon as it exists"""
+    name = ".remote-" + secrets.token_hex(8) + ".json.tmp"
+    fd = _fs.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=dfd)
+    made.append(name)
+    with os.fdopen(fd, "wb") as f:
+        f.write(text)
+        f.flush()
+        _fs.fsync(f.fileno())
+    fd = _fs.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dfd)
+    with os.fdopen(fd, "rb") as f:
+        if f.read(MAX_REMOTE_TEXT + 1) != text:
+            raise OSError("it read back different")
+    return name
+
+
+def remote_sweep(dfd):
+    """Temporary files a save cut off left (only that name, only plain files);
+    called under the lock, so no save of ours is midway"""
+    for name in os.listdir(dfd):
+        if REMOTE_TEMP.match(name) and remote_entry(dfd, name) == "file":
+            try:
+                _fs.unlink(name, dir_fd=dfd)
+            except OSError:
+                pass
+
+
+def do_remote_list(raw):
+    """Your templates: each plain <id>.json (never through a link, at most
+    64 KB, UTF-8 JSON with an object in it), the first 50 by name; the rest
+    are counted as skipped. {ok, templates: [{id, text}], skipped}"""
+    req, folder = remote_request(raw)
+    try:
+        dfd = remote_folder(folder, False)
+    except Bad as e:
+        return {"ok": False, "error": str(e)}
+    if dfd is None:
+        return {"ok": True, "templates": [], "skipped": 0}
+    out, skipped = [], 0
+    try:
+        for name in remote_names(dfd):
+            text = None if len(out) >= MAX_REMOTES else read_remote(dfd, name)
+            if text is None:
+                skipped += 1
+            else:
+                out.append({"id": name[:-5], "text": text})
+    finally:
+        os.close(dfd)
+    return {"ok": True, "templates": out, "skipped": skipped}
+
+
+def read_remote(dfd, name):
+    """One template file's text, or None (a link, not a plain file, too big, not JSON)"""
+    try:
+        fd = _fs.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dfd)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        data = b""
+        while len(data) <= MAX_REMOTE_TEXT:
+            chunk = os.read(fd, MAX_REMOTE_TEXT + 1 - len(data))
+            if not chunk:
+                break
+            data += chunk
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+    if len(data) > MAX_REMOTE_TEXT:
+        return None
+    try:
+        text = data.decode("utf-8")
+        return text if isinstance(json.loads(text), dict) else None
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        return None
+
+
+def do_remote_save(raw):
+    """A template saved (see above). mode replace: over your own <id>.json
+    (a built-in's id refused; a link or a folder there refused); mode copy:
+    under the first free of id, id-2, id-3… (never a built-in's), its id
+    field the one it took. failed for anything up to and including the
+    rename or link, with nothing left behind; unconfirmed if only the last
+    folder sync failed. {ok, outcome, id}"""
+    req, folder = remote_request(raw)
+    rid, template, mode = req.get("id"), req.get("template"), req.get("mode", "replace")
+    if not isinstance(rid, str) or not THEME_ID.match(rid) or not isinstance(template, dict) or mode not in ("replace", "copy"):
+        raise Bad("not a remote template to save")
+    builtins = builtin_remote_ids()
+    if builtins is None:
+        raise Bad("the built-in templates couldn't be checked")
+    if mode == "replace" and rid in builtins:
+        raise Bad("that's a built-in template: save a copy instead")
+    made, dfd, used = [], None, None
+    try:
+        dfd = remote_folder(folder, True)
+        with remote_lock(dfd):
+            remote_sweep(dfd)
+            names = remote_names(dfd)
+            if mode == "replace":
+                text = remote_text(template, rid)
+                kind = remote_entry(dfd, rid + ".json")
+                if kind == "other":
+                    raise Bad("something that isn't a template is in its place")
+                if kind == "missing" and len(names) >= MAX_REMOTES:
+                    raise Bad("there are 50 remote templates already: remove one first")
+                tmp = remote_temp(dfd, text, made)
+                _fs.replace(tmp, rid + ".json", src_dir_fd=dfd, dst_dir_fd=dfd)
+                made.remove(tmp)
+                used = rid
+            else:
+                if len(names) >= MAX_REMOTES:
+                    raise Bad("there are 50 remote templates already: remove one first")
+                for cand in remote_candidates(rid):
+                    if cand in builtins:
+                        continue
+                    tmp = remote_temp(dfd, remote_text(template, cand), made)
+                    try:
+                        _fs.link(tmp, cand + ".json", src_dir_fd=dfd, dst_dir_fd=dfd, follow_symlinks=False)
+                    except FileExistsError:
+                        _fs.unlink(tmp, dir_fd=dfd)
+                        made.remove(tmp)
+                        continue
+                    used = cand
+                    made.remove(tmp)
+                    try:
+                        _fs.unlink(tmp, dir_fd=dfd)    # the copy's in; a leftover goes at the next save
+                    except OSError:
+                        pass
+                    break
+                if used is None:
+                    raise Bad("there's no free id for the copy")
+            try:
+                _fs.fsync(dfd)
+            except OSError:
+                return {"ok": True, "outcome": "unconfirmed", "why": "the disk hasn't confirmed it", "id": used}
+    except (Bad, OSError) as e:
+        for name in made:
+            try:
+                os.unlink(name, dir_fd=dfd)
+            except OSError:
+                pass
+        return {"ok": False, "outcome": "failed", "why": str(e) if isinstance(e, Bad) else "it couldn't be written"}
+    finally:
+        if dfd is not None:
+            os.close(dfd)
+    return {"ok": True, "outcome": "saved", "id": used}
+
+
+def do_remote_remove(raw):
+    """One of your templates taken away, under the lock: only a plain file
+    (never a link's target), then the folder synced. unconfirmed if that
+    sync failed; failed if nothing was taken"""
+    req, folder = remote_request(raw)
+    rid = req.get("id")
+    if not isinstance(rid, str) or not THEME_ID.match(rid):
+        raise Bad("not a remote template to remove")
+    builtins = builtin_remote_ids()
+    if builtins is None:
+        raise Bad("the built-in templates couldn't be checked")
+    if rid in builtins:
+        raise Bad("built-in templates can't be removed")
+    dfd = None
+    try:
+        dfd = remote_folder(folder, False)
+        if dfd is None:
+            return {"ok": False, "outcome": "failed", "why": "it isn't there"}
+        with remote_lock(dfd):
+            kind = remote_entry(dfd, rid + ".json")
+            if kind == "missing":
+                return {"ok": False, "outcome": "failed", "why": "it isn't there"}
+            if kind == "other":
+                return {"ok": False, "outcome": "failed", "why": "it isn't a template file"}
+            _fs.unlink(rid + ".json", dir_fd=dfd)
+            try:
+                _fs.fsync(dfd)
+            except OSError:
+                return {"ok": True, "outcome": "unconfirmed", "why": "the disk hasn't confirmed it"}
+    except (Bad, OSError) as e:
+        return {"ok": False, "outcome": "failed", "why": str(e) if isinstance(e, Bad) else "it couldn't be removed"}
+    finally:
+        if dfd is not None:
+            os.close(dfd)
+    return {"ok": True, "outcome": "saved"}
+
+
 def do_picture_import(raw):
     """A picture you picked, copied into the guide's own folder (configDir/
     app-pictures, 0700) as <32 hex>.<ext>, 0600, checked as user_picture
@@ -5070,7 +5369,7 @@ def do_lock(cmd, raw):
 
 
 def main(argv):
-    usage = "om-pg-apps catalog|inspect|app-inspect|app-update-check|app-update-prepare|app-current|app-key|app-file|app-revoke|install|discard|remove|verify|bundled|migrate|check|try|secret-set|secret-clear|forget|activity|private-read|private-write|theme-save|theme-tidy|theme-sweep|theme-remove|picture-import|picture-prune|saver-pictures|saver-take|saver-folder|lock-read|lock-check|lock-passcode|lock-save|lock-reset|pack ... (see the top of this file)"
+    usage = "om-pg-apps catalog|inspect|app-inspect|app-update-check|app-update-prepare|app-current|app-key|app-file|app-revoke|install|discard|remove|verify|bundled|migrate|check|try|secret-set|secret-clear|forget|activity|private-read|private-write|theme-save|theme-tidy|theme-sweep|theme-remove|remote-list|remote-save|remote-remove|picture-import|picture-prune|saver-pictures|saver-take|saver-folder|lock-read|lock-check|lock-passcode|lock-save|lock-reset|pack ... (see the top of this file)"
     if len(argv) < 2:
         raise Bad(usage)
     cmd, args = argv[1], argv[2:]
@@ -5081,6 +5380,7 @@ def main(argv):
             "app-current": 3, "app-key": 1, "app-revoke": 4, "install": 5, "discard": 2, "remove": 3, "verify": 3, "pack": 2,
             "bundled": 1, "migrate": 3, "check": 1, "secret-set": 2, "secret-clear": 2, "server": 1, "cert": 1, "forget": 4, "activity": 3,
             "private-read": 1, "private-write": 1, "theme-save": 0, "theme-tidy": 0, "theme-sweep": 0, "theme-remove": 0,
+            "remote-list": 0, "remote-save": 0, "remote-remove": 0,
             "picture-import": 0, "picture-prune": 0, "saver-pictures": 0, "saver-take": 0, "saver-folder": 0,
             "lock-read": 0, "lock-check": 0, "lock-passcode": 0, "lock-save": 0, "lock-reset": 0}
     if (want.get(cmd) != len(args) and not (cmd == "secret-clear" and 2 <= len(args) <= 33) and not (cmd == "verify" and len(args) == 4)
@@ -5146,13 +5446,15 @@ def main(argv):
         if len(raw) > MAX_REQUEST:
             raise Bad("that's too big")
         return do_lock(cmd, raw)
-    if cmd in ("theme-save", "theme-tidy", "theme-sweep", "theme-remove", "picture-import", "picture-prune", "saver-pictures", "saver-take", "saver-folder"):
+    if cmd in ("theme-save", "theme-tidy", "theme-sweep", "theme-remove", "remote-list", "remote-save", "remote-remove",
+               "picture-import", "picture-prune", "saver-pictures", "saver-take", "saver-folder"):
         # the request on stdin (JSON, bounded)
         raw = sys.stdin.buffer.read(MAX_REQUEST + 1)
         if len(raw) > MAX_REQUEST:
             raise Bad("that's too big")
         return {"theme-save": do_theme_save, "theme-tidy": do_theme_tidy, "theme-sweep": do_theme_sweep,
-                "theme-remove": do_theme_remove, "picture-import": do_picture_import, "picture-prune": do_picture_prune,
+                "theme-remove": do_theme_remove, "remote-list": do_remote_list, "remote-save": do_remote_save,
+                "remote-remove": do_remote_remove, "picture-import": do_picture_import, "picture-prune": do_picture_prune,
                 "saver-pictures": do_saver_pictures, "saver-take": do_saver_take, "saver-folder": do_saver_folder}[cmd](raw)
     if cmd == "private-write":
         # the file's text on stdin: no more than its cap is read

@@ -526,7 +526,11 @@ Item {
     }
     if (cmd === "guide") { mv.teardown(); guide.showGuide(); return true }
     if (cmd === "power") { guide.dismiss(); return true }   // the TV off: every tile stops
-    return cmd === "mini" || cmd === "full"
+    // the full / mini button: the selected tile full screen (as Enter), or back to the tiles
+    if (cmd === "window") { if (mv.mode === "tiles") mv.enter(); else if (mv.mode === "full") { mv.bannerUp = false; mv.mode = "tiles" } return true }
+    // HOME stops the tiles (the guide does it); the transport buttons do nothing here
+    if (cmd === "home") return false
+    return ["mini", "full", "playpause", "rewind", "forward", "live", "seek"].indexOf(cmd) >= 0
   }
 
   // Media keys (MPRIS) while Multiview is up: play and pause every tile,

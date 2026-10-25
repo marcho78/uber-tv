@@ -24,17 +24,45 @@ With --probe it only prints the network it would serve ({"probe": {...}})
 and exits, without opening anything: the guide shows that on the screen
 where you agree to turn the remote on.
 
+Remote templates (the phone page's layout and look) come from the guide,
+already checked and resolved, and live here in memory only. Each phone's
+choices (its template, the number pad shown or not, a size from -2 to 2)
+are kept on its entry in remotes.json, saved under the same lock. Every
+template or prefs change bumps remoteRev, which every event carries, so an
+open phone fetches /api/remote again and redraws.
+
 Talks to the guide over stdin and stdout, one JSON object per line:
   guide -> here:  {"state": {...}}     what's on, for the phones
                   {"pairing": true}    show a code (while the remote screen is open)
                   {"pairing": false}
                   {"forget": "<id>"}   unpair a phone
+                  {"templates": {"<id>": {...}}, "list": [{"id", "name",
+                   "description"}], "default": "<id>", "rev": n}
+                                       the remote templates, resolved
+                  {"prefs": {"id": "<phone id>", "template"?, "pad"?, "size"?,
+                   "keepPad"?}, "req": n}
+                                       a phone's choices, from the TV or an
+                                       agent (template null: the default;
+                                       keepPad: a new template doesn't bring
+                                       its number pad setting)
   here -> guide:  {"ready": {"port", "address", "subnet", "hostname"}}
                   {"pairing": {"code", "url", "qr", "expires"}}
-                  {"devices": [{"id", "name", "added", "seen"}]}
-                  {"command": {"cmd", "number", "digits"}}   (digits: the
-                  channel lock's passcode, for "code": 4 to 8, as text)
+                  {"devices": [{"id", "name", "added", "seen", "prefs":
+                   {"template", "pad", "size"}}]}
+                  {"done": n, "ok": true} or {"done": n, "ok": false, "error"}
+                                       a prefs request answered, once saved
+                  {"command": {"cmd", "number", "digits", "at", "play"}}
+                                       (digits: the channel lock's passcode,
+                                       for "code": 4 to 8, as text; at and
+                                       play: for "seek", a point 0 to 1 along
+                                       the card's bar and what it was drawn
+                                       for)
                   {"error": "..."}
+
+The phone (paired, from another device): GET /api/state, /api/events,
+/api/logo/<id>.jpg, /api/remote (its template, prefs and the list),
+/api/font/<id> (a font Uber TV ships, from a fixed table); POST /api/cmd,
+/api/remote ({"template"?, "pad"?, "size"?}: its own choices), /api/forget.
 """
 
 import hashlib
@@ -48,6 +76,7 @@ import re
 import secrets
 import socket
 import socketserver
+import stat
 import subprocess
 import sys
 import tempfile
@@ -61,12 +90,18 @@ CACHE = pathlib.Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "om-
 DEVICES = CONFIG / "remotes.json"
 LOGOS = CACHE / "logos"
 PAGE = pathlib.Path(__file__).resolve().parent.parent / "remote" / "index.html"
+FONT_DIR = pathlib.Path(__file__).resolve().parent.parent / "fonts"
+# the fonts a template may name, and their files: an id is only looked up here
+FONTS = {"dm-mono": "DMMono-Regular.ttf", "dm-mono-medium": "DMMono-Medium.ttf", "orbitron": "Orbitron.ttf"}
+MAX_FONT = 1024 * 1024
+TEMPLATE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}\Z")
+MAX_LINE = 4 * 1024 * 1024
 
 PORT = next((int(a) for a in sys.argv[1:] if a.isdigit()), 24750)
 CODE_LIFE = 120
 CODE_TRIES = 5
 COMMANDS = {"up", "down", "left", "right", "ok", "back", "chup", "chdown", "guide", "full", "mini", "mute", "power", "tune", "options", "code",
-            "yes", "no"}
+            "yes", "no", "playpause", "rewind", "forward", "live", "window", "home", "seek"}
 PRIVATE = [ipaddress.ip_network(n) for n in
            ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16")]
 
@@ -74,6 +109,9 @@ out_lock = threading.Lock()
 lock = threading.RLock()
 changed = threading.Condition(lock)
 state = {"version": 0, "data": {}}
+# the remote templates the guide sent (resolved), and remoteRev: bumped by
+# each new set and each prefs save, so open phones fetch /api/remote again
+templates = {"templates": {}, "list": [], "default": "classic", "rev": 0}
 pairing = {"on": False, "code": "", "link": "", "expires": 0, "tries": 0, "qr": ""}
 network = {}
 last_attempt = {}
@@ -117,13 +155,155 @@ def save_devices():
         raise
 
 
+def prefs_of(d):
+    """A phone's choices, as saved (an older entry has none yet)"""
+    p = d.get("prefs") if isinstance(d.get("prefs"), dict) else {}
+    template = p.get("template")
+    pad = p.get("pad")
+    size = p.get("size")
+    return {"template": template if isinstance(template, str) and TEMPLATE_ID.match(template) else None,
+            "pad": pad if pad in ("on", "off") else None,
+            "size": size if isinstance(size, int) and not isinstance(size, bool) and -2 <= size <= 2 else 0}
+
+
 def device_rows():
     with lock:   # copied under the lock; say it only after letting go
-        return [{k: d[k] for k in ("id", "name", "added", "seen")} for d in devices]
+        return [dict({k: d[k] for k in ("id", "name", "added", "seen")}, prefs=prefs_of(d)) for d in devices]
 
 
 def report_devices():
     say({"devices": device_rows()})
+
+
+# Remote templates and each phone's choices
+
+def bump_rev():
+    """remoteRev moves on, and every open phone hears it at once"""
+    with changed:
+        templates["rev"] += 1
+        state["version"] += 1
+        changed.notify_all()
+
+
+def take_templates(message):
+    """The templates the guide sent, resolved: ids checked, anything else dropped"""
+    sent = {k: v for k, v in message["templates"].items() if isinstance(k, str) and TEMPLATE_ID.match(k) and isinstance(v, dict)}
+    given = message.get("list")
+    if not isinstance(given, list):   # no list: each one's own name and description
+        given = [{"id": k, "name": v.get("name", k), "description": v.get("description", "")} for k, v in sent.items()]
+    rows, seen = [], set()
+    for row in given:
+        if (isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"] in sent and row["id"] not in seen
+                and isinstance(row.get("name"), str) and isinstance(row.get("description", ""), str)):
+            seen.add(row["id"])
+            rows.append({"id": row["id"], "name": row["name"][:40], "description": row.get("description", "")[:120]})
+    default = message.get("default")
+    with changed:
+        templates["templates"] = sent
+        templates["list"] = rows
+        templates["default"] = default if isinstance(default, str) and TEMPLATE_ID.match(default) else "classic"
+    bump_rev()
+
+
+def using(prefs):
+    """The template a phone gets: its own choice if the guide sent it, else
+    the default if sent, else classic if sent, else none. Under the lock"""
+    sent = templates["templates"]
+    for tid in (prefs.get("template"), templates["default"], "classic"):
+        if isinstance(tid, str) and tid in sent:
+            return tid
+    return None
+
+
+def change_prefs(d, given, keep_pad=False, allow_default=False):
+    """A phone's choices changed: checked and saved under the lock, (prefs,
+    "") or (None, why). A template must be one the guide sent; choosing a
+    different one brings its number pad setting along, unless pad is given
+    too (or keep_pad). allow_default (the guide): template or pad null, back
+    to following the default and the template's own pad"""
+    with lock:
+        if not any(x is d for x in devices):
+            return None, "that phone isn't paired"
+        if not any(k in given for k in ("template", "pad", "size")):
+            return None, "nothing to change"
+        before = prefs_of(d)
+        new = dict(before)
+        if "template" in given:
+            tid = given["template"]
+            if tid is None and allow_default:
+                new["template"] = None
+            elif isinstance(tid, str) and tid in templates["templates"]:
+                new["template"] = tid
+            else:
+                return None, "that template isn't there"
+        if "pad" in given:
+            if given["pad"] in ("on", "off") or (given["pad"] is None and allow_default):
+                new["pad"] = given["pad"]
+            else:
+                return None, "pad is on or off"
+        if "size" in given:
+            size = given["size"]
+            if not isinstance(size, int) or isinstance(size, bool) or not -2 <= size <= 2:
+                return None, "size is a whole number from -2 to 2"
+            new["size"] = size
+        was, now = using(before), using(new)
+        if "template" in given and "pad" not in given and not keep_pad and now and now != was:
+            pad = templates["templates"][now].get("pad")
+            new["pad"] = pad if pad in ("on", "off") else None
+        old = d.get("prefs")
+        d["prefs"] = new
+        try:
+            save_devices()
+        except Exception:
+            if old is None:
+                d.pop("prefs", None)
+            else:
+                d["prefs"] = old
+            return None, "it couldn't be saved"
+        return dict(new), ""
+
+
+def guide_prefs(given, req):
+    """A phone's choices from the TV or an agent: answered once saved (or
+    why not), then the devices, then remoteRev"""
+    req = req if isinstance(req, int) and not isinstance(req, bool) else None
+    pid = given.get("id")
+    with lock:
+        d = next((x for x in devices if isinstance(pid, str) and x["id"] == pid), None)
+    if d is None:
+        say({"done": req, "ok": False, "error": "that phone isn't paired"})
+        return
+    fields = {k: given[k] for k in ("template", "pad", "size") if k in given}
+    prefs, why = change_prefs(d, fields, keep_pad=given.get("keepPad") is True, allow_default=True)
+    if prefs is None:
+        say({"done": req, "ok": False, "error": why})
+        return
+    say({"done": req, "ok": True, "prefs": prefs})
+    report_devices()
+    bump_rev()
+
+
+def read_font(name):
+    """A font Uber TV ships, by its file's name from FONTS: opened without
+    following a link, a plain file, at most 1 MB; None otherwise"""
+    try:
+        fd = os.open(FONT_DIR / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        data = b""
+        while len(data) <= MAX_FONT:
+            chunk = os.read(fd, MAX_FONT + 1 - len(data))
+            if not chunk:
+                break
+            data += chunk
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+    return data if len(data) <= MAX_FONT else None
 
 
 def digest(token):
@@ -299,7 +479,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if "Cache-Control" not in (headers or {}):
+            self.send_header("Cache-Control", "no-store")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -345,13 +526,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, page, "text/html; charset=utf-8")
         if self.from_here():
             return self.json(403, {"error": "Pair and press buttons from your phone, not from this computer."})
-        if not self.device():
+        d = self.device()
+        if not d:
             return self.json(401, {"error": "not paired"})
         if url.path == "/api/state":
             with lock:
-                return self.json(200, state["data"])
+                data = dict(state["data"], remoteRev=templates["rev"])
+            return self.json(200, data)
         if url.path == "/api/events":
             return self.events()
+        if url.path == "/api/remote":
+            # this phone's template, its choices and the list to pick from
+            with lock:
+                prefs = prefs_of(d)
+                tid = using(prefs)
+                answer = {"rev": templates["rev"], "id": tid, "template": templates["templates"].get(tid) if tid else None,
+                          "prefs": prefs, "list": list(templates["list"])}
+            return self.json(200, answer)
+        m = re.fullmatch(r"/api/font/([a-z0-9-]{1,32})", url.path)
+        if m:
+            # only looked up: nothing from the address reaches a path
+            name = FONTS.get(m.group(1))
+            font = read_font(name) if name else None
+            if font is None:
+                return self.send(404)
+            return self.send(200, font, "font/ttf", {"Cache-Control": "max-age=86400"})
         m = re.fullmatch(r"/api/logo/(UC[A-Za-z0-9_-]{22})\.jpg", url.path)
         if m:
             logo = LOGOS / f"{m.group(1)}.jpg"
@@ -370,10 +569,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with changed:
                     if state["version"] == seen:
                         changed.wait(timeout=15)
-                    version, data = state["version"], state["data"]
+                    version, data, rev = state["version"], state["data"], templates["rev"]
                 if version != seen:
                     seen = version
-                    self.wfile.write(b"data: " + json.dumps(data).encode() + b"\n\n")
+                    self.wfile.write(b"data: " + json.dumps(dict(data, remoteRev=rev)).encode() + b"\n\n")
                 else:
                     self.wfile.write(b": still here\n\n")
                 self.wfile.flush()
@@ -385,9 +584,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def body(self):
         try:
             length = min(int(self.headers.get("Content-Length") or 0), 4096)
-            return json.loads(self.rfile.read(length) or b"{}")
-        except (ValueError, OSError):
+            data = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, OSError, RecursionError):
             return {}
+        return data if isinstance(data, dict) else {}
 
     def do_POST(self):
         if not self.private():
@@ -404,8 +604,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 token = add_device(self.headers.get("User-Agent"))
                 return self.json(200, {"ok": True}, self.cookie(token))
             return self.json(403, {"error": "That code didn't work. Check the TV for the current one."})
-        if not self.device():
+        d = self.device()
+        if not d:
             return self.json(401, {"error": "not paired"})
+        if url.path == "/api/remote":   # this phone's own choices
+            fields = {k: data[k] for k in ("template", "pad", "size") if k in data}
+            prefs, why = change_prefs(d, fields)
+            if prefs is None:
+                return self.json(401 if why == "that phone isn't paired" else 400, {"error": why})
+            report_devices()
+            bump_rev()
+            return self.json(200, {"ok": True, "prefs": prefs})
         if url.path == "/api/cmd":
             cmd = str(data.get("cmd", ""))
             if cmd not in COMMANDS:
@@ -426,6 +635,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not isinstance(digits, str) or not re.match(r"^[0-9]{4,8}\Z", digits):
                     return self.json(400, {"error": "a passcode is 4 to 8 digits"})
                 command["digits"] = digits
+            if cmd == "seek":
+                # a point along the card's bar (0 to 1), and the play it was
+                # drawn for: the guide seeks only if that's still what's on
+                at, play = data.get("at"), data.get("play")
+                if isinstance(at, bool) or not isinstance(at, (int, float)) or not 0 <= at <= 1:
+                    return self.json(400, {"error": "at is a point from 0 to 1"})
+                if isinstance(play, bool) or not isinstance(play, int) or not 0 <= play <= 2 ** 53 - 1:
+                    return self.json(400, {"error": "play is a whole number"})
+                command["at"] = float(at)
+                command["play"] = play
             say({"command": command})
             return self.send(204)
         if url.path == "/api/forget":   # a phone unpairing itself
@@ -454,9 +673,11 @@ class Server(http.server.ThreadingHTTPServer):
 
 def listen():
     for line in sys.stdin:
+        if len(line) > MAX_LINE:
+            continue
         try:
             message = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):
             continue
         if not isinstance(message, dict):
             continue
@@ -472,6 +693,10 @@ def listen():
                 new_code()
             else:
                 end_pairing()
+        if isinstance(message.get("templates"), dict):
+            take_templates(message)
+        if isinstance(message.get("prefs"), dict):
+            guide_prefs(message["prefs"], message.get("req"))
         if isinstance(message.get("forget"), str):
             with lock:
                 devices[:] = [d for d in devices if d["id"] != message["forget"]]

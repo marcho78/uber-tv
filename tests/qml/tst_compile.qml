@@ -12,7 +12,7 @@ Item {
     name: "Compile"
 
     function test_compiles_data() {
-      return ["AppView.qml", "AppPlayback.qml", "AppHome.qml", "AppScreens.qml", "AppPanel.qml", "AppAgent.qml", "Snapshots.qml", "Themes.qml",
+      return ["AppView.qml", "AppPlayback.qml", "AppHome.qml", "AppScreens.qml", "AppPanel.qml", "AppAgent.qml", "Snapshots.qml", "Themes.qml", "RemoteTemplates.qml",
               "ui/AppScreen.qml", "ui/AppCard.qml", "ui/AppPlayer.qml", "ui/AppsScreen.qml", "ui/DialogBox.qml",
               "ui/AppStrip.qml", "ui/AppBackdrop.qml", "ui/AppTop.qml", "ui/AppHero.qml", "ui/AppCustomize.qml", "ui/AppChart.qml", "ui/AppTicker.qml", "ui/AppPage.qml",
               "ui/MultiviewTile.qml", "ui/Multiview.qml", "GuideKeys.qml", "ChannelLock.qml", "ui/LockBox.qml", "Authorize.qml", "DeveloperPresses.qml", "ui/OriginBadge.qml",

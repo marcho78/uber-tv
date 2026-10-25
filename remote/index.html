@@ -6,222 +6,311 @@
 <meta name="theme-color" content="#071447">
 <title>Uber TV Remote</title>
 <style>
-  :root {
-    --navy: #071447; --deep: #030a2b; --cell: #1b3591; --edge: #3b5bd1;
-    --ink: #f2f4ff; --dim: #9fb0f0; --yellow: #ffd23f; --red: #ff4d4d;
-    --key: #e4e9ff; --key-ink: #0b1550; --key-edge: #46559a;
-  }
+  /* The page's frame. Everything a template styles is set from its checked
+     values by the script below (Remote.js resolves templates on the TV). */
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: var(--deep); color: var(--ink); overscroll-behavior: none; }
+  html, body { margin: 0; height: 100%; overscroll-behavior: none; }
   body {
-    font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
-    display: flex; justify-content: center; padding: 0 12px;
-    background: linear-gradient(var(--navy), var(--deep)) fixed;
+    background: #030a2b; color: #f2f4ff;
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center;
   }
-  /* The whole remote fits the screen: everything sizes from the visible height. */
   main {
-    width: 100%; max-width: 440px; min-height: 100vh; min-height: 100dvh;
-    display: flex; flex-direction: column; gap: 8px;
-    padding: max(8px, env(safe-area-inset-top)) 0 max(10px, env(safe-area-inset-bottom));
+    width: 100%; max-width: 464px; height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: max(6px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
   }
-  header { display: flex; align-items: center; justify-content: space-between; min-height: 28px; }
-  h1 { color: var(--yellow); font-size: 14px; letter-spacing: .12em; margin: 0; }
-  header a { color: var(--dim); font-size: 11px; }
+  main.wide { max-width: 940px; }
+  header { flex: none; height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  header h1 { margin: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hidden { display: none !important; }
 
-  /* Pairing */
-  .pair p { color: var(--dim); line-height: 1.5; }
+  /* Pairing (before a phone has a template: Uber TV's own look) */
+  .pair { color: #f2f4ff; font-family: ui-monospace, Menlo, monospace; }
+  .pair p { color: #9fb0f0; line-height: 1.5; }
   .pair input {
     width: 100%; font: inherit; font-size: 32px; letter-spacing: .4em; text-align: center;
-    padding: 14px; margin: 10px 0; background: var(--deep); color: var(--ink);
-    border: 2px solid var(--edge); border-radius: 6px;
+    padding: 14px; margin: 10px 0; background: #030a2b; color: #f2f4ff;
+    border: 2px solid #3b5bd1; border-radius: 6px;
   }
-  .pair input:focus { outline: none; border-color: var(--yellow); }
-  .error { color: var(--red); min-height: 1.4em; }
-  .pair button { min-height: 56px; }
+  .pair input:focus { outline: none; border-color: #ffd23f; }
+  .pair .error { color: #ff4d4d; min-height: 1.4em; }
+  .pair button { width: 100%; min-height: 56px; font: inherit; font-weight: bold; font-size: 18px; color: #0b1550;
+                 background: #ffd23f; border: 1px solid #fff3b8; border-radius: 8px; box-shadow: 0 3px 0 #8a6d10; }
 
-  #remote { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  #area { flex: 1; min-height: 0; position: relative; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .col { display: flex; flex-direction: column; }
+  .cols { display: flex; gap: 16px; align-items: flex-start; }
+  .row { display: flex; align-items: center; flex: none; }
+  .row.dim { opacity: .35; pointer-events: none; }
+  .cell { position: relative; flex: none; height: 100%; display: flex; align-items: center; justify-content: center; min-width: 0; }
+  .panel { flex: none; display: flex; flex-direction: column; position: relative; }
+  .rise { animation: rise .22s ease-out; }
+  @keyframes rise { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .grab { align-self: center; flex: none; }
 
-  /* What's on, with the number being typed over it */
-  .now {
-    position: relative; display: flex; gap: 10px; align-items: center; padding: 8px 10px;
-    background: rgba(0,0,0,.25); border: 1px solid var(--edge); border-radius: 6px;
+  button { font: inherit; }
+  .k {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2em;
+    border: 0; padding: 0; margin: 0; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    background: transparent; color: inherit; line-height: 1.1; white-space: nowrap; overflow: visible;
   }
-  .now img { width: 40px; height: 40px; flex: none; object-fit: cover; border: 1px solid var(--edge); background: var(--deep); }
-  .now .lines { min-width: 0; flex: 1; }
-  .now .ch { color: var(--yellow); font-weight: bold; font-size: 13px; }
-  .now .title { font-weight: bold; font-size: 14px; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .now .when { color: var(--dim); font-size: 11px; }
-  .badge { color: var(--yellow); font-size: 11px; margin-left: 6px; }
-  .now .dvr { font-size: 11px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dvr .rec { color: var(--red); font-weight: bold; }
-  .dvr .pause { color: var(--yellow); }
+  .face { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+  .k > .in { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25em; }
+  .k svg, .ico { flex: none; }
+  .zone { position: absolute; border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; touch-action: manipulation; }
 
-  /* The TV's question (the strip on Home and the guide), answered here too */
-  .ask { flex: none; padding: 8px 10px; border: 1px solid var(--yellow); border-radius: 6px; background: rgba(0,0,0,.25); }
-  .ask p { margin: 0 0 8px; font-size: 12px; line-height: 1.4; }
-  .ask .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 40px; }
-  .ask button { font-size: 13px; }
-  .typed {
-    position: absolute; inset: 0; display: none; align-items: center; justify-content: center; gap: 12px;
-    background: rgba(3,10,43,.94); border-radius: 6px; color: var(--yellow); font-weight: bold; font-size: 26px; letter-spacing: .3em;
-  }
-  .typed small { font-size: 11px; letter-spacing: .1em; color: var(--dim); }
-  .typed.on { display: flex; }
+  .card { position: relative; display: flex; align-items: center; width: 100%; height: 100%; overflow: hidden; }
+  .card .side { flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .card .side img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .lines { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .card .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+  .card .line.title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .barbox { position: relative; width: 100%; }
+  .barbox .track, .barbox .fill { position: absolute; left: 0; }
+  .barbox .knob { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+  .barlabels { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
 
-  .tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; flex: none; }
-  .tabs a { padding: 7px; text-align: center; color: var(--dim); text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: .1em; }
-  .tabs a.on { background: var(--yellow); color: var(--key-ink); }
-
-  /* Buttons as keycaps; they fill their grid cells */
-  button {
-    font: inherit; font-weight: bold; color: var(--key-ink); background: var(--key);
-    border: 1px solid #fff; border-radius: 8px; box-shadow: 0 3px 0 var(--key-edge);
-    width: 100%; height: 100%; min-height: 0; padding: 0; cursor: pointer;
-    touch-action: manipulation; user-select: none; -webkit-user-select: none;
-  }
-  button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--key-edge); }
-  button.red { background: var(--red); color: #fff; border-color: #ff9a9a; box-shadow: 0 3px 0 #8a1f1f; }
-  button.yellow { background: var(--yellow); border-color: #fff3b8; box-shadow: 0 3px 0 #8a6d10; }
-  button.wide { font-size: 18px; }
-
-  #keys {
-    --u: clamp(36px, 6.4dvh, 60px);   /* one button row */
-    flex: 1; min-height: 0; display: grid; gap: 8px;
-    grid-template-rows: var(--u) calc(var(--u) * 3 + 16px) calc(var(--u) * .85) minmax(calc(var(--u) * 3.4), 1fr);
-    grid-template-areas: "power" "dpad" "row4" "split";
-  }
-  .power { grid-area: power; display: grid; grid-template-columns: 1fr 1fr 0.7fr; gap: 8px; font-size: 15px; }
-  .dpad { grid-area: dpad; display: grid; grid-template-columns: 1fr 1.2fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 8px; }
-  .dpad button { font-size: 20px; }
-  .dpad .ok { border-radius: 999px; font-size: 17px; }
-  .row4 { grid-area: row4; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .row4 button { font-size: 12px; }
-  .split { grid-area: split; display: grid; grid-template-columns: 1fr 26%; gap: 10px; min-height: 0; }
-  .numbers { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 1fr); gap: 6px; }
-  .numbers button { font-size: 18px; }
-  .rocker { display: grid; grid-template-rows: 1fr auto 1fr; gap: 4px; text-align: center; }
-  .rocker span { color: var(--dim); font-size: 10px; }
-  .rocker button { font-size: 16px; }
-
-  /* Sideways: d-pad on the left, number pad on the right */
-  @media (orientation: landscape) and (max-height: 560px) {
-    main { max-width: 920px; }
-    #keys {
-      --u: clamp(30px, 10dvh, 52px);
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: var(--u) 1fr;
-      grid-template-areas: "power row4" "dpad split";
-    }
-  }
-
-  /* The guide tab scrolls inside the page */
-  #guide { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  .band { color: var(--yellow); font-weight: bold; font-size: 12px; letter-spacing: .1em; padding: 10px 4px 4px; border-bottom: 1px solid var(--yellow); }
-  .chan { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid rgba(59,91,209,.35); cursor: pointer; }
-  .chan.tuned { background: rgba(59,91,209,.35); }
-  .chan .n { color: var(--yellow); font-weight: bold; width: 44px; text-align: right; flex: none; }
-  .chan img { width: 32px; height: 32px; object-fit: cover; background: var(--deep); flex: none; }
-  .chan .name { font-weight: bold; font-size: 13px; }
-  .chan .show { color: var(--dim); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .list { width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .chan { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .chan .text { min-width: 0; flex: 1; }
+  .chan .text div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chan img { flex: none; object-fit: cover; }
+
+  .strip { display: flex; width: 100%; height: 100%; align-items: stretch; }
+  .strip > div { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+
+  .over { position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 12px; }
+  .over small { letter-spacing: .1em; opacity: .75; }
+  .ask p { margin: 0 0 8px; line-height: 1.35; }
+  .ask .answers { display: flex; gap: 8px; height: 44px; }
+
+  .shade { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { width: 100%; max-width: 464px; max-height: 88dvh; overflow-y: auto; padding-bottom: max(16px, env(safe-area-inset-bottom)) !important; }
+  .sheet h2 { margin: 0; font-size: 15px; letter-spacing: .12em; }
+  .sheet .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .sheet .label { font-size: 11px; letter-spacing: .12em; margin: 16px 0 8px; opacity: .8; }
+  .sheet .pick { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 6px; white-space: normal; }
+  .sheet .pick small { font-weight: normal; opacity: .75; margin-top: 3px; font-size: 12px; line-height: 1.3; }
+  .sheet .pair2 { display: flex; gap: 8px; height: 48px; }
+  .sheet .sizes { display: flex; gap: 8px; align-items: center; height: 48px; }
+  .sheet .sizes span { flex: 1; text-align: center; }
+  .sheet .unpair { margin-top: 22px; height: 48px; width: 100%; }
+  .pin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pin .k { height: 54px; }
 </style>
 </head>
 <body>
-<main>
-  <header><h1>UBER TV · REMOTE</h1><a href="#" id="forget" class="hidden">UNPAIR</a></header>
+<main id="main">
+  <header id="head"><h1 id="title">UBER TV · REMOTE</h1><button class="k hidden" id="gear" type="button" aria-label="Settings"></button></header>
 
   <section id="pair" class="pair hidden">
     <p>On your computer, open Uber TV and press <b>T</b>. Enter the 6-digit code shown there, or scan its QR code.</p>
     <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
     <div class="error" id="pairError"></div>
-    <button class="yellow wide" id="pairButton">PAIR THIS PHONE</button>
+    <button id="pairButton" type="button">PAIR THIS PHONE</button>
   </section>
 
-  <section id="remote" class="hidden">
-    <div class="now">
-      <img id="logo" alt="" hidden>
-      <div class="lines">
-        <div><span class="ch" id="channel">TV IS OFF</span><span class="badge" id="badge"></span></div>
-        <div class="title" id="title">Press POWER to turn it on.</div>
-        <div class="when" id="when"></div>
-        <div class="dvr" id="dvr" hidden><span class="rec" id="rec"></span><span class="pause" id="pause"></span></div>
-      </div>
-      <div class="typed" id="typed"></div>
-    </div>
-
-    <div class="ask hidden" id="ask">
-      <p id="askText"></p>
-      <div class="answers"><button class="yellow" data-cmd="yes">TURN ON</button><button data-cmd="no">DISMISS</button></div>
-    </div>
-
-    <nav class="tabs"><a href="#" id="tabRemote" class="on">REMOTE</a><a href="#" id="tabGuide">GUIDE</a></nav>
-
-    <div id="keys">
-      <div class="power">
-        <button class="red" data-cmd="power">POWER</button>
-        <button data-cmd="mute" id="mute">MUTE</button>
-        <button data-cmd="options" title="Options: customize what's on the screen" aria-label="Options">⋯</button>
-      </div>
-
-      <div class="dpad">
-        <span></span><button data-cmd="up">▲</button><span></span>
-        <button data-cmd="left">◀</button><button class="ok yellow" data-cmd="ok">OK</button><button data-cmd="right">▶</button>
-        <span></span><button data-cmd="down">▼</button><span></span>
-      </div>
-
-      <div class="row4">
-        <button data-cmd="back">BACK</button>
-        <button data-cmd="guide">GUIDE</button>
-        <button data-cmd="full">FULL</button>
-        <button data-cmd="mini">MINI</button>
-      </div>
-
-      <div class="split">
-        <div class="numbers">
-          <button data-digit="1">1</button><button data-digit="2">2</button><button data-digit="3">3</button>
-          <button data-digit="4">4</button><button data-digit="5">5</button><button data-digit="6">6</button>
-          <button data-digit="7">7</button><button data-digit="8">8</button><button data-digit="9">9</button>
-          <button id="erase">⌫</button><button data-digit="0">0</button><button class="yellow" id="enter">GO</button>
-        </div>
-        <div class="rocker">
-          <button data-cmd="chup">CH ▲</button>
-          <span>CHANNEL</span>
-          <button data-cmd="chdown">CH ▼</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="guide" class="hidden"></div>
-
-  </section>
+  <section id="area" class="hidden"></section>
 </main>
 <script>
   const $ = (s) => document.querySelector(s)
-  let state = null
+  const NS = "http://www.w3.org/2000/svg"
+
+  // What the TV says (the event stream), the template drawn, and this phone's choices
+  let state = {}
+  let tpl = null
+  let prefs = { template: null, pad: null, size: 0 }
+  let names = []
+  let rev = null
+  let fetching = false
+  let view = { tab: "remote", expanded: false, settings: false }
   let typed = ""
   let typedTimer = null
   let events = null
+  let updaters = []
+  let U = 3.9                 // one unit: 1% of the width, in pixels
+  let SZ = 1                  // the size pref: text and icons grow or shrink
+  let built = ""
 
+  // ---- checked values only: anything else is dropped ----------------------
+  const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/
+  const col = (v) => typeof v === "string" && (HEX.test(v) || v === "transparent") ? v : "transparent"
+  const fin = (v, d) => typeof v === "number" && isFinite(v) ? v : (d || 0)
+  const px = (v) => Math.max(0, fin(v)) * U
+  const off = (v) => fin(v) * U          // a shadow's offset: either way
+  const DIRS = { down: "to bottom", up: "to top", right: "to right", left: "to left" }
+  const CASES = { upper: "uppercase", lower: "lowercase", title: "capitalize", none: "none" }
+  const SHAPES = ["rect", "pill", "circle", "chamfer"]
+  const FAMILY = {
+    system: '-apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
+    "dm-mono": '"UTV DM Mono", ui-monospace, Menlo, monospace',
+    "dm-mono-medium": '"UTV DM Mono Medium", ui-monospace, Menlo, monospace',
+    orbitron: '"UTV Orbitron", -apple-system, system-ui, sans-serif',
+  }
+  const FONT_FILES = { "dm-mono": ["UTV DM Mono", "url(/api/font/dm-mono)"], "dm-mono-medium": ["UTV DM Mono Medium", "url(/api/font/dm-mono-medium)"],
+                       orbitron: ["UTV Orbitron", "url(/api/font/orbitron)"] }
+  const fontsAdded = {}
+  function loadFont(id) {
+    if (!FONT_FILES[id] || fontsAdded[id] || typeof FontFace === "undefined") return
+    fontsAdded[id] = true
+    const f = new FontFace(FONT_FILES[id][0], FONT_FILES[id][1])
+    f.load().then(() => { document.fonts.add(f); built = ""; draw() }).catch(() => {})
+  }
+
+  const KEYS = ["power", "mute", "options", "back", "guide", "window", "home", "live", "rewind", "playpause", "forward", "padToggle",
+                "expand", "collapse", "chup", "chdown", "arrow", "ok", "digit", "erase", "go", "rocker"]
+  const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v)
+  function merge(a, b) {
+    if (!isObj(b)) return isObj(a) ? merge({}, a) : (b === undefined ? a : b)
+    const out = isObj(a) ? Object.assign({}, a) : {}
+    for (const k of Object.keys(b)) out[k] = isObj(out[k]) && isObj(b[k]) ? merge(out[k], b[k]) : b[k]
+    return out
+  }
+  // An element's style (a key starts from the key element's), and what a
+  // state changes on top of it
+  function extra(name, st) {
+    const S = (tpl && tpl.styles) || {}
+    return merge(KEYS.indexOf(name) >= 0 ? S["key:" + st] : {}, S[name + ":" + st]) || {}
+  }
+  function sty(name, st) {
+    const S = (tpl && tpl.styles) || {}
+    let s = merge(KEYS.indexOf(name) >= 0 ? S.key : {}, S[name]) || {}
+    if (st) s = merge(s, extra(name, st))
+    return s || {}
+  }
+
+  // the top left and bottom right corners cut
+  function chamfer(c) {
+    return "polygon(" + c + "px 0, 100% 0, 100% calc(100% - " + c + "px), calc(100% - " + c + "px) 100%, 0 100%, 0 " + c + "px)"
+  }
+  function fillOf(f) {
+    if (isObj(f)) return "linear-gradient(" + (DIRS[f.direction] || "to bottom") + ", " + col(f.from) + ", " + col(f.to) + ")"
+    return col(f)
+  }
+  // A box's look (fill, border, corners, shape, shadow, padding, opacity).
+  // A chamfered box draws its border as its own fill showing round an inner
+  // face (a key brings its own; anything else gets one, under its content)
+  function ownFace(el) {
+    if (!el._face || el._face.parentNode !== el) { el._face = div("face"); el.insertBefore(el._face, el.firstChild) }
+    return el._face
+  }
+  function box(el, s, face) {
+    const st = el.style
+    if (!s) return
+    const shape = SHAPES.indexOf(s.shape) >= 0 ? s.shape : "rect"
+    const b = isObj(s.border) ? s.border : null
+    const bw = b && fin(b.width) > 0 ? Math.max(1, px(b.width)) : 0
+    if (shape === "chamfer" && bw && !face) face = ownFace(el)
+    if (shape === "chamfer") {
+      const c = Math.max(2, px(s.radius === undefined ? 3 : (Array.isArray(s.radius) ? s.radius[0] : s.radius)))
+      st.clipPath = chamfer(c)
+      st.background = bw ? col(b.color) : fillOf(s.fill)
+      if (face && bw) {
+        face.style.clipPath = chamfer(Math.max(1, c - bw * 0.6))
+        face.style.inset = bw + "px"
+        face.style.background = fillOf(s.fill)
+      }
+      if (isObj(s.shadow)) st.filter = "drop-shadow(" + off(s.shadow.x) + "px " + off(s.shadow.y) + "px " + px(s.shadow.blur) + "px " + col(s.shadow.color) + ")"
+    } else {
+      if (s.fill !== undefined) st.background = fillOf(s.fill)
+      if (bw) {
+        const line = bw + "px solid " + col(b.color)
+        const sides = Array.isArray(b.sides) ? b.sides : ["top", "right", "bottom", "left"]
+        for (const side of sides) if (["top", "right", "bottom", "left"].indexOf(side) >= 0) st["border" + side[0].toUpperCase() + side.slice(1)] = line
+      }
+      if (shape === "pill") st.borderRadius = "999px"
+      else if (shape === "circle") st.borderRadius = "50%"
+      else if (Array.isArray(s.radius)) st.borderRadius = s.radius.map((r) => px(r) + "px").join(" ")
+      else if (s.radius !== undefined) st.borderRadius = px(s.radius) + "px"
+      if (isObj(s.shadow)) st.boxShadow = off(s.shadow.x) + "px " + off(s.shadow.y) + "px " + px(s.shadow.blur) + "px " + col(s.shadow.color)
+    }
+    if (s.padding !== undefined) st.padding = px(s.padding) + "px"
+    if (s.opacity !== undefined) st.opacity = String(Math.min(1, Math.max(0.1, fin(s.opacity, 1))))
+  }
+  // Its text: color, font, size, weight, case, spacing
+  function text(el, s) {
+    const t = s && isObj(s.text) ? s.text : null
+    if (!t) return
+    const st = el.style
+    if (t.color !== undefined) st.color = col(t.color)
+    if (t.font !== undefined) { st.fontFamily = FAMILY[t.font] || FAMILY.system; loadFont(t.font) }
+    if (t.size !== undefined) st.fontSize = (px(t.size) * SZ).toFixed(1) + "px"
+    if (t.weight !== undefined) st.fontWeight = String(Math.round(Math.min(900, Math.max(100, fin(t.weight, 400))) / 100) * 100)
+    if (t.case !== undefined) st.textTransform = CASES[t.case] || "none"
+    if (t.letterSpacing !== undefined) st.letterSpacing = Math.max(-0.2, Math.min(1, fin(t.letterSpacing))) + "em"
+    if (t.italic !== undefined) st.fontStyle = t.italic === true ? "italic" : "normal"
+  }
+  function looks(el, s, face) { box(el, s, face); text(el, s) }
+  function reset(el, keep) { el.removeAttribute("style"); if (keep) Object.assign(el.style, keep) }
+
+  // ---- the icons the page draws (a fixed set, 24 by 24) ----------------------
+  const ICONS = {
+    play: [["path", { d: "M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z", fill: "currentColor", stroke: "none" }]],
+    pause: [["rect", { x: 6, y: 4.5, width: 4.3, height: 15, rx: 1.4, fill: "currentColor", stroke: "none" }], ["rect", { x: 13.7, y: 4.5, width: 4.3, height: 15, rx: 1.4, fill: "currentColor", stroke: "none" }]],
+    rewind: [["path", { d: "M4.3 12a7.7 7.7 0 1 0 2.3-5.5" }], ["path", { d: "M6.6 2.6v3.9h3.9" }], ["text", { x: 12.3, y: 15, "font-size": 6.6, "font-weight": 700, "text-anchor": "middle", fill: "currentColor", stroke: "none" }, "30"]],
+    forward: [["path", { d: "M19.7 12a7.7 7.7 0 1 1-2.3-5.5" }], ["path", { d: "M17.4 2.6v3.9h-3.9" }], ["text", { x: 11.7, y: 15, "font-size": 6.6, "font-weight": 700, "text-anchor": "middle", fill: "currentColor", stroke: "none" }, "30"]],
+    power: [["path", { d: "M12 3.5v8" }], ["path", { d: "M6.7 7.2a7.5 7.5 0 1 0 10.6 0" }]],
+    mute: [["path", { d: "M3.8 9.3h3.3L12 5.3v13.4l-4.9-4H3.8z", fill: "currentColor" }], ["path", { d: "M15.8 9.4l5 5M20.8 9.4l-5 5" }]],
+    sound: [["path", { d: "M3.8 9.3h3.3L12 5.3v13.4l-4.9-4H3.8z", fill: "currentColor" }], ["path", { d: "M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.5a8 8 0 0 1 0 11" }]],
+    window: [["path", { d: "M8 14.5H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3.5" }], ["rect", { x: 8, y: 9.5, width: 13, height: 10, rx: 2 }]],
+    home: [["path", { d: "M4 10.4L12 4l8 6.4V19a1 1 0 0 1-1 1h-4.6v-5.6H9.6V20H5a1 1 0 0 1-1-1z" }]],
+    guide: [["path", { d: "M4 6.5h3.5M10.5 6.5H20M4 12h3.5M10.5 12h5M18.5 12H20M4 17.5h3.5M10.5 17.5H20" }]],
+    back: [["path", { d: "M9.5 5L4 10.5 9.5 16" }], ["path", { d: "M4 10.5h10.5a5.5 5.5 0 0 1 0 11H12" }]],
+    dots: [["circle", { cx: 5, cy: 12, r: 1.8, fill: "currentColor", stroke: "none" }], ["circle", { cx: 12, cy: 12, r: 1.8, fill: "currentColor", stroke: "none" }], ["circle", { cx: 19, cy: 12, r: 1.8, fill: "currentColor", stroke: "none" }]],
+    up: [["path", { d: "M5.5 15.5L12 9l6.5 6.5" }]],
+    down: [["path", { d: "M5.5 8.5L12 15l6.5-6.5" }]],
+    left: [["path", { d: "M15.5 5.5L9 12l6.5 6.5" }]],
+    right: [["path", { d: "M8.5 5.5L15 12l-6.5 6.5" }]],
+    erase: [["path", { d: "M9 5h10.5A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5H9l-6-7z" }], ["path", { d: "M11.8 9.5l5 5M16.8 9.5l-5 5" }]],
+    more: [["rect", { x: 4, y: 4, width: 6.5, height: 6.5, rx: 2 }], ["rect", { x: 13.5, y: 4, width: 6.5, height: 6.5, rx: 2 }], ["rect", { x: 4, y: 13.5, width: 6.5, height: 6.5, rx: 2 }], ["rect", { x: 13.5, y: 13.5, width: 6.5, height: 6.5, rx: 2 }]],
+    collapse: [["path", { d: "M5.5 8.5L12 15l6.5-6.5" }]],
+    gear: [["circle", { cx: 12, cy: 12, r: 3 }], ["path", { d: "M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.85 1.85M16.65 16.65l1.85 1.85M5.5 18.5l1.85-1.85M16.65 7.35l1.85-1.85" }], ["circle", { cx: 12, cy: 12, r: 6.4 }]],
+    tri: { up: "▲", down: "▼", left: "◀", right: "▶" },
+  }
+  function icon(name, size) {
+    const svg = document.createElementNS(NS, "svg")
+    svg.setAttribute("viewBox", "0 0 24 24")
+    svg.setAttribute("width", String(Math.round(size)))
+    svg.setAttribute("height", String(Math.round(size)))
+    svg.setAttribute("fill", "none")
+    svg.setAttribute("stroke", "currentColor")
+    svg.setAttribute("stroke-width", "1.9")
+    svg.setAttribute("stroke-linecap", "round")
+    svg.setAttribute("stroke-linejoin", "round")
+    svg.setAttribute("aria-hidden", "true")
+    svg.setAttribute("class", "ico")
+    for (const part of ICONS[name] || []) {
+      const el = document.createElementNS(NS, part[0])
+      for (const a of Object.keys(part[1])) el.setAttribute(a, String(part[1][a]))
+      if (part[2]) el.textContent = part[2]
+      svg.appendChild(el)
+    }
+    return svg
+  }
+  const div = (cls) => { const d = document.createElement("div"); if (cls) d.className = cls; return d }
+  const span = (txt) => { const s = document.createElement("span"); s.textContent = txt; return s }
+
+  // ---- talking to the TV ---------------------------------------------------
   const post = (path, body) => fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Remote": "1" },
     body: JSON.stringify(body || {}),
   })
 
-  function show(view) {
-    $("#pair").classList.toggle("hidden", view !== "pair")
-    $("#remote").classList.toggle("hidden", view !== "remote")
-    $("#forget").classList.toggle("hidden", view !== "remote")
-    if (view === "pair") setTimeout(() => $("#code").focus(), 100)
+  function show(which) {
+    $("#pair").classList.toggle("hidden", which !== "pair")
+    $("#area").classList.toggle("hidden", which !== "remote")
+    $("#gear").classList.toggle("hidden", which !== "remote")
+    if (which === "pair") { $("#title").textContent = "UBER TV · REMOTE"; setTimeout(() => $("#code").focus(), 100) }
   }
 
   async function start() {
     const r = await fetch("/api/state").catch(() => null)
     if (!r) return setTimeout(start, 3000)
     if (r.status === 401) return show("pair")
-    render(await r.json())
     show("remote")
+    render(await r.json())
     listen()
   }
 
@@ -230,6 +319,41 @@
     events = new EventSource("/api/events")
     events.onmessage = (e) => render(JSON.parse(e.data))
     events.onerror = () => { events.close(); events = null; setTimeout(start, 3000) }
+  }
+
+  // This phone's template and choices, again whenever the TV says they changed
+  // The newest revision asked for wins; rev moves only once a good answer is
+  // drawn, and a fetch that fails is tried again a little later (the page's
+  // own Classic meanwhile, if it has nothing yet)
+  let wanted = undefined
+  let again = false
+  let failures = 0
+  let retryTimer = null
+  async function fetchRemote(want, tries) {
+    if (want !== undefined) wanted = want
+    if (fetching) { again = true; return }
+    fetching = true
+    again = false
+    const r = await fetch("/api/remote").catch(() => null)
+    if (r && r.status === 401) { fetching = false; return show("pair") }
+    const got = r && r.ok ? await r.json().catch(() => null) : null
+    fetching = false
+    clearTimeout(retryTimer)
+    if (!got || !isObj(got)) {
+      failures += 1
+      if (!tpl) draw()
+      retryTimer = setTimeout(() => fetchRemote(), Math.min(30000, 1000 * Math.pow(2, Math.min(failures, 5))))
+      return
+    }
+    failures = 0
+    rev = got.rev
+    const g = got.template
+    tpl = isObj(g) && isObj(g.layout) && Array.isArray(g.layout.portrait) && isObj(g.styles) && isObj(g.colors) ? g : null
+    prefs = isObj(got.prefs) ? got.prefs : prefs
+    names = Array.isArray(got.list) ? got.list : []
+    draw()
+    // a newer revision told meanwhile: once more (never more than a few times in a row)
+    if ((again || (wanted !== undefined && wanted !== rev)) && (tries || 0) < 3) fetchRemote(undefined, (tries || 0) + 1)
   }
 
   async function pair() {
@@ -246,129 +370,940 @@
     if (r && r.status === 401) show("pair")
   }
 
-  const clock = (t) => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  async function choose(change) {
+    prefs = Object.assign({}, prefs, change)
+    draw()
+    const r = await post("/api/remote", change).catch(() => null)
+    if (r && r.status === 401) return show("pair")
+    const got = r && r.ok ? await r.json().catch(() => null) : null
+    if (got && isObj(got.prefs)) prefs = got.prefs
+    fetchRemote()
+  }
 
-  function logoUrl(id) { return /^UC[\w-]{22}$/.test(id || "") ? "/api/logo/" + id + ".jpg" : "" }
-
+  let stateAt = Date.now()
   function render(s) {
     const wasCode = !!(state && state.passcode)
-    state = s || {}
-    // the TV asks for the channel lock's passcode: the number pad types it
-    if (!!state.passcode !== wasCode) { typed = ""; clearTimeout(typedTimer); showTyped(); if (state.passcode) tab("remote") }
-    const now = state.on ? state.now : null
-    const where = { home: "HOME", library: "LIBRARY", guide: "GUIDE", settings: "SETTINGS", search: "SEARCH" }[state.screen] || ""
-    $("#channel").textContent = now ? (now.vod ? now.name || "On demand" : "CH " + now.number + " · " + now.name) : where || "TV IS OFF"
-    $("#title").textContent = now ? now.title : where ? "The arrows move, OK opens." : "Press POWER to turn it on."
-    $("#badge").textContent = state.mode === "mini" ? "MINI" : state.mode === "full" ? (now && now.vod ? "PLAYING" : "FULL SCREEN") : where
-    $("#mute").textContent = state.muted ? "UNMUTE" : "MUTE"
-    let when = ""
-    if (now && now.vod) when = (now.paused ? "Paused" : "On demand") + "  ·  ← → seek, OK pauses"
-    else if (now && now.live) when = "● LIVE"
-    else if (now && now.start) {
-      const left = Math.max(0, Math.ceil((now.end - Date.now() / 1000) / 60))
-      when = clock(now.start) + " – " + clock(now.end) + "  ·  " + left + " min left"
-    }
-    $("#when").textContent = when
-    // recording and pause and rewind, as the TV's banner says them
-    $("#rec").textContent = state.rec || ""
-    $("#pause").textContent = (state.rec && state.pause ? "  ·  " : "") + (state.pause || "")
-    $("#dvr").hidden = !state.rec && !state.pause
-    // the TV's question: TURN ON or DISMISS answer it, as Y and N
-    $("#ask").classList.toggle("hidden", !state.ask)
-    $("#askText").textContent = state.ask ? state.ask.text : ""
-    const logo = $("#logo"), src = now ? logoUrl(now.channelId) : ""
-    logo.hidden = !src
-    if (src && logo.getAttribute("src") !== src) logo.src = src
-    renderGuide()
+    state = isObj(s) ? s : {}
+    stateAt = Date.now()
+    if (!!state.passcode !== wasCode) { typed = ""; clearTimeout(typedTimer) }
+    if (state.remoteRev !== undefined && state.remoteRev !== rev) fetchRemote(state.remoteRev)
+    else if (rev === null) fetchRemote()
+    refresh()
   }
+  function refresh() { for (const u of updaters) u(); for (const t of tickers) t(); overlays() }
+  // what moves with time (bars, readouts): once a second
+  let tickers = []
+  setInterval(() => { for (const t of tickers) t() }, 1000)
+  const since = () => (Date.now() - stateAt) / 1000
 
-  function renderGuide() {
-    const box = $("#guide")
-    box.textContent = ""
-    let category = null
-    const cats = new Set((state.channels || []).map((c) => c.category || ""))
-    for (const c of state.channels || []) {
-      const cat = c.category || ""
-      if (cat !== category && (cats.size > 1 || cat)) {
-        const band = document.createElement("div")
-        band.className = "band"
-        band.textContent = cat ? cat.toUpperCase() : "MY CHANNELS"
-        box.appendChild(band)
+  // ---- what's on --------------------------------------------------------------
+  const clock = (t) => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  const span2 = (ms) => {
+    const s = Math.floor(Math.max(0, ms) / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60
+    return (h ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (r < 10 ? "0" : "") + r
+  }
+  function logoUrl(id) { return /^UC[\w-]{22}$/.test(id || "") ? "/api/logo/" + id + ".jpg" : "" }
+  const WHERE = { home: "HOME", library: "LIBRARY", guide: "GUIDE", settings: "SETTINGS", search: "SEARCH" }
+  // what's on: a channel or movie with the TV on, or an app's video (the TV's channel is off then)
+  function now() { return state.on || state.media === "app" ? state.now : null }
+  function where() { return WHERE[state.screen] || "" }
+  function paused() { const n = now(); return !!(n && (n.vod ? n.paused : state.ts && state.ts.paused)) || !!state.paused }
+  function initials(name) {
+    const words = String(name || "").trim().split(/\s+/).filter(Boolean)
+    if (!words.length) return ""
+    if (words[0].length <= 4) return words[0].toUpperCase()
+    return words.slice(0, 3).map((w) => w[0]).join("").toUpperCase()
+  }
+  function lineText(line, opts) {
+    const n = now()
+    if (line === "channel") return n ? (n.vod ? n.name || "On demand" : (opts.prefix ? "CH " : "") + n.number + " · " + n.name) : where() || "TV IS OFF"
+    if (line === "name") return n ? (n.vod ? n.name || "On demand" : n.name) : where() || "TV IS OFF"
+    if (line === "number" || line === "hero") return n && !n.vod ? String(n.number) : ""
+    if (line === "title") return n ? n.title || "" : where() ? "The arrows move, OK opens." : "Press POWER to turn it on."
+    if (line === "mode") return state.mode === "mini" ? "MINI" : state.mode === "full" ? (n && n.vod ? "PLAYING" : "FULL SCREEN") : where()
+    if (line === "times") {
+      if (n && n.vod) return (n.paused ? "Paused" : "On demand") + "  ·  ← → seek, OK pauses"
+      if (n && n.live) return "● LIVE"
+      if (n && n.start) {
+        const left = Math.max(0, Math.ceil((n.end - Date.now() / 1000) / 60))
+        return clock(n.start) + " – " + clock(n.end) + "  ·  " + left + " min left"
       }
-      category = cat
-      const row = document.createElement("div")
-      row.className = "chan" + (state.on && state.now && state.now.number === c.number ? " tuned" : "")
-      const n = document.createElement("div"); n.className = "n"; n.textContent = c.number
-      const img = document.createElement("img"); img.alt = ""
-      const src = logoUrl(c.channelId)
-      if (src) { img.src = src; img.onerror = () => (img.style.visibility = "hidden") } else img.style.visibility = "hidden"
-      const text = document.createElement("div"); text.className = "text"
-      const name = document.createElement("div"); name.className = "name"; name.textContent = c.name
-      const showName = document.createElement("div"); showName.className = "show"
-      showName.textContent = c.live ? "● LIVE  " + (c.title || "") : (c.title || "")
-      text.append(name, showName)
-      row.append(n, img, text)
-      row.addEventListener("click", () => send("tune", { number: c.number }))
-      box.appendChild(row)
+      return ""
     }
+    if (line === "dvr") return [state.rec || "", state.pause || ""].filter(Boolean).join("  ·  ")
+    return ""
   }
 
-  // The number pad: type a channel, it goes after a moment (or on GO). While
-  // the TV asks for the channel lock's passcode, it types that instead: dots,
-  // never the digits, and it goes only on GO.
-  function coding() { return !!(state && state.passcode) }
-  function showTyped() {
-    const box = $("#typed")
-    box.textContent = ""
-    if (typed || coding()) {
-      const label = document.createElement("small"); label.textContent = coding() ? "PASSCODE" : "CHANNEL"
-      box.append(label, document.createTextNode(coding() ? "•".repeat(typed.length) || " " : typed))
+  // The bar: what's kept (pause and rewind running), a movie's place, or how
+  // far into the show. Dragged (knob) only where the TV seeks: what's kept
+  // full screen, a movie full screen or in the mini player, an app's video
+  function barInfo() {
+    const n = now()
+    if (!n) return null
+    const ts = state.ts
+    if (!n.vod && ts && ts.running && fin(ts.window) > 0 && state.mode === "full") {
+      const behind = Math.min(fin(ts.window), fin(ts.behind) + (ts.paused ? since() : 0))
+      const at = Math.max(0, Math.min(1, 1 - behind / fin(ts.window)))
+      return { at, knob: true, kind: "live", window: fin(ts.window), left: ts.atLive && !ts.paused ? "" : span2(behind * 1000) + " behind live", mid: "", right: "LIVE" }
     }
-    box.classList.toggle("on", !!typed || coding())
+    if (n.vod && fin(n.length) > 0) {
+      const pos = Math.min(n.length, fin(n.position) + (n.paused ? 0 : since()))
+      const seeks = state.media === "app" || (state.media === "movie" && (state.mode === "full" || state.mode === "mini"))
+      return { at: Math.min(1, pos / n.length), knob: seeks, kind: "movie", length: n.length, left: span2(pos * 1000), mid: "", right: span2(n.length * 1000) }
+    }
+    if (n.start && n.end > n.start) {
+      const t = Date.now() / 1000
+      return { at: Math.max(0, Math.min(1, (t - n.start) / (n.end - n.start))), knob: false, left: clock(n.start), mid: Math.max(0, Math.ceil((n.end - t) / 60)) + " min left", right: clock(n.end) }
+    }
+    return { at: n.live ? 1 : 0, knob: false, left: "", mid: "", right: "" }
   }
+
+  // ---- building the page from the template ----------------------------------
+  const CMDS = { power: "power", mute: "mute", options: "options", back: "back", guide: "guide", window: "window", home: "home",
+                 live: "live", rewind: "rewind", playpause: "playpause", forward: "forward", chup: "chup", chdown: "chdown" }
+  const LABELS = { power: "POWER", mute: "MUTE", options: "⋯", back: "BACK", guide: "GUIDE", home: "HOME", live: "LIVE",
+                   chup: "CH ▲", chdown: "CH ▼", padToggle: "123", ok: "OK", go: "GO" }
+  const ARIA = { power: "Power", mute: "Mute", options: "Options", back: "Back", guide: "Guide", window: "Full screen or mini player",
+                 home: "Home", live: "Live", rewind: "Back 30 seconds", playpause: "Pause", forward: "Forward 30 seconds",
+                 chup: "Channel up", chdown: "Channel down", padToggle: "Number pad", expand: "More buttons", collapse: "Fewer buttons",
+                 up: "Up", down: "Down", left: "Left", right: "Right", ok: "OK", erase: "Erase" }
+  const ICON_OF = { power: "power", mute: "mute", options: "dots", back: "back", guide: "guide", window: "window", home: "home",
+                    rewind: "rewind", playpause: "pause", forward: "forward", chup: "up", chdown: "down", expand: "more", collapse: "collapse" }
+
+  // A key: its face (a label, an icon, or both), its look in each state, and what it does
+  function key(name, opts) {
+    const b = document.createElement("button")
+    b.type = "button"
+    b.className = "k"
+    b.setAttribute("aria-label", opts.aria || ARIA[name] || LABELS[name] || name)
+    const face = div("face")
+    const inner = div("in")
+    b.append(face, inner)
+    const geo = opts.geo || { width: "100%", height: "100%" }
+    const el = opts.el || name
+    let pressed = false
+    const paint = () => {
+      let s = merge(sty(el), opts.over)
+      if (opts.alt) s = merge(s, extra(el, "alt"))
+      if (opts.on && opts.on()) s = merge(s, extra(el, "on"))
+      if (opts.unavailable && opts.unavailable()) s = merge(s, extra(el, "unavailable"))
+      if (pressed) s = merge(s, extra(el, "pressed"))
+      reset(b, geo)
+      reset(face)
+      reset(inner)
+      if (opts.bare) {
+        // half of a shape drawn round it: its text and icon only
+        text(b, s)
+        if (s.opacity !== undefined) b.style.opacity = String(Math.min(1, Math.max(0.1, fin(s.opacity, 1))))
+      } else looks(b, s, face)
+      if (s.shape !== "chamfer" || opts.bare) face.style.display = "none"
+      if (s.place === "corner") {
+        Object.assign(inner.style, { position: "absolute", inset: Math.max(8, px(fin(s.padding, 3.5))) + "px", alignItems: "flex-start", justifyContent: "space-between" })
+        b.style.padding = "0"
+      }
+      // the face: an icon, a label, or both
+      inner.textContent = ""
+      const f = opts.face ? opts.face() : { label: LABELS[name] }
+      const size = px(fin(s.icon, 6)) * SZ * (opts.iconScale || 1)
+      if (f.icon) inner.appendChild(icon(f.icon, size))
+      if (f.tri) inner.appendChild(span(f.tri))
+      if (f.label) inner.appendChild(span(f.label))
+      if (f.small) { const sm = span(f.small); if (s.place !== "corner") { sm.style.fontSize = "0.62em"; sm.style.letterSpacing = "0.08em" } inner.appendChild(sm) }
+      if (f.make) for (const node of f.make()) inner.appendChild(node)
+    }
+    const up = () => { if (pressed) { pressed = false; paint() } }
+    b.addEventListener("pointerdown", () => { pressed = true; paint() })
+    b.addEventListener("pointerup", up)
+    b.addEventListener("pointercancel", up)
+    b.addEventListener("pointerleave", up)
+    b.addEventListener("click", (e) => { e.preventDefault(); if (opts.unavailable && opts.unavailable()) return; opts.press() })
+    if (!opts.alone) updaters.push(paint)
+    paint()
+    return b
+  }
+
+  // A key's face as the template says it (label, icon or both)
+  function faceOf(name, item) {
+    const f = item.face || (tpl && tpl.face) || "label"
+    const ico = ICON_OF[name]
+    const lab = LABELS[name]
+    if (name === "window") return { icon: "window" }
+    if (["rewind", "forward", "expand", "collapse"].indexOf(name) >= 0) return { icon: ico }
+    if (name === "playpause") return { icon: paused() ? "play" : "pause" }
+    if (name === "mute") return f === "icon" ? { icon: state.muted ? "sound" : "mute" } : f === "both" ? { icon: state.muted ? "sound" : "mute", label: state.muted ? "UNMUTE" : "MUTE" } : { label: state.muted ? "UNMUTE" : "MUTE" }
+    if (name === "live" || name === "padToggle") return { label: lab }
+    if ((name === "chup" || name === "chdown") && f === "both") return name === "chup" ? { icon: "up", small: "CH" } : { small: "CH", icon: "down" }
+    if (f === "icon" && ico) return { icon: ico }
+    if (f === "both" && ico) return { icon: ico, label: lab }
+    return { label: lab }
+  }
+
+  // Sizes of a key inside its cell: the cell, or a circle (round shapes), smaller by scale
+  function geoFor(name, w, h, scale, alt) {
+    const s = alt ? sty(name, "alt") : sty(name)
+    const k = scale || 1
+    if (s.shape === "circle") { const d = Math.floor(Math.min(w, h) * k); return { width: d + "px", height: d + "px", flex: "none" } }
+    return { width: Math.floor(w * k) + "px", height: Math.floor(h * k) + "px", flex: "none" }
+  }
+
+  function simpleKey(name, item, w, h) {
+    const unavailable = () => {
+      if (["rewind", "forward", "playpause"].indexOf(name) >= 0) return !state.media || (state.media === "live" && state.mode !== "full")
+      if (name === "live") return !(state.media === "live" && state.ts && state.ts.running && !state.ts.atLive)
+      return false
+    }
+    const on = name === "mute" ? () => !!state.muted : name === "padToggle" ? () => padShown() : null
+    const press = name === "padToggle" ? () => choose({ pad: padShown() ? "off" : "on" })
+                : name === "expand" ? () => { view.expanded = true; built = ""; draw() }
+                : name === "collapse" ? () => { view.expanded = false; built = ""; draw() }
+                : () => send(CMDS[name])
+    return key(name, { geo: geoFor(name, w, h, item.scale, item.alt), alt: item.alt, face: () => faceOf(name, item), on, unavailable, press })
+  }
+
+  // ---- the d-pad ----
+  function dpad(item, w, h) {
+    const variant = item.variant || "cross"
+    const tri = item.arrows === "triangle" || (!item.arrows && variant === "cross" && (tpl.face || "label") === "label")
+    const arrowFace = (d) => () => tri ? { tri: ICONS.tri[d] } : { icon: d }
+    const okKey = (geo, round) => key("ok", { geo, over: round ? { shape: "circle" } : undefined, face: () => ({ label: "OK" }), press: okPress })
+    const k = item.scale || 1
+    if (variant === "cross") {
+      const g = div()
+      const gw = Math.floor(w * k), gh = Math.floor(h * k)
+      const gap = Math.max(6, Math.round(2 * U))
+      Object.assign(g.style, { display: "grid", width: gw + "px", height: gh + "px", gap: gap + "px",
+                                gridTemplateColumns: "1fr 1.2fr 1fr", gridTemplateRows: "1fr 1fr 1fr" })
+      const cw = (gw - gap * 2) / 3.2, ch = (gh - gap * 2) / 3
+      // each key's place in the grid goes with its size (a key's style is redrawn whole)
+      const arrow = (d, r, cc) => key("arrow", { el: "arrow", aria: ARIA[d], geo: { width: "100%", height: "100%", gridRow: String(r), gridColumn: String(cc) },
+                                                 face: arrowFace(d), press: () => send(d) })
+      g.append(arrow("up", 1, 2), arrow("left", 2, 1), arrow("right", 2, 3), arrow("down", 3, 2))
+      const okSize = sty("ok").shape === "circle" ? Math.floor(Math.min(cw * 1.2, ch)) : null
+      g.appendChild(okKey(okSize ? { width: okSize + "px", height: okSize + "px", justifySelf: "center", alignSelf: "center", gridRow: "2", gridColumn: "2" }
+                                 : { width: "100%", height: "100%", gridRow: "2", gridColumn: "2" }))
+      return g
+    }
+    // plus and ring: one shape, with zones for the arrows and OK in the middle
+    const d = Math.floor(Math.min(w, h) * k)
+    const pad = div()
+    Object.assign(pad.style, { position: "relative", width: d + "px", height: d + "px", flex: "none" })
+    const base = sty("dpad")
+    const arm = d / 3
+    if (variant === "ring") {
+      const ring = div()
+      Object.assign(ring.style, { position: "absolute", inset: "0" })
+      box(ring, merge(base, { shape: "circle" }))
+      ring.style.borderRadius = "50%"
+      pad.appendChild(ring)
+    } else {
+      const svg = document.createElementNS(NS, "svg")
+      svg.setAttribute("viewBox", "0 0 " + d + " " + d)
+      svg.setAttribute("width", String(d)); svg.setAttribute("height", String(d))
+      svg.style.position = "absolute"; svg.style.inset = "0"; svg.style.overflow = "visible"
+      if (isObj(base.shadow)) svg.style.filter = "drop-shadow(" + off(base.shadow.x) + "px " + off(base.shadow.y) + "px " + px(base.shadow.blur) + "px " + col(base.shadow.color) + ")"
+      const r = Math.min(arm / 2, px(fin(base.radius, 3)))
+      const a = arm, b2 = arm * 2, e = d
+      const p = document.createElementNS(NS, "path")
+      // the plus, its outer corners rounded by the radius
+      p.setAttribute("d", ["M", a + r, 0, "H", b2 - r, "Q", b2, 0, b2, r, "V", a, "H", e - r, "Q", e, a, e, a + r, "V", b2 - r, "Q", e, b2, e - r, b2,
+                           "H", b2, "V", e - r, "Q", b2, e, b2 - r, e, "H", a + r, "Q", a, e, a, e - r, "V", b2, "H", r, "Q", 0, b2, 0, b2 - r,
+                           "V", a + r, "Q", 0, a, r, a, "H", a, "V", r, "Q", a, 0, a + r, 0, "Z"].join(" "))
+      p.setAttribute("fill", isObj(base.fill) ? col(base.fill.from) : col(base.fill))
+      const bw = isObj(base.border) && fin(base.border.width) > 0 ? Math.max(1, px(base.border.width)) : 0
+      p.setAttribute("stroke", bw ? col(base.border.color) : "none")
+      p.setAttribute("stroke-width", String(bw))
+      svg.appendChild(p)
+      pad.appendChild(svg)
+    }
+    // the arrows: marks on the shape, each a zone to press
+    const arrowStyle = sty("arrow")
+    const color = isObj(arrowStyle.text) && arrowStyle.text.color ? col(arrowStyle.text.color) : col((sty("key").text || {}).color)
+    const zones = { up: [arm, 0, arm, arm], down: [arm, arm * 2, arm, arm], left: [0, arm, arm, arm], right: [arm * 2, arm, arm, arm] }
+    if (variant === "ring") { const q = d * 0.34; Object.assign(zones, { up: [q, 0, d - 2 * q, q], down: [q, d - q, d - 2 * q, q], left: [0, q, q, d - 2 * q], right: [d - q, q, q, d - 2 * q] }) }
+    for (const dir of ["up", "down", "left", "right"]) {
+      const z = document.createElement("button")
+      z.type = "button"; z.className = "zone"; z.setAttribute("aria-label", ARIA[dir])
+      const [x, y, zw, zh] = zones[dir]
+      Object.assign(z.style, { left: x + "px", top: y + "px", width: zw + "px", height: zh + "px", color, display: "flex", alignItems: "center", justifyContent: "center" })
+      const mark = tri ? span(ICONS.tri[dir]) : icon(dir, Math.max(14, d * (variant === "ring" ? 0.075 : 0.1)) * SZ)
+      if (tri) { mark.style.fontSize = (d * 0.08 * SZ) + "px"; mark.style.color = color }
+      z.appendChild(mark)
+      const flash = (on) => { z.style.opacity = on ? "0.55" : "1" }
+      z.addEventListener("pointerdown", () => flash(true))
+      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) z.addEventListener(ev, () => flash(false))
+      z.addEventListener("click", (ev) => { ev.preventDefault(); send(dir) })
+      pad.appendChild(z)
+    }
+    const okD = Math.round(variant === "ring" ? d * 0.4 : arm * 0.86)
+    const ok = okKey({ position: "absolute", left: (d - okD) / 2 + "px", top: (d - okD) / 2 + "px", width: okD + "px", height: okD + "px" }, true)
+    pad.appendChild(ok)
+    return pad
+  }
+  // OK sends a number being typed (or the passcode), as GO does; with nothing typed it's OK
+  function okPress() { if (typed) return goTyped(); send("ok") }
+
+  // ---- channel up and down ----
+  function chKey(name, item, geo) {
+    return key(name, { geo, alt: item.alt, face: () => faceOf(name, item), press: () => send(name) })
+  }
+  function rocker(item, w, h) {
+    const v = item.variant || "vertical"
+    const k = item.scale || 1
+    const gw = Math.floor(w * k), gh = Math.floor(h * k)
+    const g = div()
+    Object.assign(g.style, { width: gw + "px", height: gh + "px", display: "flex", flex: "none" })
+    const lab = div()
+    lab.textContent = "CHANNEL"
+    text(lab, sty("rockerLabel"))
+    Object.assign(lab.style, { textAlign: "center", flex: "none", whiteSpace: "nowrap" })
+    const gap = Math.max(4, Math.round(1.2 * U))
+    if (v === "vertical" || v === "row") {
+      g.style.flexDirection = v === "vertical" ? "column" : "row"
+      g.style.alignItems = "center"
+      g.style.gap = gap + "px"
+      const f = item.face === "both" ? "both" : item.face
+      const one = (name) => { const kk = chKey(name, { face: f }, { width: "100%", height: "100%" }); const c = div(); c.style.flex = "1"; c.style.width = v === "vertical" ? "100%" : "auto"; c.style.height = v === "vertical" ? "auto" : "100%"; c.style.alignSelf = "stretch"; c.appendChild(kk); return c }
+      g.append(one("chup"), lab, one("chdown"))
+      return g
+    }
+    // tall and split: one shape holding both
+    box(g, sty("rocker"))
+    g.style.overflow = "hidden"
+    g.style.flexDirection = v === "tall" ? "column" : "row"
+    const half = (name) => {
+      const f = item.face || (v === "tall" ? "both" : "label")
+      return key(name, { el: "rocker", bare: true, aria: ARIA[name], geo: { flex: "1", width: v === "tall" ? "100%" : "50%", height: v === "tall" ? "50%" : "100%" },
+                         face: () => faceOf(name, { face: f }), press: () => send(name) })
+    }
+    const sep = div()
+    const edge = isObj(sty("rocker").border) ? col(sty("rocker").border.color) : "transparent"
+    Object.assign(sep.style, v === "tall" ? { height: "1px", width: "60%", alignSelf: "center", background: edge, flex: "none" } : { width: "1px", height: "60%", alignSelf: "center", background: edge, flex: "none" })
+    if (v === "tall") g.append(half("chup"), sep, half("chdown"))
+    else g.append(half("chdown"), sep, half("chup"))
+    return g
+  }
+
+  // ---- the number pad ----
+  function numberPad(item, w, h, alone) {
+    const g = div()
+    const gap = Math.max(6, Math.round(1.6 * U))
+    Object.assign(g.style, { display: "grid", width: w + "px", height: h + "px", gap: gap + "px", gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)", flex: "none" })
+    const cw = (w - gap * 2) / 3, ch = (h - gap * 3) / 4
+    const geo = (name) => sty(name).shape === "circle" ? { width: Math.floor(Math.min(cw, ch)) + "px", height: Math.floor(Math.min(cw, ch)) + "px", justifySelf: "center", alignSelf: "center" } : { width: "100%", height: "100%" }
+    for (const dg of ["1", "2", "3", "4", "5", "6", "7", "8", "9"]) g.appendChild(key("digit", { alone, el: "digit", aria: dg, geo: geo("digit"), face: () => ({ label: dg }), press: () => typeDigit(dg) }))
+    g.appendChild(key("erase", { alone, el: "erase", geo: geo("erase"), face: () => ({ icon: "erase" }), press: () => { typed = typed.slice(0, -1); overlays() } }))
+    g.appendChild(key("digit", { alone, el: "digit", aria: "0", geo: geo("digit"), face: () => ({ label: "0" }), press: () => typeDigit("0") }))
+    g.appendChild(key("go", { alone, el: "go", geo: geo("go"), face: () => ({ label: "GO" }), press: goTyped }))
+    return g
+  }
+
+  // ---- REMOTE and GUIDE ----
+  function tabs(item, w, h) {
+    const g = div()
+    Object.assign(g.style, { display: "flex", width: w + "px", height: h + "px", overflow: "hidden", flex: "none" })
+    box(g, sty("tabs"))
+    for (const which of ["remote", "guide"]) {
+      const t = document.createElement("button")
+      t.type = "button"; t.className = "k"
+      t.textContent = which === "remote" ? "REMOTE" : "GUIDE"
+      const paint = () => { reset(t, { flex: "1", height: "100%" }); looks(t, view.tab === which ? merge(sty("tab"), sty("tab", "on")) : sty("tab")) }
+      t.addEventListener("click", (e) => { e.preventDefault(); if (view.tab !== which) { view.tab = which; built = ""; draw() } })
+      updaters.push(paint)
+      paint()
+      g.appendChild(t)
+    }
+    return g
+  }
+
+  // ---- the now-playing card ----
+  let cardEl = null
+  function card(item, w, h) {
+    const opts = Object.assign({}, tpl.now || {}, item)
+    const show = Array.isArray(opts.show) ? opts.show : ["channel", "title", "times", "dvr"]
+    const c = div("card")
+    if (!cardEl) cardEl = c
+    looks(c, sty("card"))
+    c.style.width = w + "px"; c.style.height = h + "px"; c.style.flex = "none"
+    const center = opts.align === "center"
+    if (center) c.style.textAlign = "center"
+    const pad = px(fin(sty("card").padding))
+    const side = div("side")
+    const lines = div("lines")
+    const below = div("lines")
+    if (center) { lines.style.alignItems = "center"; below.style.alignItems = "center" }
+    const sideKind = center ? "none" : opts.side || "none"
+    const head = div()
+    Object.assign(head.style, { display: "flex", alignItems: "center", width: "100%", minWidth: "0" })
+    c.style.flexDirection = "column"
+    c.style.justifyContent = "center"
+    c.style.alignItems = "stretch"
+    if (sideKind !== "none") {
+      head.style.gap = Math.round(3.6 * U) + "px"
+      head.appendChild(side)
+    }
+    head.appendChild(lines)
+    c.append(head, below)
+    const rows = []
+    for (let i = 0; i < show.length; i++) {
+      const line = show[i]
+      if (line === "mode" && show[i - 1] === "channel") continue      // drawn beside the channel
+      if (line === "progress") { rows.push(barRow(w - pad * 2)); continue }
+      const el = div("line" + (line === "title" ? " title" : ""))
+      const elName = { channel: "nowChannel", name: "nowName", number: "nowNumber", hero: "nowHero", title: "nowTitle", times: "nowTimes", dvr: "nowDvr", mode: "nowMode" }[line]
+      text(el, sty(elName))
+      if (line === "hero") el.style.lineHeight = "0.95"
+      const modeAfter = line === "channel" && show[i + 1] === "mode"
+      rows.push({ el, update: () => {
+        const t = lineText(line, opts)
+        el.textContent = t
+        if (modeAfter) { const m = span(lineText("mode", opts)); text(m, sty("nowMode")); m.style.marginLeft = "0.6em"; el.appendChild(m) }
+        el.style.display = t || modeAfter ? "" : "none"
+      } })
+    }
+    // beside the side: the lines before the bar; the bar and after it, under both
+    let under = false
+    for (const r of rows) { if (r.ticks) under = true; (under && sideKind !== "none" ? below : lines).appendChild(r.el) }
+    // beside the lines: the logo (or initials), or the number
+    const sideSize = Math.min(h - pad * 2, Math.round(px(fin(sty("nowLogo").size, 14))))
+    const update = () => {
+      for (const r of rows) r.update()
+      if (sideKind === "none") return
+      side.textContent = ""
+      reset(side)
+      const n = now()
+      if (sideKind === "number") {
+        side.style.display = n && !n.vod ? "" : "none"
+        side.textContent = n && !n.vod ? String(n.number) : ""
+        looks(side, sty("nowNumber"))
+        side.style.alignSelf = "stretch"
+        return
+      }
+      side.style.width = side.style.height = sideSize + "px"
+      looks(side, sty("nowLogo"))
+      const src = n ? logoUrl(n.channelId) : ""
+      side.style.display = n ? "" : "none"
+      if (src) { const img = document.createElement("img"); img.alt = ""; img.src = src; img.onerror = () => { side.textContent = initials(n.name) }; side.appendChild(img) }
+      else if (n) side.textContent = initials(n.vod ? n.name : n.name)
+    }
+    updaters.push(update)
+    for (const r of rows) if (r.ticks) tickers.push(r.update)
+    update()
+    return c
+  }
+  function barRow(w) {
+    const wrap = div()
+    wrap.style.width = "100%"
+    const s = sty("bar")
+    const bh = Math.max(2, px(fin(s.height, 0.9)))
+    const bar = div("barbox")
+    bar.style.height = Math.max(bh, px(3.6)) + "px"
+    bar.style.margin = px(1.4) + "px 0 " + px(0.8) + "px"
+    const track = div("track"), fill = div("fill"), knob = div("knob")
+    const r = s.radius !== undefined ? px(s.radius) : bh / 2
+    for (const el of [track, fill]) Object.assign(el.style, { height: bh + "px", top: "50%", marginTop: -bh / 2 + "px", borderRadius: r + "px" })
+    track.style.width = "100%"
+    track.style.background = col(s.track)
+    fill.style.background = fillOf(s.fill)
+    const kd = px(3.4)
+    Object.assign(knob.style, { width: kd + "px", height: kd + "px", top: "50%", background: col(s.knob) })
+    if (isObj(s.shadow)) knob.style.boxShadow = off(s.shadow.x) + "px " + off(s.shadow.y) + "px " + px(s.shadow.blur) + "px " + col(s.shadow.color)
+    bar.append(track, fill, knob)
+    const labels = div("barlabels")
+    text(labels, sty("barLabel"))
+    const l = span(""), m = span(""), rr = span("")
+    labels.append(l, m, rr)
+    wrap.append(bar, labels)
+    // a finger along it (what pause and rewind keeps, a movie): the mark and
+    // the time follow, and letting go sends the TV there, for what it was drawn for
+    let drag = -1
+    let dragPlay = null
+    const along = (e) => {
+      const r = bar.getBoundingClientRect ? bar.getBoundingClientRect() : { left: 0, width: 0 }
+      return Math.max(0, Math.min(1, (fin(e.clientX) - r.left) / Math.max(1, r.width)))
+    }
+    const update = () => {
+      const b = barInfo()
+      if (drag >= 0 && !(b && b.knob)) drag = -1      // it can't seek there any more (left full screen, say): the drag's off
+      wrap.style.display = b ? "" : "none"
+      if (!b) return
+      const a = drag >= 0 ? drag : b.at
+      fill.style.width = (a * 100).toFixed(2) + "%"
+      knob.style.left = (a * 100).toFixed(2) + "%"
+      knob.style.display = b.knob ? "" : "none"
+      let left = b.left
+      if (drag >= 0 && b.kind === "live") left = drag > 0.995 ? "" : span2((1 - drag) * b.window * 1000) + " behind live"
+      else if (drag >= 0 && b.kind === "movie") left = span2(drag * b.length * 1000)
+      l.textContent = left; m.textContent = b.mid; rr.textContent = b.right
+      labels.style.display = left || b.mid || b.right ? "" : "none"
+    }
+    bar.style.touchAction = "none"
+    bar.addEventListener("pointerdown", (e) => {
+      const b = barInfo()
+      if (!b || !b.knob || typeof state.play !== "number") return
+      drag = along(e)
+      dragPlay = state.play
+      if (bar.setPointerCapture && e.pointerId !== undefined) { try { bar.setPointerCapture(e.pointerId) } catch (err) {} }
+      update()
+    })
+    bar.addEventListener("pointermove", (e) => { if (drag >= 0) { drag = along(e); update() } })
+    bar.addEventListener("pointerup", (e) => {
+      if (drag < 0) return
+      const f = along(e)
+      drag = -1
+      const b = barInfo()
+      update()
+      if (b && b.knob) send("seek", { at: Math.round(f * 10000) / 10000, play: dragPlay })
+    })
+    bar.addEventListener("pointercancel", () => { drag = -1; update() })
+    return { el: wrap, ticks: true, update }
+  }
+
+  // ---- the readout strip ----
+  function strip(item, w, h) {
+    const g = div("strip")
+    Object.assign(g.style, { width: w + "px", height: h + "px", gap: Math.round(1.6 * U) + "px" })
+    looks(g, sty("status"))
+    const items = [
+      () => ({ t: state.signal === "on" ? "SIG OK" : state.signal === "tuning" ? "TUNING" : state.signal === "lost" ? "NO SIGNAL" : "TV IS OFF", st: state.signal === "lost" ? "alert" : "" }),
+      () => ({ t: "● REC", st: state.recHere ? "alert" : "unavailable" }),
+      () => { const ts = state.ts; const b = ts ? fin(ts.behind) + (ts.paused ? since() : 0) : 0; return { t: ts && ts.running && (ts.paused || !ts.atLive) ? "−" + span2(b * 1000) : "LIVE", st: "" } },
+      () => ({ t: state.muted ? "MUTED" : "SOUND ON", st: state.muted ? "alert" : "" }),
+    ]
+    for (const it of items) {
+      const d = div()
+      const words = span("")
+      words.style.position = "relative"
+      d.appendChild(words)
+      g.appendChild(d)
+      const up = () => { const v = it(); words.textContent = v.t; reset(d); if (d._face) reset(d._face); looks(d, v.st ? sty("statusItem", v.st) : sty("statusItem")) }
+      updaters.push(up)
+      tickers.push(up)
+    }
+    return g
+  }
+
+  // ---- the touch pad ----
+  function swipe(item, w, h) {
+    const g = div()
+    Object.assign(g.style, { width: w + "px", height: h + "px", position: "relative", touchAction: "none", flex: "none", userSelect: "none" })
+    const s = sty("swipe")
+    looks(g, s)
+    g.setAttribute("role", "button")
+    g.setAttribute("aria-label", "Touch pad: swipe to move, tap for OK")
+    const color = isObj(s.text) && s.text.color ? col(s.text.color) : "#888888"
+    const m = Math.max(16, Math.min(w, h) * 0.07)
+    const marks = [["up", w / 2 - m / 2, px(3)], ["down", w / 2 - m / 2, h - m - px(3)], ["left", px(3), h / 2 - m / 2], ["right", w - m - px(3), h / 2 - m / 2]]
+    for (const [d, x, y] of marks) { const i = icon(d, m); Object.assign(i.style, { position: "absolute", left: x + "px", top: y + "px", color, opacity: "0.55" }); g.appendChild(i) }
+    const ring = div()
+    const rd = Math.max(14, Math.min(w, h) * 0.06)
+    Object.assign(ring.style, { position: "absolute", left: (w - rd) / 2 + "px", top: (h - rd) / 2 + "px", width: rd + "px", height: rd + "px", borderRadius: "50%", border: "1.5px solid " + color, opacity: "0.55" })
+    g.appendChild(ring)
+    const glow = div()
+    const gd = Math.round(px(12))
+    const accent = col(tpl.colors && tpl.colors.accent)
+    Object.assign(glow.style, { position: "absolute", width: gd + "px", height: gd + "px", borderRadius: "50%", pointerEvents: "none", display: "none",
+                                background: accent, opacity: "0.35", filter: "blur(" + Math.round(gd / 4) + "px)" })
+    g.appendChild(glow)
+    const follow = (e) => {
+      const r = g.getBoundingClientRect ? g.getBoundingClientRect() : { left: 0, top: 0 }
+      glow.style.left = (e.clientX - r.left - gd / 2) + "px"; glow.style.top = (e.clientY - r.top - gd / 2) + "px"
+    }
+    let start = null
+    g.addEventListener("pointerdown", (e) => { start = { x: e.clientX, y: e.clientY, t: Date.now() }; ring.style.opacity = "1"; glow.style.display = ""; follow(e) })
+    g.addEventListener("pointermove", (e) => { if (start) follow(e) })
+    g.addEventListener("pointerup", (e) => {
+      ring.style.opacity = "0.55"
+      glow.style.display = "none"
+      if (!start) return
+      const dx = e.clientX - start.x, dy = e.clientY - start.y
+      start = null
+      if (Math.hypot(dx, dy) < 18) return okPress()
+      send(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"))
+    })
+    g.addEventListener("pointercancel", () => { start = null; ring.style.opacity = "0.55"; glow.style.display = "none" })
+    return g
+  }
+
+  // ---- the channel list ----
+  function list(item, w, h) {
+    const box2 = div("list")
+    Object.assign(box2.style, { width: w + "px", height: h + "px", flex: "none" })
+    looks(box2, sty("list"))
+    const cols = (tpl.guideList && Array.isArray(tpl.guideList.show)) ? tpl.guideList.show : ["number", "logo", "name", "title", "live", "rec"]
+    let shown = ""
+    updaters.push(() => {
+      const chans = Array.isArray(state.channels) ? state.channels : []
+      const tuned = state.on && state.now ? state.now.number : null
+      const sig = JSON.stringify([chans, tuned, cols])
+      if (sig === shown) return
+      shown = sig
+      const top = box2.scrollTop
+      box2.textContent = ""
+      const cats = new Set(chans.map((c) => c.category || ""))
+      let category = null
+      for (const c of chans) {
+        const cat = c.category || ""
+        if (cat !== category && (cats.size > 1 || cat)) {
+          const band = div()
+          band.textContent = cat ? cat.toUpperCase() : "MY CHANNELS"
+          looks(band, sty("band"))
+          box2.appendChild(band)
+        }
+        category = cat
+        const row = div("chan")
+        looks(row, c.number === tuned ? merge(sty("listRow"), sty("listRow", "on")) : sty("listRow"))
+        if (cols.indexOf("number") >= 0) { const n = div(); n.textContent = c.number; text(n, sty("listNumber")); n.style.flex = "none"; n.style.minWidth = "2.6em"; row.appendChild(n) }
+        if (cols.indexOf("logo") >= 0) {
+          const src = logoUrl(c.channelId)
+          if (src) { const img = document.createElement("img"); img.alt = ""; img.src = src; const d = Math.round(px(8)); img.style.width = img.style.height = d + "px"; img.style.borderRadius = px(1) + "px"; img.onerror = () => { img.style.visibility = "hidden" }; row.appendChild(img) }
+        }
+        const t = div("text")
+        if (cols.indexOf("name") >= 0) { const nm = div(); nm.textContent = c.name; text(nm, sty("listName")); t.appendChild(nm) }
+        if (cols.indexOf("title") >= 0) {
+          const sh = div()
+          if (c.live && cols.indexOf("live") >= 0) { const tag = span("● LIVE "); text(tag, sty("listTag")); sh.appendChild(tag) }
+          sh.appendChild(document.createTextNode(c.title || ""))
+          text(sh, sty("listTitle"))
+          t.appendChild(sh)
+        }
+        row.appendChild(t)
+        if (c.rec && cols.indexOf("rec") >= 0) { const tag = div(); tag.textContent = "● REC"; text(tag, merge(sty("listTag"), sty("listTag", "alert"))); tag.style.flex = "none"; row.appendChild(tag) }
+        row.addEventListener("click", () => send("tune", { number: c.number }))
+        box2.appendChild(row)
+      }
+      box2.scrollTop = top
+    })
+    return box2
+  }
+
+  // ---- one control in its cell ----
+  function control(item, w, h) {
+    const n = item.control
+    if (n === "gap") return null
+    if (n === "now") return card(item, w, h)
+    if (n === "tabs") return tabs(item, w, h)
+    if (n === "dpad") return dpad(item, w, h)
+    if (n === "rocker") return rocker(item, w, h)
+    if (n === "pad") return numberPad(item, Math.floor(w * (item.scale || 1)), Math.floor(h * (item.scale || 1)))
+    if (n === "status") return strip(item, w, h)
+    if (n === "swipe") return swipe(item, w, h)
+    if (n === "list") return list(item, w, h)
+    if (n === "chup" || n === "chdown") return chKey(n, item, geoFor(n, w, h, item.scale, item.alt))
+    return simpleKey(n, item, w, h)
+  }
+
+  // ---- laying out ----------------------------------------------------------------
+  function padShown() { return prefs.pad === "on" || (prefs.pad !== "off" && (!tpl || tpl.pad !== "off")) }
+  const HAS_KEYS = ["dpad", "pad", "rocker", "tabs"].concat(KEYS)
+  function rowsNow() {
+    let rows = (view.expanded && tpl.layout.expanded) ? tpl.layout.expanded : tpl.layout.portrait
+    const pad = padShown()
+    const keep = (r) => !r.pad || (r.pad === "on") === pad
+    rows = rows.map((e) => e.panel ? Object.assign({}, e, { rows: e.rows.filter(keep) }) : e).filter((e) => e.panel ? e.rows.length : keep(e))
+    // the guide tab: what's below the tabs gives way to the channel list
+    if (view.tab === "guide") {
+      const at = rows.findIndex((e) => !e.panel && e.row.some((it) => it.control === "tabs"))
+      if (at >= 0) rows = rows.slice(0, at + 1).concat([{ row: [{ control: "list" }], height: 10, grow: true }])
+    }
+    return rows
+  }
+  // Splits rows into the left and right columns (sideways)
+  function split(rows, left) {
+    const part = (rs, want) => {
+      const out = []
+      for (const e of rs) {
+        if (e.panel) { const inner = part(e.rows, want); if (inner.length) out.push(Object.assign({}, e, { rows: inner })); continue }
+        const items = e.row.filter((it) => it.control === "gap" || (left.indexOf(it.control) >= 0) === want)
+        if (items.some((it) => it.control !== "gap")) out.push(Object.assign({}, e, { row: items }))
+      }
+      return out
+    }
+    return [part(rows, true), part(rows, false)]
+  }
+
+  function column(rows, W, H, rise) {
+    const c = div("col")
+    c.style.width = W + "px"
+    const gapPx = Math.round(2 * U)
+    // what the panels take round their rows
+    let fixed = 0, entries = 0
+    const flat = []
+    for (const e of rows) {
+      entries += 1
+      if (e.panel) {
+        const ps = sty(e.panel)
+        fixed += px(fin(ps.padding)) * 2 + (e.handle ? px(4) : 0) + gapPx * Math.max(0, e.rows.length - 1)
+        for (const r of e.rows) flat.push(r)
+      } else flat.push(e)
+    }
+    fixed += gapPx * Math.max(0, entries - 1)
+    const avail = Math.max(120, H - fixed)
+    // each row its share (never under a key's 44 px, the tabs' 32), then what's
+    // left to the rows that grow; past the screen, the page scrolls
+    const minOf = (r) => r.row.some((it) => it.control !== "tabs" && HAS_KEYS.indexOf(it.control) >= 0) ? 44
+                       : r.row.some((it) => it.control === "tabs") ? 32 : r.row.every((it) => it.control === "gap") ? 0 : 24
+    const sizes = new Map()
+    let sum = 0, growing = 0
+    for (const r of flat) { const hh = Math.max(minOf(r), Math.floor(avail * r.height / 100)); sizes.set(r, hh); sum += hh; if (r.grow) growing += 1 }
+    const left = avail - sum
+    if (left > 0 && growing) for (const r of flat) if (r.grow) sizes.set(r, sizes.get(r) + Math.floor(left / growing))
+    const heightOf = (r) => sizes.get(r)
+    c.style.gap = gapPx + "px"
+    const drawRow = (r, rw) => {
+      const rowEl = div("row" + (r.dim ? " dim" : ""))
+      const hh = heightOf(r)
+      const items = r.row.filter((it) => it.control !== "pad" || padShown())
+      const gap = r.gap !== undefined ? px(r.gap) : Math.round(2 * U)
+      Object.assign(rowEl.style, { height: hh + "px", width: rw + "px", gap: gap + "px" })
+      let total = 0
+      for (const it of items) total += it.weight || 1
+      const free = rw - gap * Math.max(0, items.length - 1)
+      for (const it of items) {
+        const cw = Math.floor(free * (it.weight || 1) / total)
+        const cell = div("cell")
+        cell.style.width = cw + "px"
+        const el = control(it, cw, hh)
+        if (el) cell.appendChild(el)
+        rowEl.appendChild(cell)
+      }
+      return rowEl
+    }
+    for (const e of rows) {
+      if (!e.panel) { c.appendChild(drawRow(e, W)); continue }
+      const p = div("panel" + (rise ? " rise" : ""))
+      const ps = sty(e.panel)
+      looks(p, ps)
+      p.style.gap = gapPx + "px"
+      const inner = W - px(fin(ps.padding)) * 2 - (isObj(ps.border) ? 2 * Math.max(1, px(fin(ps.border.width))) : 0)
+      if (e.handle) {
+        const g = div("grab")
+        looks(g, sty("handle"))
+        Object.assign(g.style, { width: px(10) + "px", height: Math.max(3, px(1)) + "px", marginBottom: px(0.6) + "px" })
+        p.appendChild(g)
+      }
+      for (const r of e.rows) p.appendChild(drawRow(r, inner))
+      c.appendChild(p)
+    }
+    return c
+  }
+
+  // Draws the page from the template (again only when something it depends on changed)
+  function draw() {
+    if (!tpl) tpl = FALLBACK
+    const area = $("#area")
+    const wide = innerWidth > innerHeight && innerHeight < 560
+    $("#main").classList.toggle("wide", wide)
+    SZ = 1 + 0.12 * Math.max(-2, Math.min(2, Math.round(fin(prefs.size))))
+    const key = JSON.stringify([tpl.id, rev, prefs, view.tab, view.expanded, innerWidth, innerHeight, Object.keys(fontsAdded).length])
+    if (key === built && area.childNodes.length) { refresh(); return }
+    const rise = built !== "" && JSON.parse(built)[4] !== view.expanded
+    built = key
+    // the page itself: its background, the header
+    reset(document.body)
+    box(document.body, sty("page"))
+    document.body.style.minHeight = "100%"
+    const W = area.clientWidth || Math.min(innerWidth, wide ? 940 : 464) - 24
+    const H = area.clientHeight || innerHeight - 60
+    updaters = []
+    tickers = []
+    cardEl = null
+    area.textContent = ""
+    const head = $("#title")
+    reset(head)
+    text(head, sty("header"))
+    head.textContent = tpl.header === "none" ? "" : "UBER TV · REMOTE"
+    const gear = $("#gear")
+    gear.textContent = ""
+    const gs = sty("settingsButton")
+    reset(gear, { width: "40px", height: "34px" })
+    text(gear, gs)
+    gear.appendChild(icon("gear", Math.max(18, px(fin(gs.text && gs.text.size, 4.6)) * 1.2)))
+    let rows = rowsNow()
+    if (wide) {
+      const colW = Math.floor((W - 16) / 2)
+      U = Math.min(colW, 440) / 100
+      // the left column: the controls landscape.left names, or all but the ones landscape.right names
+      const ls = isObj(tpl.layout.landscape) ? tpl.layout.landscape : {}
+      const named = rows.flatMap((e) => (e.panel ? e.rows : [e])).flatMap((r) => r.row.map((it) => it.control))
+      const left = Array.isArray(ls.left) ? ls.left : Array.isArray(ls.right) ? named.filter((c) => ls.right.indexOf(c) < 0) : ["now", "dpad", "swipe", "list"]
+      const parts = split(rows, left)
+      const both = div("cols")
+      both.append(column(parts[0], colW, H, rise), column(parts[1], colW, H, rise))
+      area.appendChild(both)
+    } else {
+      U = Math.min(W, 440) / 100
+      area.appendChild(column(rows, W, H, rise))
+    }
+    // the overlays: the TV's question, the number being typed, the passcode
+    const over = div("over")
+    over.id = "typed"
+    area.appendChild(over)
+    const ask = div("over ask")
+    ask.id = "ask"
+    area.appendChild(ask)
+    refresh()
+  }
+  addEventListener("resize", () => { clearTimeout(draw.t); draw.t = setTimeout(draw, 150) })
+
+  // The overlays: typed digits, the TV's question, the passcode pad
+  function overlays() {
+    const over = $("#typed")
+    if (over && over.style) {
+      over.textContent = ""
+      reset(over)
+      const coding = !!state.passcode
+      if (typed && !coding) {
+        looks(over, sty("typed"))
+        over.style.height = Math.max(56, px(16)) + "px"
+        const area = $("#area")
+        if (cardEl && cardEl.getBoundingClientRect && area.getBoundingClientRect) {
+          const r = cardEl.getBoundingClientRect(), a = area.getBoundingClientRect()
+          if (r.height > 0 && r.bottom > a.top) Object.assign(over.style, { top: (r.top - a.top + area.scrollTop) + "px", height: r.height + "px", left: (r.left - a.left) + "px", width: r.width + "px", right: "auto" })
+        }
+        const label = document.createElement("small"); label.textContent = "CHANNEL"
+        label.style.fontSize = "0.35em"
+        over.append(label, document.createTextNode(typed))
+      } else over.style.display = "none"
+    }
+    const ask = $("#ask")
+    if (ask && ask.style) {
+      ask.textContent = ""
+      reset(ask)
+      if (state.ask && state.ask.text) {
+        looks(ask, sty("ask"))
+        Object.assign(ask.style, { flexDirection: "column", alignItems: "stretch" })
+        const p = document.createElement("p"); p.textContent = state.ask.text
+        const answers = div("answers")
+        const yes = key("go", { el: "go", alone: true, over: { shape: "pill", place: "center" }, face: () => ({ label: "TURN ON" }), press: () => send("yes") })
+        const no = key("key", { el: "key", alone: true, over: { shape: "pill", place: "center" }, face: () => ({ label: "DISMISS" }), press: () => send("no") })
+        yes.style.flex = no.style.flex = "1"
+        answers.append(yes, no)
+        ask.append(p, answers)
+      } else ask.style.display = "none"
+    }
+    codeSheet()
+    settingsSheet()
+  }
+
+  // ---- the number being typed ----
   function typeDigit(d) {
-    if (typed.length >= (coding() ? 8 : 5)) return
+    if (typed.length >= (state.passcode ? 8 : 5)) return
     typed += d
-    showTyped()
+    overlays()
     clearTimeout(typedTimer)
-    if (!coding()) typedTimer = setTimeout(goTyped, 1500)
+    if (!state.passcode) typedTimer = setTimeout(goTyped, 1500)
   }
   function goTyped() {
     clearTimeout(typedTimer)
-    if (coding()) { if (typed.length >= 4) send("code", { digits: typed }) }
+    if (state.passcode) { if (typed.length >= 4) send("code", { digits: typed }) }
     else if (typed) send("tune", { number: Number(typed) })
     typed = ""
-    showTyped()
+    overlays()
   }
 
-  // OK, the big button in the middle, puts on a number you've typed (or sends
-  // the passcode), as GO does; with nothing typed it's OK, as always
-  document.querySelectorAll("[data-cmd]").forEach((b) => b.addEventListener("click", () => {
-    if (b.dataset.cmd === "ok" && typed) return goTyped()
-    send(b.dataset.cmd)
-  }))
-  document.querySelectorAll("[data-digit]").forEach((b) => b.addEventListener("click", () => typeDigit(b.dataset.digit)))
-  $("#erase").addEventListener("click", () => { typed = typed.slice(0, -1); showTyped() })
-  $("#enter").addEventListener("click", goTyped)
+  // ---- the passcode pad: always there when the TV asks for it ----
+  let codeEl = null
+  function codeSheet() {
+    if (!state.passcode) { if (codeEl) { codeEl.remove(); codeEl = null } return }
+    if (!codeEl) {
+      codeEl = div("shade")
+      const sh = div("sheet")
+      looks(sh, merge(sty("sheet"), { radius: [5, 5, 0, 0] }))
+      if (!sh.style.padding) sh.style.padding = "16px"
+      const dots = div()
+      dots.id = "codeDots"
+      looks(dots, sty("typed"))
+      Object.assign(dots.style, { display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", height: "64px", marginBottom: "12px" })
+      const pin = numberPad({}, Math.min(innerWidth, 464) - 56, 4 * 54 + 24, true)
+      sh.append(dots, pin)
+      codeEl.appendChild(sh)
+      document.body.appendChild(codeEl)
+    }
+    const dots = $("#codeDots")
+    if (dots) {
+      dots.textContent = ""
+      const label = document.createElement("small"); label.textContent = "PASSCODE"; label.style.fontSize = "0.35em"
+      dots.append(label, document.createTextNode("•".repeat(typed.length) || " "))
+    }
+  }
+
+  // ---- ⚙: this phone's template, number pad and size; UNPAIR ----
+  let sheetEl = null
+  let sheetFor = ""
+  const SIZES = { "-2": "Smallest", "-1": "Smaller", "0": "Normal", "1": "Larger", "2": "Largest" }
+  function settingsSheet() {
+    if (!view.settings) { if (sheetEl) { sheetEl.remove(); sheetEl = null } sheetFor = ""; return }
+    const sig = JSON.stringify([tpl && tpl.id, rev, names, prefs, padShown()])
+    if (sheetEl && sig === sheetFor) return
+    sheetFor = sig
+    const top0 = sheetEl && sheetEl.firstChild ? sheetEl.firstChild.scrollTop : 0
+    if (sheetEl) sheetEl.remove()
+    sheetEl = div("shade")
+    sheetEl.addEventListener("click", (e) => { if (e.target === sheetEl) { view.settings = false; settingsSheet() } })
+    const sh = div("sheet")
+    looks(sh, merge(merge(sty("sheet"), { radius: [5, 5, 0, 0] }), {}))
+    if (!sh.style.padding) sh.style.padding = "16px"
+    const textColor = col(((sty("card").text || {}).color) || (tpl.colors && tpl.colors.text))
+    sh.style.color = tpl.colors ? col(tpl.colors.text) : textColor
+    sh.style.fontFamily = FAMILY[(tpl.fonts || {}).body] || FAMILY.system
+    const top = div("top")
+    const h2 = document.createElement("h2"); h2.textContent = "SETTINGS"
+    const PILL = { shape: "pill", place: "center", icon: 5.5 }, ROW = { shape: "rect", radius: 3.3, place: "center" }
+    const done = key("go", { el: "go", alone: true, over: PILL, face: () => ({ label: "DONE" }), geo: { width: "96px", height: "40px" }, press: () => { view.settings = false; settingsSheet() } })
+    top.append(h2, done)
+    sh.appendChild(top)
+    const label = (t) => { const l = div("label"); l.textContent = t; return l }
+    sh.appendChild(label("TEMPLATE"))
+    const current = tpl.id
+    for (const n of names) {
+      if (!n || typeof n.id !== "string") continue
+      const make = () => {
+        const nm = document.createElement("b"); nm.textContent = String(n.name || n.id)
+        const ds = document.createElement("small"); ds.textContent = String(n.description || "")
+        return [nm, ds]
+      }
+      const b = key("key", { el: "key", alone: true, over: ROW, aria: String(n.name || n.id), geo: {}, on: () => n.id === current, face: () => ({ make }), press: () => choose({ template: n.id }) })
+      b.classList.add("pick")
+      sh.appendChild(b)
+    }
+    sh.appendChild(label("NUMBER PAD"))
+    const pads = div("pair2")
+    for (const v of ["on", "off"]) {
+      const b = key("key", { el: "key", alone: true, over: PILL, geo: { flex: "1", height: "100%" }, on: () => (padShown() ? "on" : "off") === v, face: () => ({ label: v.toUpperCase() }), press: () => choose({ pad: v }) })
+      pads.appendChild(b)
+    }
+    sh.appendChild(pads)
+    sh.appendChild(label("SIZE"))
+    const sizes = div("sizes")
+    const size = Math.max(-2, Math.min(2, Math.round(fin(prefs.size))))
+    const minus = key("key", { el: "key", alone: true, over: PILL, aria: "Smaller", geo: { width: "64px", height: "100%" }, unavailable: () => size <= -2, face: () => ({ label: "−" }), press: () => choose({ size: size - 1 }) })
+    const plus = key("key", { el: "key", alone: true, over: PILL, aria: "Larger", geo: { width: "64px", height: "100%" }, unavailable: () => size >= 2, face: () => ({ label: "+" }), press: () => choose({ size: size + 1 }) })
+    sizes.append(minus, span(SIZES[String(size)]), plus)
+    sh.appendChild(sizes)
+    const unpair = key("power", { el: "power", alone: true, over: PILL, geo: {}, face: () => ({ label: "UNPAIR" }), press: forget })
+    unpair.classList.add("unpair")
+    sh.appendChild(unpair)
+    // these keys belong to the sheet, not the page's updaters
+    sheetEl.appendChild(sh)
+    document.body.appendChild(sheetEl)
+    sh.scrollTop = top0
+  }
+  async function forget() {
+    if (!confirm("Unpair this phone? You'll need a new code from the TV to use it again.")) return
+    await post("/api/forget").catch(() => null)
+    if (events) events.close()
+    view.settings = false
+    settingsSheet()
+    show("pair")
+  }
+
+  $("#gear").addEventListener("click", (e) => { e.preventDefault(); view.settings = true; settingsSheet() })
   $("#pairButton").addEventListener("click", pair)
   $("#code").addEventListener("keydown", (e) => { if (e.key === "Enter") pair() })
   $("#code").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); if (e.target.value.length === 6) pair() })
 
-  function tab(which) {
-    $("#tabRemote").classList.toggle("on", which === "remote")
-    $("#tabGuide").classList.toggle("on", which === "guide")
-    $("#keys").classList.toggle("hidden", which !== "remote")
-    $("#guide").classList.toggle("hidden", which !== "guide")
-  }
-  $("#tabRemote").addEventListener("click", (e) => { e.preventDefault(); tab("remote") })
-  $("#tabGuide").addEventListener("click", (e) => { e.preventDefault(); tab("guide") })
-  $("#forget").addEventListener("click", async (e) => {
-    e.preventDefault()
-    if (!confirm("Unpair this phone? You'll need a new code from the TV to use it again.")) return
-    await post("/api/forget").catch(() => null)
-    if (events) events.close()
-    show("pair")
-  })
+  // Classic, as Remote.js resolves it with Retro's colors: drawn until the TV sends this phone's template
+  const FALLBACK = /*FALLBACK*/{"id":"classic","name":"Classic","description":"Today's remote: d-pad, number pad and channel buttons, with play controls added.","header":"title","face":"label","pad":"on","fonts":{"body":"dm-mono","display":"dm-mono","mono":"dm-mono"},"colors":{"bg":"#071447","bgTo":"#030a2b","card":"#1b3591","cardEdge":"#3b5bd1","key":"#e4e9ff","keyText":"#0b1550","keyEdge":"#46559a","accent":"#ffd23f","accentText":"#141414","text":"#f2f4ff","textDim":"#9fb0f0","alert":"#ff4d4d"},"layout":{"portrait":[{"row":[{"control":"now"}],"height":11},{"row":[{"control":"tabs"}],"height":4.5},{"row":[{"control":"power"},{"control":"mute"},{"control":"options","weight":0.7}],"height":7},{"row":[{"control":"dpad","variant":"cross","arrows":"triangle"}],"height":21},{"row":[{"control":"back"},{"control":"guide"},{"control":"window"},{"control":"padToggle"}],"height":6},{"row":[{"control":"rewind"},{"control":"playpause"},{"control":"forward"},{"control":"live"}],"height":6},{"row":[{"control":"pad","weight":3},{"control":"rocker","variant":"vertical","weight":1.15}],"height":32,"grow":true,"pad":"on"},{"row":[{"control":"rocker","variant":"row"}],"height":9,"pad":"off"},{"row":[{"control":"gap"}],"height":4,"grow":true,"pad":"off"}],"landscape":{"left":["now","tabs","power","mute","options","dpad"]}},"now":{"show":["channel","mode","title","times","dvr"],"side":"logo","align":"left","prefix":true},"guideList":{"show":["number","logo","name","title","live","rec"]},"styles":{"page":{"fill":{"from":"#071447","to":"#030a2b","direction":"down"}},"header":{"text":{"color":"#ffd23f","font":"dm-mono","size":3.8,"weight":700,"case":"upper","letterSpacing":0.12}},"settingsButton":{"text":{"color":"#9fb0f0","size":4.6}},"card":{"fill":"#00000040","border":{"width":0.27,"color":"#3b5bd1","sides":"all"},"radius":1.6,"padding":2.6},"nowLogo":{"fill":"#030a2b","border":{"width":0.27,"color":"#3b5bd1","sides":"all"},"radius":0,"text":{"color":"#ffd23f","size":3.2,"weight":700},"size":11},"nowChannel":{"text":{"color":"#ffd23f","size":3.6,"weight":700}},"nowName":{"text":{"color":"#9fb0f0","size":2.8,"weight":700,"case":"upper","letterSpacing":0.12}},"nowNumber":{"text":{"color":"#ffd23f","size":9,"weight":700}},"nowHero":{"text":{"color":"#f2f4ff","size":30,"weight":100}},"nowTitle":{"text":{"color":"#f2f4ff","size":3.9,"weight":700}},"nowTimes":{"text":{"color":"#9fb0f0","size":3}},"nowDvr":{"text":{"color":"#ff4d4d","size":3,"weight":700}},"nowMode":{"text":{"color":"#ffd23f","size":3,"weight":400,"case":"upper"}},"bar":{"fill":"#ffd23f","track":"#3b5bd1","knob":"#f2f4ff","height":0.8,"radius":0.4},"barLabel":{"text":{"color":"#9fb0f0","size":2.7}},"typed":{"fill":"#030a2bf0","border":{"width":0.27,"color":"#3b5bd1","sides":"all"},"radius":1.6,"text":{"color":"#ffd23f","size":7,"weight":700,"letterSpacing":0.3,"font":"dm-mono"}},"ask":{"fill":"#1b3591","border":{"width":0.3,"color":"#ffd23f","sides":"all"},"radius":1.6,"padding":2.4,"text":{"color":"#f2f4ff","size":3.1}},"tabs":{"border":{"width":0.27,"color":"#3b5bd1","sides":"all"},"radius":1.6},"tab":{"text":{"color":"#9fb0f0","size":3.3,"weight":700,"case":"upper","letterSpacing":0.1}},"tab:on":{"fill":"#ffd23f","text":{"color":"#0b1550"}},"key":{"fill":"#e4e9ff","border":{"width":0.27,"color":"#ffffff","sides":"all"},"radius":2.2,"text":{"color":"#0b1550","size":4.1,"weight":700,"font":"dm-mono"},"icon":6.4,"shadow":{"color":"#46559a","blur":0,"x":0,"y":0.8}},"key:pressed":{"opacity":0.85,"shadow":{"color":"#46559a","blur":0,"x":0,"y":0.27}},"key:on":{"fill":"#ffd23f","text":{"color":"#141414"},"border":{"width":0.27,"color":"#fff3b8","sides":"all"}},"key:unavailable":{"opacity":0.4},"power":{"fill":"#ff4d4d","text":{"color":"#ffffff"},"border":{"width":0.27,"color":"#ff9a9a","sides":"all"},"shadow":{"color":"#8a1f1f","blur":0,"x":0,"y":0.8}},"ok":{"fill":"#ffd23f","shape":"pill","text":{"color":"#141414","size":4.6},"border":{"width":0.27,"color":"#fff3b8","sides":"all"}},"go":{"fill":"#ffd23f","text":{"color":"#141414","size":4.9},"border":{"width":0.27,"color":"#fff3b8","sides":"all"}},"dpad":{"fill":"#e4e9ff","border":{"width":0.25,"color":"#46559a","sides":"all"}},"arrow":{"text":{"size":5.4}},"rocker":{"fill":"#e4e9ff","border":{"width":0.25,"color":"#46559a","sides":"all"},"radius":3},"rockerLabel":{"text":{"color":"#9fb0f0","size":2.7,"weight":400,"case":"upper"}},"status":{},"statusItem":{"border":{"width":0.25,"color":"#3b5bd1","sides":"all"},"radius":0.8,"padding":1,"text":{"color":"#f2f4ff","font":"dm-mono","size":2.6,"case":"upper"}},"statusItem:alert":{"border":{"width":0,"color":"#ff4d4d","sides":"all"},"text":{"color":"#ff4d4d"}},"statusItem:unavailable":{"opacity":0.4},"swipe":{"fill":"#1b3591","border":{"width":0.25,"color":"#3b5bd1","sides":"all"},"radius":4,"text":{"color":"#9fb0f0"}},"list":{},"listRow":{"border":{"width":0.25,"color":"#3b5bd1","sides":["bottom"]},"padding":2},"listRow:on":{"fill":"#1b3591"},"listNumber":{"text":{"color":"#ffd23f","size":3.6,"weight":700}},"listName":{"text":{"color":"#f2f4ff","size":3.4,"weight":700}},"listTitle":{"text":{"color":"#9fb0f0","size":3}},"listTag":{"text":{"color":"#9fb0f0","size":2.6,"weight":700,"case":"upper"}},"listTag:alert":{"text":{"color":"#ff4d4d"}},"band":{"border":{"width":0.25,"color":"#ffd23f","sides":["bottom"]},"padding":1.6,"text":{"color":"#ffd23f","size":2.9,"weight":700,"case":"upper","letterSpacing":0.1}},"sheet":{"fill":"#071447","radius":[4,4,0,0],"padding":4.4,"border":{"width":0.27,"color":"#ffd23f","sides":["top"]}},"dock":{"fill":"#1b3591","radius":6,"padding":2},"group":{"padding":0},"handle":{"fill":"#9fb0f0","radius":1},"back":{"text":{"size":3.3}},"guide":{"text":{"size":3.3}},"padToggle":{"text":{"size":3.3}},"live":{"text":{"size":3.3}},"digit":{"text":{"size":4.9}},"chup":{"text":{"size":4.4}},"chdown":{"text":{"size":4.4}}}}/*END*/
 
   start()
 </script>
