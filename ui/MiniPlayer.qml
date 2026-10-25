@@ -48,6 +48,7 @@ PanelWindow {
     focus: true
     Keys.onPressed: function(event) {
       var k = event.key
+      guide.noteInput("keyboard")
       // asked first (a 2nd stream from a recording's provider): Enter watches anyway, Esc stays
       if (guide.streamAsk && (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Y)) guide.answerStream(true)
       else if (guide.streamAsk && (k === Qt.Key_Escape || k === Qt.Key_Backspace || k === Qt.Key_N)) guide.answerStream(false)
@@ -64,6 +65,15 @@ PanelWindow {
   }
 
   HoverHandler { id: pipHover }
+
+  // Tablet mode: a finger here counts too (the guide's own watcher is hidden
+  // while the mini player is up). It only watches, under nothing.
+  TouchWatch {
+    anchors.fill: parent
+    z: 10000
+    onTouched: guide.touchReleased()
+    onPointed: guide.noteInput("pointer")
+  }
 
   // A yellow outline while it has the keyboard
   Rectangle {

@@ -13,6 +13,18 @@ Item {
   property int clicks: 0
   property int touched: 0
   property int pointed: 0
+  property string lastInput: "touch"
+  property int escapes: 0
+
+  // a text field as the guide's have them: its Keys.onPressed notes the
+  // keyboard without taking the key, its Esc notes it too
+  QtObject { id: guideStub; function noteInput(kind) { top.lastInput = kind } }
+  TextInput {
+    id: field
+    x: 20; y: 120; width: 160; height: 30
+    Keys.onPressed: function(event) { guideStub.noteInput("keyboard") }
+    Keys.onEscapePressed: { guideStub.noteInput("keyboard"); top.escapes++ }
+  }
 
   Rectangle {
     id: button
@@ -79,6 +91,19 @@ Item {
       list.contentY = 0
       wait(100)
       compare(top.pointed, 0, "Qt's own repeat of the finger's spot isn't the mouse")
+    }
+
+    function test_typing_after_touch_is_the_keyboard_and_still_types() {
+      top.lastInput = "touch"; top.escapes = 0
+      field.text = ""
+      field.forceActiveFocus()
+      keyClick(Qt.Key_A); keyClick(Qt.Key_B)
+      compare(field.text, "ab", "the field still takes what's typed")
+      compare(top.lastInput, "keyboard", "typing in a field is the keyboard")
+      top.lastInput = "touch"
+      keyClick(Qt.Key_Escape)
+      compare(top.escapes, 1, "its Esc still acts")
+      compare(top.lastInput, "keyboard", "and notes the keyboard")
     }
 
     function test_a_real_mouse_is_noticed() {

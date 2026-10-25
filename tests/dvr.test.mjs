@@ -1063,7 +1063,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
                                  showPipBanner: () => seen.push("pipBar"), showVodBar: () => seen.push("vodBar"),
                                  openBannerOptions: () => seen.push("banner"), hideBanner: () => seen.push("hide"), openHomePanel: () => seen.push("homePanel"),
                                  openShowChoices: () => seen.push("choices"), pipSurf: d => seen.push("pipSurf " + d), expandPip: () => seen.push("full"),
-                                 guidePip: () => seen.push("guide"), seekVod: d => seen.push("seek " + d), togglePause: () => seen.push("pause"), stopVod: () => seen.push("stop") }, extra)
+                                 guidePip: () => seen.push("guide"), seekVod: d => seen.push("seek " + d), togglePause: () => seen.push("pause"), stopVod: () => seen.push("stop"), noteInput() {} }, extra)
     return { root, seen, press: cmd => remoteCommand(root, { agentOpen: null, settingsOpen: false, signIn: false, editing: false }, idle, idle, { usingLua: false }, { boxUp: false },
                                                      { open: false }, { installing: false, inspecting: false }, cmd, 0, you) }
   }
@@ -1130,7 +1130,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   const mini = (asking, key) => {
     const seen = []
     const guide = { streamAsk: asking ? { row: 1 } : null, answerStream: y => seen.push("stream " + y), closePip: () => seen.push("close"), expandPip: () => seen.push("full"),
-                    pipSurf: d => seen.push("surf " + d), guidePip() {}, showPipBanner() {}, muted: false }
+                    pipSurf: d => seen.push("surf " + d), guidePip() {}, showPipBanner() {}, muted: false, noteInput() {} }
     const event = { key, accepted: false }
     miniKeys(guide, event, K)
     return seen

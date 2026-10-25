@@ -17,7 +17,7 @@ Item {
   }
   Keys.onPressed: function(event) {
     var k = event.key
-    guide.lastInput = "keyboard"
+    guide.noteInput("keyboard")
     // Omarchy's screen saver is up, or the key that closed it is still coming
     // (or the one that woke Uber TV's screen saver)
     if ((guide.nativeSaver && (guide.nativeSaver.up || guide.nativeSaver.settling)) || (guide.screenSaver && guide.screenSaver.settling)) { event.accepted = true; return }

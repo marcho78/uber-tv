@@ -2418,9 +2418,17 @@ Item {
   // A finger let go of the screen: in Auto the touch controls come on (after
   // the press, so nothing moves under it) and stay until Uber TV closes
   function touchReleased() {
-    root.lastInput = "touch"
+    root.noteInput("touch")
     if (root.touchSetting === "auto") root.touchLatched = true
   }
+
+  // What was used last: every key handler, the watchers and the phone say so
+  function noteInput(kind) { if (root.lastInput !== kind) root.lastInput = kind }
+
+  // Uber TV closed (the guide gone, no mini player): Auto starts over next
+  // time. Checked once things settle, since going between the guide and the
+  // mini player passes through neither for a moment.
+  function touchSessionCheck() { if (!root.opened && !root.pip) root.touchLatched = false }
 
   // Saved only once the file has been read (before that, the guide's own
   // defaults would go over yours), and never over one that couldn't be read
@@ -7747,7 +7755,7 @@ Item {
     // Omarchy's screen saver is up: a key closes it (a phone press can't yet)
     if (nativeSaverItem.up || nativeSaverItem.settling) return "Omarchy's screen saver is up"
     if (by === root.byUser) {
-      root.lastInput = "remote"
+      root.noteInput("remote")
       // a press on your phone is you here: Hyprland's idle timers start over
       // as for a key (a hold, like a playing video's, still wins)
       if (Hyprland.usingLua) Hyprland.dispatch("hl.dsp.force_idle(0)")
@@ -8079,7 +8087,7 @@ Item {
 
   onOpenedChanged: {
     remoteStateTimer.restart()
-    if (!root.opened) root.touchLatched = false   // Auto starts over next time
+    Qt.callLater(root.touchSessionCheck)
   }
   onScreenChanged: remoteStateTimer.restart()
   onVodPausedChanged: remoteStateTimer.restart()
@@ -8090,7 +8098,7 @@ Item {
     // a channel from the guide's preview (on, or still tuning), now full screen: through pause and rewind's buffer
     if (watching && timeshift.turnedOn && !timeshift.busy && !vod && (reception === "on" || reception === "tuning") && tunedRow >= 0 && timeshift.takes(onAir)) root.tune(tunedRow)
   }
-  onPipChanged: { remoteStateTimer.restart(); root.cancelScrub() }
+  onPipChanged: { remoteStateTimer.restart(); root.cancelScrub(); Qt.callLater(root.touchSessionCheck) }
   onMutedChanged: remoteStateTimer.restart()
   onChannelsChanged: remoteStateTimer.restart()
   onRecBadgeChanged: remoteStateTimer.restart()
@@ -9636,7 +9644,7 @@ Item {
         anchors.fill: parent
         z: 1000000
         onTouched: root.touchReleased()
-        onPointed: if (root.lastInput !== "pointer") root.lastInput = "pointer"
+        onPointed: root.noteInput("pointer")
       }
     }
   }

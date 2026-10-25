@@ -23,6 +23,8 @@ Item {
 
   QtObject {
     id: guide
+    property string lastInput: "keyboard"
+    function noteInput(kind) { lastInput = kind }   // tablet mode: what was used last
     property real u: 16
     readonly property var colors: top.retro
     readonly property var fonts: ({ body: "Sans", display: "Sans", mono: "Monospace" })

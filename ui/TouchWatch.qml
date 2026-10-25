@@ -16,6 +16,9 @@ Item {
   PointHandler {
     id: finger
     acceptedDevices: PointerDevice.TouchScreen
+    // no buttons: the mouse events Qt makes from a finger would otherwise
+    // let go of it for a moment, as if the finger had lifted (Qt's advice)
+    acceptedButtons: Qt.NoButton
     onActiveChanged: {
       watch.touchAt = Date.now()
       if (!active) watch.touched()

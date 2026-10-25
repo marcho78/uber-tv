@@ -853,7 +853,8 @@ Box {
           clip: true
           maximumLength: 60
           onAccepted: guide.renameChannel(guide.row, text)
-          Keys.onEscapePressed: guide.closeDialog()
+          Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+          Keys.onEscapePressed: { guide.noteInput("keyboard"); guide.closeDialog() }
         }
       }
 
@@ -886,6 +887,7 @@ Box {
               guide.catCursor = 0
             }
             Keys.onPressed: function(event) {
+              guide.noteInput("keyboard")
               if (event.key === Qt.Key_Escape) guide.closeDialog()
               else if (event.key === Qt.Key_Up) guide.moveCat(-1)
               else if (event.key === Qt.Key_Down) guide.moveCat(1)
@@ -946,6 +948,7 @@ Box {
               pickList.positionViewAtBeginning()
             }
             Keys.onPressed: function(event) {
+              guide.noteInput("keyboard")
               if (event.key === Qt.Key_Escape) guide.pickImages && guide.pickArea !== "home" && guide.pickArea !== "multiview" ? guide.backToStyle() : guide.closeDialog()
               else if (event.key === Qt.Key_Up) guide.movePick(-1)
               else if (event.key === Qt.Key_Down) guide.movePick(1)
@@ -1259,7 +1262,8 @@ Box {
           clip: true
           maximumLength: 2000
           onAccepted: guide.addListingsFrom(text)
-          Keys.onEscapePressed: guide.listingsBack()
+          Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+          Keys.onEscapePressed: { guide.noteInput("keyboard"); guide.listingsBack() }
         }
         Text {
           textFormat: Text.PlainText
@@ -1411,6 +1415,7 @@ Box {
             readOnly: guide.jobTotal > 0
             onCursorRectangleChanged: addScroll.follow(cursorRectangle)
             Keys.onPressed: function(event) {
+              guide.noteInput("keyboard")
               if (event.key === Qt.Key_Escape) {
                 guide.closeDialog()
                 event.accepted = true

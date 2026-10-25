@@ -1196,10 +1196,11 @@ Item {
               maximumLength: 256
               clip: true
               KeyNavigation.tab: passField
-              Keys.onDownPressed: passField.forceActiveFocus()
-              Keys.onReturnPressed: signInBox.send()
-              Keys.onEnterPressed: signInBox.send()
-              Keys.onEscapePressed: view.back()
+              Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+              Keys.onDownPressed: { guide.noteInput("keyboard"); passField.forceActiveFocus() }
+              Keys.onReturnPressed: { guide.noteInput("keyboard"); signInBox.send() }
+              Keys.onEnterPressed: { guide.noteInput("keyboard"); signInBox.send() }
+              Keys.onEscapePressed: { guide.noteInput("keyboard"); view.back() }
             }
           }
         }
@@ -1231,10 +1232,11 @@ Item {
               maximumLength: 1024
               clip: true
               KeyNavigation.backtab: userField
-              Keys.onUpPressed: userField.forceActiveFocus()
-              Keys.onReturnPressed: signInBox.send()
-              Keys.onEnterPressed: signInBox.send()
-              Keys.onEscapePressed: view.back()
+              Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+              Keys.onUpPressed: { guide.noteInput("keyboard"); userField.forceActiveFocus() }
+              Keys.onReturnPressed: { guide.noteInput("keyboard"); signInBox.send() }
+              Keys.onEnterPressed: { guide.noteInput("keyboard"); signInBox.send() }
+              Keys.onEscapePressed: { guide.noteInput("keyboard"); view.back() }
             }
           }
         }
@@ -1290,9 +1292,10 @@ Item {
             font.pixelSize: Math.round(page.u * 1.3)
             maximumLength: 500
             clip: true
-            Keys.onReturnPressed: view.typedAddress(text, guide.byUser)
-            Keys.onEnterPressed: view.typedAddress(text, guide.byUser)
-            Keys.onEscapePressed: view.signInBack()
+            Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+            Keys.onReturnPressed: { guide.noteInput("keyboard"); view.typedAddress(text, guide.byUser) }
+            Keys.onEnterPressed: { guide.noteInput("keyboard"); view.typedAddress(text, guide.byUser) }
+            Keys.onEscapePressed: { guide.noteInput("keyboard"); view.signInBack() }
           }
         }
         Label {
@@ -1404,9 +1407,10 @@ Item {
           echoMode: view.editing && view.editing.type === "secret" ? TextInput.Password : TextInput.Normal
           maximumLength: view.editing && view.editing.type === "secret" ? 4096 : 500
           clip: true
-          Keys.onReturnPressed: view.editDone(text, guide.byUser)
-          Keys.onEnterPressed: view.editDone(text, guide.byUser)
-          Keys.onEscapePressed: view.back()
+          Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+          Keys.onReturnPressed: { guide.noteInput("keyboard"); view.editDone(text, guide.byUser) }
+          Keys.onEnterPressed: { guide.noteInput("keyboard"); view.editDone(text, guide.byUser) }
+          Keys.onEscapePressed: { guide.noteInput("keyboard"); view.back() }
         }
       }
       Label {

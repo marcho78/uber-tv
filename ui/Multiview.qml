@@ -945,6 +945,7 @@ Item {
         edge: mv.guide.cellEdge
         swatches: mv.guide.pickerSwatches
         onChanged: function(value) { mv.pickedColor = value }
+        onKeyed: guide.noteInput("keyboard")
         onDone: function(keep) { mv.endColor(keep) }
       }
     }

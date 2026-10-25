@@ -240,6 +240,7 @@ Box {
         clip: true
         onTextEdited: { guide.namingNote = ""; guide.namingArmed = "" }
         Keys.onPressed: function(event) {
+          guide.noteInput("keyboard")
           if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) guide.finishNaming(true)
           else if (event.key === Qt.Key_Escape) guide.finishNaming(false)
           else return
@@ -277,6 +278,7 @@ Box {
     allowAlpha: true
     swatches: guide.pickerSwatches
     onChanged: function(value) { guide.previewColor(value) }
+    onKeyed: guide.noteInput("keyboard")
     onDone: function(keep) { guide.finishPick(keep) }
   }
 

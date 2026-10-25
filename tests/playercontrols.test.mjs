@@ -149,7 +149,7 @@ function stand(over) {
   t.root.scrubKeyUp()
   assert.deepEqual(t.did.filter((d) => d[0] === "ts.seekTo"), [], "checked again when let go")
   assert.match(guideSrc, /onPlaySigChanged: \{ playToken \+= 1; cancelScrub\(\) \}/, "a change of what's playing cancels a scrub at once")
-  for (const h of ["onWatchingChanged: {\n    remoteStateTimer.restart()\n    root.cancelScrub()", "onPipChanged: { remoteStateTimer.restart(); root.cancelScrub() }"]) assert.ok(guideSrc.includes(h), "and so does the mode: " + h.slice(0, 18))
+  for (const h of ["onWatchingChanged: {\n    remoteStateTimer.restart()\n    root.cancelScrub()", "onPipChanged: { remoteStateTimer.restart(); root.cancelScrub(); Qt.callLater(root.touchSessionCheck) }"]) assert.ok(guideSrc.includes(h), "and so does the mode: " + h.slice(0, 18))
 }
 
 // ---- taps ----

@@ -581,7 +581,8 @@ Item {
         maximumLength: 40
         clip: true
         onAccepted: guide.renameHomeSection(text)
-        Keys.onEscapePressed: guide.closeHomePanel()
+        Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+        Keys.onEscapePressed: { guide.noteInput("keyboard"); guide.closeHomePanel() }
       }
       onVisibleChanged: if (visible) { renameField.text = guide.homeRenameStart; renameField.selectAll(); renameField.forceActiveFocus() }
     }

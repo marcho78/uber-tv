@@ -8,7 +8,7 @@
 // setting kept in settings.json; what was used last (the keys, the phone);
 // touchControls and state for agents.
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 
 const read = (f) => readFileSync(new URL("../" + f, import.meta.url), "utf8")
 const guideSrc = read("Guide.qml")
@@ -71,7 +71,13 @@ assert.match(guideSrc, /readonly property var shownScreen: windowed \? guideWind
 assert.match(guideSrc, /property string touchSetting: "auto"/)
 assert.match(guideSrc, /property bool touchLatched: false/)
 assert.match(guideSrc, /readonly property bool touchMode: Touch\.on\(touchSetting, touchLatched\)/)
-const stand = (over) => Object.assign({ touchSetting: "auto", touchLatched: false, lastInput: "keyboard", saved: 0, saveSettings() { this.saved++ } }, over || {})
+const noteBody = guideSrc.match(/function noteInput\(kind\) \{ (.*) \}\n/)[1]
+const stand = (over) => {
+  const r = Object.assign({ touchSetting: "auto", touchLatched: false, lastInput: "keyboard", opened: true, pip: false, saved: 0, saveSettings() { this.saved++ } }, over || {})
+  r.noteInput = (kind) => new Function("root", "kind", noteBody)(r, kind)
+  r.touchSessionCheck = () => new Function("root", guideSrc.match(/function touchSessionCheck\(\) \{ (.*) \}\n/)[1])(r)
+  return r
+}
 const setTouch = (root, mode) => new Function("root", "Touch", "mode", block(guideSrc, "function setTouch(mode) {"))(root, T, mode)
 const touchReleased = (root) => new Function("root", block(guideSrc, "function touchReleased() {"))(root)
 {
@@ -87,28 +93,104 @@ const touchReleased = (root) => new Function("root", block(guideSrc, "function t
   touchReleased(n)
   assert.equal(n.touchLatched, false, "On needs no latch")
 }
+// The latch lasts until Uber TV closes: the guide gone and no mini player,
+// checked once a change settles (the guide and the mini player swap places
+// through neither). Both handlers only queue the check.
 {
-  const body = block(guideSrc, "onOpenedChanged: {")
-  const r = stand({ touchLatched: true, opened: false })
-  new Function("root", "remoteStateTimer", body)(r, { restart() {} })
-  assert.equal(r.touchLatched, false, "closing Uber TV lets go of Auto's latch")
-  const k = stand({ touchLatched: true, opened: true })
-  new Function("root", "remoteStateTimer", body)(k, { restart() {} })
-  assert.equal(k.touchLatched, true, "opening keeps it")
+  const openedBody = block(guideSrc, "onOpenedChanged: {")
+  const pipBody = guideSrc.match(/onPipChanged: \{ (.*) \}\n/)[1]
+  assert.match(pipBody, /Qt\.callLater\(root\.touchSessionCheck\)/)
+  assert.ok(!/touchLatched/.test(openedBody), "closing the guide alone doesn't let go of the latch")
+  const run = (r, changes) => {
+    const queue = new Set()
+    const Qt = { callLater: (fn) => queue.add(fn) }
+    for (const [k, v] of changes) {
+      r[k] = v
+      if (k === "opened") new Function("root", "remoteStateTimer", "Qt", openedBody)(r, { restart() {} }, Qt)
+      if (k === "pip") new Function("root", "remoteStateTimer", "Qt", pipBody)(Object.assign(r, { cancelScrub() {} }), { restart() {} }, Qt)
+    }
+    for (const fn of queue) fn()
+  }
+  const r = stand({ touchLatched: true })
+  run(r, [["pip", true], ["opened", false]])          // goPip: the mini player, then the guide hides
+  assert.equal(r.touchLatched, true, "the guide to the mini player keeps the touch controls")
+  run(r, [["pip", false], ["opened", true]])          // open(): back from the mini player
+  assert.equal(r.touchLatched, true, "the mini player back to the guide keeps them")
+  run(r, [["opened", false]])                         // closeNow() with no mini player
+  assert.equal(r.touchLatched, false, "Uber TV closed: Auto starts over")
+  const m = stand({ touchLatched: true, opened: false, pip: true })
+  run(m, [["pip", false]])                            // closePip(): the mini player closed, the guide already gone
+  assert.equal(m.touchLatched, false, "the mini player closed: Auto starts over")
 }
 // the watcher over everything, its finger to the latch
-assert.match(guideSrc, /TouchWatch \{\n\s+anchors\.fill: parent\n\s+z: 1000000\n\s+onTouched: root\.touchReleased\(\)\n\s+onPointed: if \(root\.lastInput !== "pointer"\) root\.lastInput = "pointer"\n\s+\}/)
+assert.match(guideSrc, /TouchWatch \{\n\s+anchors\.fill: parent\n\s+z: 1000000\n\s+onTouched: root\.touchReleased\(\)\n\s+onPointed: root\.noteInput\("pointer"\)\n\s+\}/)
 assert.ok(guideSrc.indexOf("TouchWatch {") > guideSrc.indexOf("id: appSplash"), "on top of everything in the screen")
+assert.match(read("ui/TouchWatch.qml"), /acceptedDevices: PointerDevice\.TouchScreen\n(\s+\/\/.*\n)+\s+acceptedButtons: Qt\.NoButton\n/, "no buttons: Qt's mouse from a finger can't end it early")
+// the mini player is its own window: its own watcher, a finger there latches too
+const miniSrc = read("ui/MiniPlayer.qml")
+assert.match(miniSrc, /TouchWatch \{\n\s+anchors\.fill: parent\n\s+z: 10000\n\s+onTouched: guide\.touchReleased\(\)\n\s+onPointed: guide\.noteInput\("pointer"\)\n\s+\}/)
+{
+  const r = stand({ opened: false, pip: true, lastInput: "touch" })
+  touchReleased(r)
+  assert.equal(r.touchLatched, true, "a first touch in the mini player turns them on")
+}
 
 // ---- settings.json ----
 assert.match(block(guideSrc, "function saveSettings() {"), /keyHints: root\.showKeyHints, touch: root\.touchSetting,/)
 assert.match(block(guideSrc, "function applySettings(settingsText) {"), /root\.touchSetting = Touch\.setting\(saved\.touch\)/)
 
 // ---- what was used last ----
+{
+  const r = stand({ lastInput: "touch" })
+  r.noteInput("keyboard"); assert.equal(r.lastInput, "keyboard")
+  r.noteInput("keyboard"); assert.equal(r.lastInput, "keyboard", "the same again changes nothing")
+}
 const pressed = block(keysSrc, "Keys.onPressed: function(event) {")
-assert.ok(pressed.indexOf('guide.lastInput = "keyboard"') >= 0 && pressed.indexOf('guide.lastInput = "keyboard"') < pressed.indexOf("return"), "a key, before anything returns")
+assert.ok(pressed.indexOf('guide.noteInput("keyboard")') >= 0 && pressed.indexOf('guide.noteInput("keyboard")') < pressed.indexOf("return"), "a key, before anything returns")
 const remote = block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {")
-assert.match(remote, /if \(by === root\.byUser\) \{\n\s+root\.lastInput = "remote"/, "a press on the phone (not an agent)")
+assert.match(remote, /if \(by === root\.byUser\) \{\n\s+root\.noteInput\("remote"\)/, "a press on the phone (not an agent)")
+// touch, then the mini player's keys: its own router notes the keyboard first
+{
+  const body = block(miniSrc, "Keys.onPressed: function(event) {")
+  const noted = []
+  const guide = { noteInput: (k) => noted.push(k), streamAsk: false, pipSurf() {}, closePip() {}, expandPip() {}, guidePip() {}, showPipBanner() {}, muted: false }
+  new Function("guide", "Qt", "event", body)(guide, { Key_Up: 1, Key_PageUp: 2, Key_Down: 3, Key_PageDown: 4, Key_Return: 5, Key_Enter: 6, Key_Y: 7, Key_Escape: 8, Key_Backspace: 9, Key_N: 10, Key_M: 11, Key_G: 12, Key_F: 13, Key_I: 14, Key_Space: 15 }, { key: 1, accepted: false })
+  assert.deepEqual(noted, ["keyboard"], "the mini player's ↑ notes the keyboard")
+}
+// Every key handler in the guide notes the keyboard, and every text field has
+// one that does (typing goes through it): nothing typed is missed
+{
+  const files = ["Guide.qml", "GuideKeys.qml", "ScreenSaver.qml", "ChannelLock.qml", "AppView.qml", "AppPanel.qml"]
+    .concat(readdirSync(new URL("../ui/", import.meta.url)).filter((f) => f.endsWith(".qml")).map((f) => "ui/" + f))
+  // from an opening brace to the one that closes it
+  const braced = (text, open) => {
+    let depth = 0
+    for (let i = open; i < text.length; i++) {
+      if (text[i] === "{") depth++
+      else if (text[i] === "}" && --depth === 0) return text.slice(open, i + 1)
+    }
+    assert.fail("unclosed brace")
+  }
+  let handlers = 0, fields = 0
+  for (const f of files) {
+    const src = read(f)
+    for (const m of src.matchAll(/Keys\.on(\w*)Pressed: (function\(event\) \{|\{)?/g)) {
+      handlers++
+      const body = m[2] ? braced(src, m.index + m[0].length - 1) : src.slice(m.index, src.indexOf("\n", m.index))
+      assert.ok(/guide\.noteInput\("keyboard"\)|picker\.keyed\(\)/.test(body), f + ": Keys.on" + m[1] + "Pressed doesn't note the keyboard")
+    }
+    for (const m of src.matchAll(/\n[ \t]*(TextInput|TextEdit) \{\n/g)) {
+      fields++
+      const field = braced(src, m.index + m[0].length - 2)
+      assert.match(field, /\n[ \t]*Keys\.onPressed: function\(event\) \{/, f + ": a " + m[1] + " with no Keys.onPressed")
+      assert.ok(field.length < 4000, f + ": a " + m[1] + " that runs on: " + field.length)
+    }
+  }
+  assert.ok(handlers >= 30 && fields >= 11, "found them: " + handlers + " handlers, " + fields + " fields")
+}
+assert.match(read("ui/ColorPicker.qml"), /signal keyed\(\)/)
+assert.match(read("ui/StylePanel.qml"), /onKeyed: guide\.noteInput\("keyboard"\)/)
+assert.match(read("ui/Multiview.qml"), /onKeyed: guide\.noteInput\("keyboard"\)/)
 
 // ---- agents: touchControls and state ----
 assert.ok(cmdSrc.includes('import "Touch.js" as Touch'))

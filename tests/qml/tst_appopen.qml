@@ -124,6 +124,8 @@ Item {
   QtObject { id: panelStub; property bool open: false; property bool renaming: false; function seenRows(a) { return [] } function openFor(id, by) { panelStub.open = true; return "ok" } }
   QtObject {
     id: guide
+    property string lastInput: "keyboard"
+    function noteInput(kind) { lastInput = kind }   // tablet mode: what was used last
     property var byUser: ({})
     property bool opened: true
     property string screen: "apps"

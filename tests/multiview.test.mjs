@@ -286,7 +286,7 @@ const block = (text, opener) => {
                  bannerOptions: false, bannerShown: false, bannerAct: 0, muted: false, ltShow: true,
                  bannerActions: [{ key: "multiview" }, { key: "mini" }, { key: "guide" }, { key: "mute" }],
                  surf: d => seen.push("surf " + d), showBanner: () => seen.push("banner"), showGuide: () => seen.push("guide"),
-                 openMultiview: () => seen.push("multiview"), goPip: () => seen.push("mini"), openPlayerControls: (f) => seen.push("controls " + f), cancelScrub() {} }
+                 openMultiview: () => seen.push("multiview"), goPip: () => seen.push("mini"), openPlayerControls: (f) => seen.push("controls " + f), cancelScrub() {}, noteInput() {} }
   root.openBannerOptions = () => open(root, bannerTimer, { said: "", checkPlace() {} })
   root.hideBanner = () => hide(root, bannerTimer)
   root.bannerBack = () => root.hideBanner()

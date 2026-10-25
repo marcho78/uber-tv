@@ -77,7 +77,8 @@ Box {
       maximumLength: 40
       clip: true
       onAccepted: { box.panel.rename(text); guide.focusKeys() }
-      Keys.onEscapePressed: { box.panel.close(); guide.focusKeys() }
+      Keys.onPressed: function(event) { guide.noteInput("keyboard") }
+      Keys.onEscapePressed: { guide.noteInput("keyboard"); box.panel.close(); guide.focusKeys() }
     }
     onVisibleChanged: {
       if (!visible) return
