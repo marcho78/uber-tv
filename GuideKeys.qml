@@ -9,7 +9,20 @@ Item {
 
   anchors.fill: parent
   focus: true
+  // a held ← → (J, L) let go: a tap, or the end of a scrub (Guide.qml scrubKeyUp)
+  Keys.onReleased: function(event) {
+    var k = event.key
+    if (event.isAutoRepeat || !guide.keyHold) return
+    if (k === Qt.Key_Left || k === Qt.Key_Right || k === Qt.Key_J || k === Qt.Key_L) { guide.scrubKeyUp(); event.accepted = true }
+  }
   Keys.onPressed: function(event) {
+    if (guide.keyFirst(event)) return   // the keyboard; tablet mode's ⋯ panel goes
+    keys.press(event)
+  }
+  // A key in the box that's open, then the screen: what it does there. A real
+  // key comes in above; a touch button runs it with its hint's own key
+  // (Guide.qml touchPress: never ← → J L, the arrows or Page Up and Down).
+  function press(event) {
     var k = event.key
     // Omarchy's screen saver is up, or the key that closed it is still coming
     // (or the one that woke Uber TV's screen saver)
@@ -462,26 +475,43 @@ Item {
     }
     if (k === Qt.Key_M) guide.muted = !guide.muted
     else if (guide.watching && guide.vod) {
-      // On demand: pause, seek, back to where you came from
+      // On demand: pause, seek, back to where you came from. ← → (J, L): a
+      // tap 10 s, a hold scrubs the bar (let go: it goes there); Shift 1 min
       var big = event.modifiers & Qt.ShiftModifier
+      var seekKey = k === Qt.Key_Left || k === Qt.Key_J || k === Qt.Key_Right || k === Qt.Key_L
       if (k === Qt.Key_Escape || k === Qt.Key_Backspace) guide.stopVod()
       else if (k === Qt.Key_Space || k === Qt.Key_K || k === Qt.Key_Return || k === Qt.Key_Enter) guide.togglePause()
-      else if (k === Qt.Key_Left || k === Qt.Key_J) guide.seekVod(big ? -60 : -10)
-      else if (k === Qt.Key_Right || k === Qt.Key_L) guide.seekVod(big ? 60 : 10)
+      else if (seekKey && big) guide.seekVod((k === Qt.Key_Left || k === Qt.Key_J) ? -60 : 60)
+      else if (seekKey) { if (!event.isAutoRepeat) guide.scrubKeyDown((k === Qt.Key_Left || k === Qt.Key_J) ? -1 : 1, k === Qt.Key_J || k === Qt.Key_L) }
       else if (k === Qt.Key_PageUp) guide.seekVod(600)
       else if (k === Qt.Key_PageDown) guide.seekVod(-600)
       else if (k === Qt.Key_Home) guide.seekVodTo(0)
       else if (k === Qt.Key_I || k === Qt.Key_Up || k === Qt.Key_Down) guide.showVodBar()
       else if (k === Qt.Key_P) guide.goPip()
       else return
+    } else if (guide.watching && guide.playerControls) {
+      // the player controls (↑ again): ← → (J, L) a tap 30 s, a hold scrubs;
+      // Enter, K or Space pauses; ↓ back to the choices; Esc hides; ↑ nothing
+      var dirKey = k === Qt.Key_Left || k === Qt.Key_J ? -1 : k === Qt.Key_Right || k === Qt.Key_L ? 1 : 0
+      if (dirKey) { if (!event.isAutoRepeat) guide.scrubKeyDown(dirKey, k === Qt.Key_J || k === Qt.Key_L) }
+      else if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_K || k === Qt.Key_Space) guide.controlsAct("pause")
+      else if (k === Qt.Key_Down) guide.bannerBack()
+      else if (k === Qt.Key_Escape || k === Qt.Key_Backspace || k === Qt.Key_I) guide.hideBanner()
+      else if (k === Qt.Key_Up) {}
+      else if (k === Qt.Key_PageUp) { guide.hideBanner(); guide.surf(1) }
+      else if (k === Qt.Key_PageDown) { guide.hideBanner(); guide.surf(-1) }
+      else if (k === Qt.Key_P) { guide.hideBanner(); guide.goPip() }
+      else return
     } else if (guide.watching && guide.bannerOptions) {
-      // the banner's choices (I or Space): ← → choose, Enter picks, Esc or ↓ hides
+      // the banner's choices (I or Space): ← → choose, Enter picks, ↑ the
+      // player controls, Esc or ↓ hides
       if (k === Qt.Key_Left) guide.moveBannerAct(-1)
       else if (k === Qt.Key_Right) guide.moveBannerAct(1)
       else if (k === Qt.Key_Return || k === Qt.Key_Enter) guide.pickBannerAct()
       else if (k === Qt.Key_Escape || k === Qt.Key_Backspace || k === Qt.Key_Down) guide.bannerBack()
       else if (k === Qt.Key_I || k === Qt.Key_Space) guide.hideBanner()
-      else if (k === Qt.Key_Up || k === Qt.Key_PageUp) { guide.hideBanner(); guide.surf(1) }
+      else if (k === Qt.Key_Up) { if (!guide.recStopMenu && !guide.streamAsk && !guide.tsOffMenu && !guide.tsCantMenu) guide.openPlayerControls(true) }
+      else if (k === Qt.Key_PageUp) { guide.hideBanner(); guide.surf(1) }
       else if (k === Qt.Key_PageDown) { guide.hideBanner(); guide.surf(-1) }
       else if (k === Qt.Key_P) { guide.hideBanner(); guide.goPip() }
       else if (k === Qt.Key_J) guide.tsKey("back")
@@ -496,9 +526,11 @@ Item {
       else if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_G) guide.showGuide()
       else if (k === Qt.Key_I || k === Qt.Key_Space) guide.openBannerOptions()
       else if (k === Qt.Key_P) guide.goPip()
-      else if (k === Qt.Key_J) guide.tsKey("back")      // pause and rewind
+      // pause and rewind: J, L (a tap 30 s) and ← → (a hold scrubs; a tap does nothing here), K pauses
+      else if (k === Qt.Key_J || k === Qt.Key_L || k === Qt.Key_Left || k === Qt.Key_Right) {
+        if (!event.isAutoRepeat) guide.scrubKeyDown(k === Qt.Key_J || k === Qt.Key_Left ? -1 : 1, k === Qt.Key_J || k === Qt.Key_L)
+      }
       else if (k === Qt.Key_K) guide.tsKey("pause")
-      else if (k === Qt.Key_L) guide.tsKey("forward")
       else return
     } else {
       if (k === Qt.Key_Escape) guide.homeEnabled ? guide.openHome() : guide.dismiss()

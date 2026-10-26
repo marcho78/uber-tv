@@ -4,6 +4,7 @@ import "../.."
 import "../../ui"
 import "../../Look.js" as Look
 import "../../AppLooks.js" as Looks
+import "../../Touch.js" as Touch
 
 // ui/AppScreen.qml drawn for real, offscreen at 1280×720, with the real
 // AppView against a pretend guide, store and runtime, Retro's colors and
@@ -86,6 +87,12 @@ Item {
 
   QtObject {
     id: guide
+    property bool touchMode: false
+    property real fingerPx: 44
+    function isFinger(mouse) { return guide.touchMode && Touch.byFinger(mouse) }   // (as Guide.qml's)
+    property string lastInput: "keyboard"
+    function noteInput(kind) { lastInput = kind }   // tablet mode: what was used last
+    function keyFirst(event) { noteInput("keyboard"); return false }   // (Guide.qml: and the ⋯ panel)
     property var byUser: ({})
     property bool opened: true
     property string screen: "apps"
@@ -209,6 +216,9 @@ Item {
       view.sampling = ({})
       view.imagePaths = ({})
       guide.screen = "apps"
+      guide.touchMode = false
+      guide.u = 16
+      guide.fingerPx = 44
       guide.elementOverrides = ({})
       guide.colorOverrides = ({})
       guide.currentTheme = ({ id: "retro", apps: ({}) })
@@ -361,6 +371,102 @@ Item {
       verify(!view.move("left"), "left isn't scrolling (the rail opens)")
       view.back()
       compare(view.topView.kind, "detail", "Esc: back to where it came from")
+    }
+
+    // ---- tablet mode: a finger, or the mouse ---------------------------------
+    // with tablet mode on, a finger's tap opens a card at once and a mouse's
+    // click picks it (a second click opens); a featured row's item opens at
+    // a tap, and its dots, a finger apart, show their items; a long article
+    // scrolls under a finger, and the keys go on from where it stopped
+    function tapAt(item, x, y) {
+      var t = touchEvent(item)
+      t.press(0, item, x, y).commit()
+      t.release(0, item, x, y).commit()
+    }
+    function test_tablet_mode_a_finger_opens_and_the_mouse_picks() {
+      var rt = open(lookScreen())
+      guide.touchMode = true
+      var hero = null
+      tryVerify(function() { hero = find(screen, "appHero"); return !!hero }, 2000)
+      var card = function(id) { return cards().filter(function(c) { return c.modelData && c.modelData.id === id })[0] }
+      tryVerify(function() { return !!card("c2") && card("c2").visible }, 2000, "a row's card")
+      view.move("down")   // its row in view (the cursor on its first card)
+      var shown = function(id) { var c = card(id); var p = c.mapToItem(screen, 0, c.height); return p.y <= find(screen, "appLines").mapToItem(screen, 0, find(screen, "appLines").height).y }
+      tryVerify(function() { return shown("c2") }, 2000, "on the screen whole")
+      var calls = rt.calls.length
+      mouseClick(card("c2"), card("c2").width / 2, card("c2").height / 2)
+      verify(view.sel && view.sel.item === "c2", "a click picks")
+      compare(rt.calls.length, calls, "and doesn't open")
+      wait(500)   // (a second click, not a double click)
+      mouseClick(card("c2"), card("c2").width / 2, card("c2").height / 2)
+      verify(rt.calls.length > calls, "a second click opens")
+      view.back()
+      wait(50)
+      calls = rt.calls.length
+      tryVerify(function() { return !!card("c3") && card("c3").visible && shown("c3") }, 2000)
+      tapAt(card("c3"), card("c3").width / 2, card("c3").height / 2)
+      verify(view.sel && view.sel.item === "c3")
+      verify(rt.calls.length > calls, "a finger opens at its first tap")
+    }
+    function test_tablet_mode_the_featured_row() {
+      var rt = open(lookScreen())
+      guide.touchMode = true
+      var hero = null
+      tryVerify(function() { hero = find(screen, "appHero"); return !!hero }, 2000)
+      var dots = findAll(find(hero, "heroDots"), function(x) { return x.radius !== undefined && x.width === Math.round(guide.u * 0.7) })
+      compare(dots.length, 3)
+      var gap = function() { return dots[1].mapToItem(hero, 0, 0).x - dots[0].mapToItem(hero, 0, 0).x }
+      tryVerify(function() { return gap() >= guide.fingerPx - 1 }, 1000, "a finger apart")
+      var calls = rt.calls.length
+      tapAt(dots[2], dots[2].width / 2, dots[2].height / 2)
+      compare(view.sel.item, "hero2", "a dot shows its item")
+      compare(rt.calls.length, calls, "and opens nothing")
+      view.move("down")
+      compare(view.sel.item === "hero2", false, "the cursor elsewhere")
+      mouseClick(hero, hero.width * 0.3, hero.height * 0.4)
+      compare(view.sel.item, "hero2", "a click on it picks the item it shows")
+      compare(rt.calls.length, calls)
+      tapAt(hero, hero.width * 0.3, hero.height * 0.4)
+      verify(rt.calls.length > calls, "a tap opens it")
+    }
+    function test_tablet_mode_a_details_pages_buttons_fit_their_line() {
+      guide.u = 12            // 1280×720
+      guide.fingerPx = 72     // the biggest finger
+      guide.touchMode = true
+      open({ title: "Team", subtitle: "", text: "", image: null, backdrop: null, facts: [], style: "classic",
+             actions: [{ id: "p", label: "Play", kind: "play" }, { id: "t", label: "Trailer", kind: "open" }],
+             rows: [{ id: "more", title: "More like it", layout: "row", items: [item("m0", null), item("m1", null)] }] }, "detail")
+      var b = null
+      tryVerify(function() { b = find(screen, "appAction"); return !!b && b.height > 0 }, 2000)
+      compare(b.height, 72, "a finger tall")
+      var line = view.model.lines[0], next = view.model.lines[1]
+      compare(line.layout, "actions")
+      var bottom = b.parent.y + b.y + b.height / 2 + b.height * b.scale / 2   // its middle, then half of it as drawn (the selected one grows)
+      verify(bottom <= line.height, "the selected button inside its line: " + bottom + " ≤ " + line.height)
+      compare(next.y, line.height, "the next row after the line")
+    }
+    function test_tablet_mode_an_article_scrolls_under_a_finger() {
+      open({ title: "Team", subtitle: "", text: "", image: null, backdrop: null, facts: [], actions: [], rows: [], style: "classic" }, "detail")
+      var rt = store.made[store.made.length - 1]
+      var sections = []
+      for (var i = 0; i < 30; i++) sections.push({ heading: "Part " + (i + 1), text: "A line of text that goes on for a while.\nAnd another." })
+      view.ask("browse", { item: "a" }, "push")
+      rt.last().done("page", { title: "An article", sections: sections })
+      guide.touchMode = true
+      var pg = null
+      tryVerify(function() { pg = find(screen, "appPage"); return !!pg && pg.visible && view.pageMax > 0 }, 2000)
+      verify(pg.interactive, "a finger scrolls it")
+      var t = touchEvent(pg)
+      var x = pg.width / 2, y = pg.height * 0.8
+      t.press(0, pg, x, y).commit()
+      for (var k = 1; k <= 12; k++) { t.move(0, pg, x, y - k * 30).commit(); wait(16) }
+      t.release(0, pg, x, y - 360).commit()
+      tryVerify(function() { return !pg.moving && pg.contentY > 0 }, 4000, "later parts in view")
+      tryCompare(view, "pageY", pg.contentY, 1000, "the keys go on from there")
+      var was = view.pageY
+      view.move("down")
+      verify(view.pageY > was, "down: further on, not back to the top")
+      tryVerify(function() { return Math.abs(pg.contentY - view.pageY) < 1 || pg.contentY === Math.min(view.pageY, view.pageMax) }, 1000)
     }
 
     // ---- details ----------------------------------------------------------

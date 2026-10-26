@@ -8,10 +8,12 @@ Box {
 
   required property var guide
 
-  readonly property bool status: guide.layout.footer === "status"
+  readonly property bool status: guide.layout.footer === "status" && !guide.touchMode
 
-  visible: guide.showKeyHints || guide.managing
-  height: visible ? guide.u * (status ? 1.7 : 1.9) : 0
+  // in tablet mode it's the guide's buttons: always there (Back is one), a
+  // finger tall, nothing else in it
+  visible: guide.showKeyHints || guide.managing || guide.touchMode
+  height: visible ? (guide.touchMode ? guide.fingerPx + guide.u * 0.6 : guide.u * (status ? 1.7 : 1.9)) : 0
   s: guide.look.footer
   unit: guide.u
 
@@ -42,8 +44,10 @@ Box {
     anchors.leftMargin: footer.status ? guide.u * 0.8 : footer.padding
     anchors.verticalCenter: parent.verticalCenter
     transformOrigin: Item.Left
-    scale: Math.min(1, ((footer.status ? counts.x - guide.u : footer.width) - x) / Math.max(1, implicitWidth))
+    scale: hints.touching ? 1 : Math.min(1, ((footer.status ? counts.x - guide.u : footer.width) - x) / Math.max(1, implicitWidth))
     model: guide.footerHints
+    touchGuide: footer.guide
+    touchWidth: footer.width - x - footer.padding
     size: guide.u * (footer.status ? 1.3 : 1.55)
     capStyle: guide.look.keycap
     labelStyle: guide.look.keyLabel

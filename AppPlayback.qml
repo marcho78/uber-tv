@@ -319,6 +319,12 @@ Item {
     pb.player.position = to
     pb.event("seeked")
   }
+  // to a point, in seconds from the start (the phone's card bar)
+  function seekTo(seconds) {
+    if (!pb.player || pb.closing || !pb.player.seekable || !(pb.player.duration > 0) || !isFinite(seconds)) return
+    pb.player.position = Math.max(0, Math.min(pb.player.duration - 1000, seconds * 1000))
+    pb.event("seeked")
+  }
 
   // the runtime stopping on its own: the media stops, and it's said
   function runtimeGone(appId) {

@@ -77,7 +77,8 @@ Box {
       maximumLength: 40
       clip: true
       onAccepted: { box.panel.rename(text); guide.focusKeys() }
-      Keys.onEscapePressed: { box.panel.close(); guide.focusKeys() }
+      Keys.onPressed: function(event) { guide.keyFirst(event) }
+      Keys.onEscapePressed: { if (guide.keyFirst(event)) return; box.panel.close(); guide.focusKeys() }
     }
     onVisibleChanged: {
       if (!visible) return
@@ -154,6 +155,9 @@ Box {
                  return "" }
         on: prow.type === "rowShow" && line.c.show !== false
         onActivated: { box.panel.cursor = prow.index; box.panel.act(0) }
+        // tablet mode: ‹ › as ← → (the keys' own steps)
+        touchParts: true
+        onStepped: function(dir) { box.panel.cursor = prow.index; box.panel.act(dir) }
       }
     }
   }
@@ -175,10 +179,15 @@ Box {
       color: box.panel.note.indexOf("Not saved") === 0 ? guide.colors.alert : guide.ink
       wrapMode: Text.Wrap
     }
+    // (tablet mode: while renaming, the name field has the keys, so its
+    // buttons run what it does; the rows are tapped)
     KeyHints {
-      model: box.panel.renaming ? [{ keys: ["ENTER"], label: "Keep the name" }, { keys: [], label: "(empty: its own)" }, { keys: ["ESC"], label: "Cancel" }]
-           : box.panel.rowOpen !== "" ? [{ keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Change" }, { keys: ["ESC"], label: "Back to the rows" }]
-           : [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Options" }, { keys: ["ESC"], label: "Done" }]
+      touchGuide: box.guide
+      touchWidth: parent.width
+      model: box.panel.renaming ? [{ keys: ["ENTER"], label: "Keep the name", touch: { run: function() { box.panel.rename(renameField.text); box.guide.focusKeys() }, primary: true } }, { keys: [], label: "(empty: its own)" },
+                                   { keys: ["ESC"], label: "Cancel", touch: { run: function() { box.panel.close(); box.guide.focusKeys() }, back: true } }]
+           : box.panel.rowOpen !== "" ? [{ keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Change" }, { keys: ["ESC"], label: "Back to the rows", touch: { key: Qt.Key_Escape, back: true } }]
+           : [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Options" }, { keys: ["ESC"], label: "Done", touch: { key: Qt.Key_Escape, back: true } }]
       size: box.u * 1.4
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel

@@ -60,8 +60,8 @@ Watching full screen:
 |-------------|---------------------------|
 | ↑ ↓         | Channel up, channel down  |
 | Enter / G   | Guide (the TV keeps playing in the preview box) |
-| I / Space   | Channel banner, with its options: [Multiview](#multiview), Record (while Recordings are on), Mini player, Guide, Mute; with pause and rewind on, Pause, Back 30 s, Forward 30 s and Live come first (← → choose, Enter picks; it hides after 10 seconds) |
-| J K L       | [Pause and rewind](#recordings): back 30 s, pause or resume, forward 30 s (off, they offer Turn on) |
+| I / Space   | Channel banner, with its options: [Multiview](#multiview), Record (while Recordings are on), Mini player, Guide, Mute (← → choose, Enter picks; it hides after 10 seconds). ↑ there: the player controls |
+| J K L       | [Pause and rewind](#recordings): back 30 s, pause or resume, forward 30 s (off, they offer Turn on); hold J or L, or ← →, to scrub |
 | P           | Mini player               |
 | M           | Mute                      |
 | Esc         | TV off, back to Home or the guide (with Home off: close) |
@@ -466,8 +466,7 @@ Any channel works: live, scheduled (a YouTube channel's videos on its
 schedule, joined where the show is now) or IPTV.
 
 **Getting there.** While watching a channel full screen, press **I** or
-**Space**: the banner shows its options. **Multiview** is the first (after
-Pause, Back 30 s, Forward 30 s and Live while pause and rewind is on); **Enter**
+**Space**: the banner shows its options. **Multiview** is the first; **Enter**
 starts it with the channel that's on, and the *Add a channel* list opens
 beside it: ↑↓ choose (or type a channel's number to jump to it), **Enter**
 adds, **Esc** when you have enough. Esc with nothing added goes back to that
@@ -650,12 +649,24 @@ private). Each has a details file next to it with what its card shows.
 **Pause and rewind.** With Settings → Recordings → *Pause and rewind* on (5
 or 30 minutes), a live channel you watch (IPTV, or a YouTube channel's live
 stream) plays through a rolling buffer on the recordings drive, which keeps
-the last 5 or 30 minutes: full screen, **I** or **Space** (▲ on the phone
-remote) shows **Pause** first (it reads **Resume** while paused), then
-**Back 30 s**, **Forward 30 s** and **Live**; **J**, **K** and **L** go back
-30 s, pause or resume, and go forward 30 s, and the media keys pause and
-resume. The banner says **Live**, or how far behind it you are (*2:15 behind
-live*), which also stays on the picture while you're behind. Paused longer
+the last 5 or 30 minutes. **J**, **K** and **L** go back 30 s, pause or
+resume, and go forward 30 s, and the media keys pause and resume. The
+banner says **Live**, or how far behind it you are (*2:15 behind live*),
+which also stays on the picture while you're behind.
+
+The **player controls**: full screen, **I** or **Space** (▲ on the phone
+remote) shows the banner's choices, and **↑** again (▲ again) the player
+controls, like a streaming app's: the bar of what's kept, with a mark where
+you are and how far behind live over it, and back 30 s, pause / play and
+forward 30 s under it. **Enter** pauses or plays, a tap of **←** or **→**
+goes back or forward 30 s, **↓** goes back to the choices, **Esc** hides
+them (so do 10 seconds without a key). To go further, **hold ←** or **→**
+(or J, L), from the controls or with nothing open: the mark moves, faster
+the longer you hold (10 s steps, then 30 s, then a minute), and the picture
+jumps there when you let go. Or click or drag along the bar with the mouse.
+Change channel during a scrub and it's dropped. A movie's own player bar
+works the same: a tap of ← → is 10 s, a hold moves its mark. On the phone,
+drag the card's bar (Player, Premium, Dock… show it) and let go. Paused longer
 than the buffer holds, it resumes at the oldest part kept; forward past live
 is live. Tuning takes a moment longer while it's on (*Starting pause and
 rewind…*): the provider still sees one stream, the buffer's. If the stream
@@ -669,8 +680,8 @@ is deleted when you change channel, turn the TV off, or open Multiview, a
 video or an app; if Uber TV stops, it's deleted within seconds. It writes to
 the drive the whole time you watch (4 to 8 Mbps at 1080p; 30 minutes is
 about 1 to 2 GB), and stops before the drive gets fuller than you keep. With
-it off, **J**, **K** and **L** show *Pause and rewind is off*, with **Turn on**
-(5 minutes).
+it off, **J**, **K** and **L** (and ↑ on the banner's choices) show *Pause and
+rewind is off*, with **Turn on** (5 minutes); ↓ goes back.
 
 **Locked channels.** Recording or scheduling a locked channel asks for the
 passcode, as watching does (a show scheduled while it's unlocked still
@@ -710,20 +721,50 @@ thumbnail). When the TV is off it steps aside, and the keys go back to your
 other players. If another player is also playing, the shell decides which one
 the keys control, as with any two players.
 
+## Tablet mode
+
+On a touchscreen, Uber TV works with your fingers. Settings → General →
+**Tablet mode**: **Auto** turns it on when you touch the screen, until Uber
+TV closes; **On** and **Off** keep it that way. The keyboard, a mouse and the
+phone remote work as always: with a mouse, a click still picks and a double
+click opens.
+
+- **Buttons** take the key hints' place along the bottom: **Back** first (what
+  Esc does), then what fits; **⋯** holds the rest.
+- **Tap** to choose, tap again to watch; cards and an app's items open at the
+  first tap. **Hold** a show in the grid for its choices. **Drag** the grid
+  sideways to move through time; **Now** comes back. **123** types a channel
+  number.
+- **Watching:** tap the picture for its controls: **Guide**, **CH** ▲ ▼,
+  **123**, the banner's choices, and, with pause and rewind on, the bar (drag
+  it or tap a spot) with back 30 s, pause and forward 30 s. Tap again, or
+  wait, and they go. Movies, app videos, the mini player and Multiview work
+  the same way.
+- **Typing:** a keyboard comes up from the bottom for any field: letters,
+  numbers and the signs of web addresses, **Paste** and **Hide**. The channel
+  lock's passcode has its own pad.
+- **A tablet in portrait, or a narrow window** (tablet mode or not): the nav
+  rail tucks away (☰ opens it), the preview sits beside its details, and the
+  grid shows an hour.
+- Everything you tap is at least about 9 mm, whatever the screen, except a
+  short show in the grid or one cut off at its edge. Its buttons' colors are
+  the theme's (**S** → *Parts* → TABLET MODE).
+
 ## Phone remote
 
 Control the guide from any phone's web browser on your network: a remote
-with POWER, MUTE, a d-pad, BACK / GUIDE / FULL / MINI, channel up and down,
-and a number pad (type 101, and you're on channel 101: it goes after a moment, or on GO or OK), plus a guide tab
-with every channel and what it's airing; tap one to watch it. No app.
+with POWER, MUTE, a d-pad, BACK, GUIDE, HOME, one full screen / mini player
+button, pause / play, back and forward 30 s, LIVE, channel up and down,
+and a number pad (type 101, and you're on channel 101: it goes after a moment, or on GO or OK), plus the
+channel list with what each is airing; tap one to watch it. No app. How it's
+laid out and how it looks is a template (see below).
 
 On Home and in the library the d-pad moves and OK opens; playing a movie,
 ← → seek and OK pauses. In the guide, ⋯ opens a show's choices (Watch,
 and Record while Recordings are on); on Home, it customizes Home. Watching a channel full screen, ↑
 opens the banner's choices (Multiview, Record while Recordings are on, Mini
-player, Guide, Mute; with pause and rewind on, Pause, Back 30 s, Forward 30 s
-and Live first; ← → choose, OK picks, ↓ or BACK closes
-them), ← → change the channel, and OK shows the banner. ⋯ does what **I**
+player, Guide, Mute; ← → choose, OK picks, ↓ or BACK closes
+them) and ↑ again the player controls (◀ ▶ 30 s, OK pauses, ↓ back); ← → change the channel, and OK shows the banner. ⋯ does what **I**
 does: full screen, the banner's choices (a movie, its player bar); in the
 mini player, its bar.
 
@@ -754,8 +795,8 @@ open Settings (**,**) and choose *Phone remote*:
 On the same screen (or Settings → General → *Paired phones*), each paired
 phone is a row with when it was paired and last used: pick one with ↑↓ and
 press **Enter** twice to unpair it (**Del** too, or OK twice on a phone remote).
-It needs a new code to pair again. A phone can also unpair itself (**UNPAIR**
-on its remote page). **T** turns the remote off: **Enter** also removes the firewall
+It needs a new code to pair again. A phone can also unpair itself (⚙ on its
+remote page, then **UNPAIR**). **T** turns the remote off: **Enter** also removes the firewall
 rule (password again), **N** keeps it. If you move to a network the rule
 doesn't cover, the screen says so and **A** allows it.
 
@@ -768,6 +809,42 @@ sudo ufw delete allow from 192.168.1.0/24 to any port 24750 proto tcp
 
 (with your own network in place of `192.168.1.0/24`). The port can be changed
 with `"remote": { "port": … }` in `~/.config/om-pg/settings.json`.
+
+### Remote templates
+
+The whole phone page is a template: which buttons, where, how big, how they
+look, and what the card about what's on and the channel list show. Twelve
+come with Uber TV:
+
+| Template | |
+|---|---|
+| Classic | the remote as it was: d-pad, number pad and channel buttons, with play controls |
+| Minimal | round keys and the d-pad first; the number pad behind 123 |
+| Player | what's on first, with its bar; big pause, rewind and forward |
+| Surfer | a big number pad and a tall channel rocker, the guide tab beside the remote |
+| Big buttons | few keys, large and high contrast |
+| Premium | dark glass and a round d-pad, few soft buttons |
+| Techie | monospace, neon lines on cut corners, a status strip and a key grid |
+| Pebble | a big round d-pad, back and pause; the rest slides up |
+| Swipe | the screen is a touch pad: swipe to move, tap for OK |
+| Dock | what's on in large type, with a dock that grows into the full remote |
+| Glance | the channel list fills the phone, the remote slides up over it |
+| Tiles | four big tiles, like a phone's control center |
+
+Pebble, Swipe, Dock, Glance and Tiles start minimized: the four squares key
+shows everything else, the ⌄ key folds it away again. Most templates take
+their colors from the TV's theme, so a theme recolors them; Minimal, Premium,
+Techie, Pebble and Tiles bring their own.
+
+On the phone, ⚙ (top right) picks this phone's template, shows or hides the
+number pad, and makes everything smaller or larger; each phone keeps its own.
+**UNPAIR** is there too. On the TV, Settings → General → *Remote template* is
+the default, for phones that haven't picked one. While the TV asks for a
+channel's passcode, the phone shows a number pad for it, whatever its
+template.
+
+Your own templates (an AI agent can make them with the skill) are kept in
+`~/.config/om-pg/remotes/`, apart from the TV's themes.
 
 ## Managing channels
 

@@ -479,4 +479,27 @@ console.log("applooks: milestone 2 passed")
   // a row that only app.json called a table isn't one (a table needs its columns)
   assert.equal(L.model({ kind: "screen", value: { rows: [{ id: "x", title: "X", items: tbl.items }] } }, Object.assign({}, g, { defaults: { "d:x": { layout: "table" } } })).lines[0].layout, "row")
 }
+// A details page's buttons in tablet mode (touch: the finger, in px): at
+// least a finger tall, their line making room for them and for the selected
+// one's growth (up to MAX_GROW, round its middle), so the rows after it
+// never meet them; without tablet mode, as before (4.2 units)
+{
+  const detail = { kind: "detail", value: { title: "T", actions: [{ id: "p", label: "Play", kind: "play" }],
+                                            rows: [{ id: "more", title: "More", layout: "row", items: [{ id: "m0", title: "t", kind: "open" }] }] } }
+  for (const u of [10, 12, 13, 16, 18]) {
+    const g0 = L.model(detail, { width: 1280, u: u, layout: {} }).geometry
+    assert.equal(g0.actionsH, Math.round(u * 4.2), "no tablet mode: the line as before, u " + u)
+    assert.equal(g0.actionH, Math.round(u * 3.2))
+    for (const finger of [44, 53, 66, 72]) {
+      const m = L.model(detail, { width: 1280, u: u, layout: {}, touch: finger })
+      const g = m.geometry, line = m.lines[0]
+      assert.equal(line.layout, "actions")
+      assert.ok(g.actionH >= finger, "a finger tall: " + g.actionH + " ≥ " + finger)
+      const grow = g.actionH * L.MAX_GROW / 2
+      assert.ok(g.actionY - grow >= 0, "the selected one inside its line's top, u " + u + " finger " + finger)
+      assert.ok(g.actionY + g.actionH + grow <= line.height, "and its bottom: " + (g.actionY + g.actionH + grow) + " ≤ " + line.height + ", u " + u + " finger " + finger)
+      assert.equal(m.lines[1].y, line.height, "the next row from the line's own height")
+    }
+  }
+}
 console.log("applooks: api 4 all passed")

@@ -14,6 +14,7 @@ import "Saver.js" as SaverRules
 import "ChannelLock.js" as LockRules
 import "Dvr.js" as DvrRules
 import "Timeshift.js" as Ts
+import "Touch.js" as Touch
 import "ui"
 
 // The guide: a full-screen, old-school program grid of YouTube channels with
@@ -69,6 +70,7 @@ Item {
   // what it opens. See bin/om-pg-remote. Enabled, port and the firewall
   // rules it added are kept in settings.json.
   property bool remoteEnabled: false
+  property string remoteTemplate: "classic"   // the phone remote's default template (RemoteTemplates.qml)
   property int remotePort: 24750
   property var remoteRules: []        // "subnet port" rules this guide added to the firewall
   property var remoteNet: null        // { address, subnet, hostname, port }
@@ -88,6 +90,13 @@ Item {
 
   // The key hints under the guide (K), on unless hidden. Also in settings.json.
   property bool showKeyHints: true
+  // Tablet mode, the touch controls (Touch.js): "auto" (on once a finger
+  // touches the screen, until Uber TV closes), "on" or "off". In settings.json.
+  property string touchSetting: "auto"
+  property bool touchLatched: false
+  readonly property bool touchMode: Touch.on(touchSetting, touchLatched)
+  // what was used last: keyboard, pointer, touch or remote (focus and hints follow it)
+  property string lastInput: "keyboard"
   // the splash when Uber TV turns on (Settings → General), and whether it's
   // off now: closed with nothing playing on (the mini player keeps it on)
   property bool splashOn: true
@@ -144,7 +153,7 @@ Item {
   property real now: Date.now() / 1000
   readonly property int liveBucket: Math.floor(now / 900)   // quarters of an hour: a live stream's picture is asked for again in each
   readonly property int slot: 1800
-  readonly property int slotsShown: Math.round(layout.hours * 2)
+  readonly property int slotsShown: Math.round(Touch.hoursAcross(layout.hours, screenFit) * 2)   // (a compact screen: an hour)
   readonly property int span: slot * slotsShown
   readonly property int maxSlotOffset: 24
   property int slotOffset: 0
@@ -1920,7 +1929,22 @@ Item {
   property var layoutOverrides: ({})
   readonly property var layout: Look.effectiveLayout(currentTheme.layout, layoutOverrides)
 
-  readonly property real u: Math.max(10, Math.round((windowed && guideWindow.height > 100 ? guideWindow.height : panel.height) / 60))
+  // The guide's size, and its unit: a 60th of its height, smaller on a narrow
+  // screen so 50 fit across (Touch.js)
+  readonly property real shownWidth: windowed && guideWindow.width > 100 ? guideWindow.width : panel.width
+  readonly property real shownHeight: windowed && guideWindow.height > 100 ? guideWindow.height : panel.height
+  readonly property real u: Touch.unit(shownWidth, shownHeight)
+  // A finger in the guide's pixels, from the screen it's on, and how much room
+  // that screen gives: compact, medium or expanded (Touch.js)
+  readonly property var shownScreen: windowed ? guideWindow.screen : panel.screen
+  readonly property real fingerPx: Touch.fingerPx(shownScreen ? shownScreen.physicalPixelDensity : 0, shownScreen ? shownScreen.devicePixelRatio : 1, u)
+  readonly property string screenFit: Touch.fit(shownWidth, u)
+  // A row a finger taps, as tall as its layout says and in tablet mode never
+  // shorter than a finger (the table's and the board's)
+  function fingerRow(px) { return Touch.rowPx(px, root.touchMode, root.fingerPx) }
+  // a click a finger made with tablet mode on (Touch.js): it acts at once
+  // where a click picks; tablet mode off, a tap is a click, as before
+  function isFinger(mouse) { return root.touchMode && Touch.byFinger(mouse) }
 
   // Text that reads on a fill: the color asked for, or dark on a light
   // fill and light on a dark one when the two are too alike
@@ -1939,7 +1963,7 @@ Item {
   readonly property color currentRowDim: textOn(look["listRow:current"].fill, colors.textDim)
   readonly property real gap: layout.gap > 0 ? Math.max(1, Math.round(layout.gap * u)) : 0
   readonly property real chanW: u * layout.channelWidth
-  readonly property real rowH: u * layout.rowHeight
+  readonly property real rowH: Touch.rowPx(u * layout.rowHeight, touchMode, fingerPx)
 
   function open(payloadJson) {
     if (root.windowed && root.opened && !root.windowHere()) root.bringWindowHere()
@@ -2394,6 +2418,69 @@ Item {
     return String(root.showLogos)
   }
 
+  // Tablet mode's setting: auto, on or off
+  function setTouch(mode) {
+    root.touchSetting = Touch.setting(mode)
+    root.saveSettings()
+    return root.touchSetting
+  }
+
+  // A finger let go of the screen: in Auto the touch controls come on (after
+  // the press, so nothing moves under it) and stay until Uber TV closes
+  function touchReleased() {
+    root.noteInput("touch")
+    if (root.touchSetting === "auto") root.touchLatched = true
+  }
+
+  // What was used last: every key handler, the watchers and the phone say so
+  function noteInput(kind) { if (root.lastInput !== kind) root.lastInput = kind }
+
+  // Every key, wherever it lands first (the router, a text field, the mini
+  // player, the screen saver), runs this: it's the keyboard, and tablet
+  // mode's ⋯ panel goes; an Esc that closed it does nothing else (true: the
+  // key is used up)
+  function keyFirst(event) {
+    root.noteInput("keyboard")
+    if (!root.touchMore && !root.numberPad) return false
+    root.touchMore = null
+    root.numberPad = false
+    if (event && event.key === Qt.Key_Escape) { event.accepted = true; return true }
+    return false
+  }
+
+  // Tablet mode's number pad (123): a channel by its number
+  property bool numberPad: false
+  function openNumberPad() { root.touchMore = null; root.numberPad = true }
+  function closeNumberPad() { root.numberPad = false }
+  function numberWatch(r) { root.numberPad = false; root.watch(r) }
+
+  // A touch button (ui/KeyHints.qml, ui/TouchMore.qml): its hint's own touch,
+  // a text field's own action (run), or a key, which does what that key does
+  // there (GuideKeys.press). Only keys Touch.pressable allows: never the
+  // arrows, Page Up and Down, or ← → J L while watching.
+  function touchPress(t) {
+    root.touchMore = null
+    if (t && typeof t.run === "function") { t.run(); return true }
+    if (!Touch.pressable(t, root.watching)) return false
+    var ev = { key: t.key, modifiers: t.mods || 0, text: "", isAutoRepeat: false, accepted: false }
+    keys.press(ev)
+    return ev.accepted
+  }
+
+  // Tablet mode's ⋯ panel: the buttons that didn't fit in a row
+  property var touchMore: null
+  // how much of the screen tablet mode's keyboard takes (boxes go above it)
+  readonly property real touchKeyboardHeight: touchKeyboard.up ? touchKeyboard.height : 0
+  // the keyboard back after Hide (a tap on Search's box: no field of its own)
+  function showTouchKeyboard() { touchKeyboard.hidden = false }
+  function openTouchMore(list) { root.touchMore = Array.isArray(list) && list.length ? list : null }
+  function closeTouchMore() { root.touchMore = null }
+
+  // Uber TV closed (the guide gone, no mini player): Auto starts over next
+  // time. Checked once things settle, since going between the guide and the
+  // mini player passes through neither for a moment.
+  function touchSessionCheck() { if (!root.opened && !root.pip) root.touchLatched = false }
+
   // Saved only once the file has been read (before that, the guide's own
   // defaults would go over yours), and never over one that couldn't be read
   // (too big, a link, not a plain file): that file is kept as it is, and
@@ -2401,8 +2488,8 @@ Item {
   function saveSettings() {
     if (!root.settingsLoaded || root.settingsProblem || root.wiping) return
     settings.setText(JSON.stringify({
-      shownCategories: root.shownCategories, sources: root.shownSource, logos: root.showLogos, keyHints: root.showKeyHints, splash: root.splashOn, railCredits: root.railCredits, updates: { on: updatesItem.on, asked: updatesItem.asked }, lineup: root.lineupMode,
-      remote: { enabled: root.remoteEnabled, port: root.remotePort, rules: root.remoteRules },
+      shownCategories: root.shownCategories, sources: root.shownSource, logos: root.showLogos, keyHints: root.showKeyHints, touch: root.touchSetting, splash: root.splashOn, railCredits: root.railCredits, updates: { on: updatesItem.on, asked: updatesItem.asked }, lineup: root.lineupMode,
+      remote: { enabled: root.remoteEnabled, port: root.remotePort, rules: root.remoteRules, template: root.remoteTemplate },
       pip: { width: Math.round(root.pipW), right: Math.round(root.pipRight), bottom: Math.round(root.pipBottom) },
       colors: root.colorOverrides,
       images: root.imageOverrides,
@@ -3429,7 +3516,7 @@ Item {
 
   function leaveApps() { root.go(root.appsFrom === "guide" ? "tv" : root.appsFrom === "library" ? root.libraryTab : root.appsFrom === "settings" ? "settings" : "home") }
 
-  readonly property int appsCols: 5
+  readonly property int appsCols: screenFit === "compact" ? 3 : 5   // (a compact screen: their names fit)
   function moveAppsTile(dx, dy) {
     var n = root.appsTiles.length
     dx = Number(dx) || 0
@@ -4250,6 +4337,17 @@ Item {
     if (root.channelList) root.channelList.positionViewAtIndex(p, ListView.Beginning)
   }
 
+  // Tablet mode: the time window dragged to a half hour offset (never before
+  // now), the cursor kept in it; Now goes back
+  function dragTime(offset) {
+    root.slotOffset = Math.max(0, Math.min(root.maxSlotOffset, Math.round(offset)))
+    root.cursorTime = root.cursorAt
+  }
+  function timeToNow() {
+    root.slotOffset = 0
+    root.cursorTime = Date.now() / 1000
+  }
+
   function moveTime(delta) {
     var s = root.selected
     if (delta > 0) {
@@ -4465,6 +4563,13 @@ Item {
     Qt.callLater(function() { dialogBox.pickInput.forceActiveFocus() })
   }
 
+  // Esc in the file picker: back to the style panel for a picture, else away
+  // (its field's Esc, and tablet mode's Cancel)
+  function pickEscape() {
+    if (root.pickImages && root.pickArea !== "home" && root.pickArea !== "multiview") root.backToStyle()
+    else root.closeDialog()
+  }
+
   // Tab: Search (every match in your home folder) or Browse (a folder at a time)
   function pickToggleBrowse() {
     root.pickBrowse = !root.pickBrowse
@@ -4622,60 +4727,84 @@ Item {
 
   // The key hints under the guide, and in each box: keycaps, then what they
   // do. "+" between keys means together, "/" means either.
+  // The key hints along the bottom. Tablet mode makes buttons of those with
+  // their own touch (Touch.js split: a key GuideKeys runs as that key does, a
+  // text field's own action, back: Back); the rest a finger does itself.
   readonly property var footerHints: channelLockItem.boxUp ? channelLockItem.hints : managing ? [
-    { keys: ["SPACE"], label: "Mark" }, { keys: ["SHIFT", "+", "SPACE"], label: "Category" },
-    { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["N"], label: "Rename" }, { keys: ["C"], label: "Category" },
-    { keys: ["L"], label: "Lock" }, { keys: ["DEL"], label: "Remove" }, { keys: ["?"], label: "All keys" }, { keys: ["E"], label: "Done" }
+    { keys: ["SPACE"], label: "Mark", touch: { key: Qt.Key_Space } }, { keys: ["SHIFT", "+", "SPACE"], label: "Category", touch: { key: Qt.Key_Space, mods: Qt.ShiftModifier } },
+    { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["N"], label: "Rename", touch: { key: Qt.Key_N, icon: "pencil" } }, { keys: ["C"], label: "Category", touch: { key: Qt.Key_C } },
+    { keys: ["L"], label: "Lock", touch: { key: Qt.Key_L, icon: "lock" } }, { keys: ["DEL"], label: "Remove", touch: { key: Qt.Key_Delete } }, { keys: ["?"], label: "All keys" },
+    { keys: ["E"], label: "Done", touch: { key: Qt.Key_E, back: true } }
   ] : [
-    { keys: ["↑", "↓"], label: "Channel" }, { keys: ["←", "→"], label: "Program" }, { keys: ["ENTER"], label: "Watch" }].concat(dvr.settings.on ? [{ keys: ["I"], label: "Record…" }] : []).concat([{ keys: ["V"], label: "Library" },
-    { keys: ["/"], label: "Search" }, { keys: ["P"], label: "Mini player" }, { keys: ["W"], label: windowed ? "Full screen" : "Window" }, { keys: ["T"], label: "Phone remote" }, { keys: ["A"], label: "Add" }, { keys: ["E"], label: "Manage" },
-    { keys: ["S"], label: "Style" }, { keys: [","], label: "Settings" }, { keys: ["?"], label: "All keys" }, { keys: ["K"], label: "Hide keys" },
-    { keys: ["ESC"], label: homeEnabled ? "Home" : "Close" }
+    { keys: ["↑", "↓"], label: "Channel" }, { keys: ["←", "→"], label: "Program" }]
+    .concat(railShows === "focus" && !railButtonUp ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { root.openRail() }, icon: "menu" } }] : [])
+    .concat([{ keys: ["ENTER"], label: "Watch", touch: { key: Qt.Key_Return, primary: true, icon: "playsolid" } }])
+    .concat(dvr.settings.on ? [{ keys: ["I"], label: "Record…", touch: { key: Qt.Key_I, icon: "record" } }] : [])
+    .concat([{ keys: ["V"], label: "Library", touch: { key: Qt.Key_V, icon: "film" } },
+    { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } }, { keys: ["P"], label: "Mini player", touch: { key: Qt.Key_P, icon: "mini" } },
+    { keys: [], label: "Now", touchOnly: true, touch: { run: function() { root.timeToNow() }, icon: "clock" } },
+    { keys: [], label: "123", touchOnly: true, touch: { run: function() { root.openNumberPad() }, moreLabel: "Channel number" } },
+    { keys: ["W"], label: windowed ? "Full screen" : "Window", touch: { key: Qt.Key_W, icon: windowed ? "fullscreen" : "window" } },
+    { keys: ["T"], label: "Phone remote", touch: { key: Qt.Key_T } }, { keys: ["A"], label: "Add", touch: { key: Qt.Key_A, icon: "plus" } },
+    { keys: ["E"], label: "Manage", touch: { key: Qt.Key_E, icon: "pencil" } },
+    { keys: ["S"], label: "Style", touch: { key: Qt.Key_S } }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+    { keys: ["?"], label: "All keys" }, { keys: ["K"], label: "Hide keys" },
+    { keys: ["ESC"], label: homeEnabled ? "Home" : "Close", touch: { key: Qt.Key_Escape, back: true } }
   ])
-  readonly property var dialogHints: dialog === "remove" ? [{ keys: ["ENTER"], label: "Remove" }, { keys: ["ESC"], label: "Keep" }]
+  // A box's hints. In a box whose rows are tapped (a list), Enter's is no
+  // button; where a text field has the keys, its buttons run the field's own
+  // action (a key would never reach it).
+  readonly property var dialogHints: dialog === "remove" ? [{ keys: ["ENTER"], label: "Remove", touch: { key: Qt.Key_Return } }, { keys: ["ESC"], label: "Keep", touch: { key: Qt.Key_Escape, back: true } }]
     : dialog === "filter" ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["SPACE"], label: "On / off" }].concat(hasIptv ? [{ keys: ["←", "→"], label: "Sources" }] : [])
-        .concat([{ keys: ["ENTER"], label: "Show" }, { keys: ["ESC"], label: "Cancel" }])
+        .concat([{ keys: ["ENTER"], label: "Show", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "pick" ? ((pickApps || pickSignedApps) && appsStore.inspecting ? [{ keys: [], label: "Checking it…" }]
-        : pickBrowse ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Open" }, { keys: ["⌫"], label: "Up a folder" }, { keys: ["TAB"], label: "Search" }, { keys: ["ESC"], label: "Cancel" }]
-        : [{ keys: [], label: "Type to search" }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: pickFolders ? "Use it" : pickApps || pickSignedApps ? "Check it" : "Open" }, { keys: ["TAB"], label: "Browse" }, { keys: ["ESC"], label: "Cancel" }])
-    : dialog === "notes" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: ["ESC"], label: "Close" }]
-    : dialog === "contributors" ? (contributors.length ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Open on GitHub" }] : []).concat([{ keys: ["ESC"], label: "Close" }])
+        : pickBrowse ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Open" }, { keys: ["⌫"], label: "Up a folder", touch: { run: function() { root.browseUp() } } },
+                        { keys: ["TAB"], label: "Search", touch: { run: function() { root.pickToggleBrowse() }, icon: "search" } }, { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.pickEscape() }, back: true } }]
+        : [{ keys: [], label: "Type to search" }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: pickFolders ? "Use it" : pickApps || pickSignedApps ? "Check it" : "Open" },
+           { keys: ["TAB"], label: "Browse", touch: { run: function() { root.pickToggleBrowse() }, icon: "folder" } }, { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.pickEscape() }, back: true } }])
+    : dialog === "notes" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "contributors" ? (contributors.length ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Open on GitHub" }] : []).concat([{ keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "reset" || dialog === "restore" ? backupsItem.hints(dialog)
-    : dialog === "help" ? [{ keys: ["ESC"], label: "Close" }]
-    : dialog === "agent" ? [{ keys: ["ENTER"], label: "Turn on" }, { keys: ["N"], label: "No thanks" }, { keys: ["ESC"], label: "Later" }]
-    : dialog === "demo" ? [{ keys: ["Y"], label: "Load them" }, { keys: ["N"], label: "No thanks" }]
-    : dialog === "recStream" ? [{ keys: ["ENTER"], label: "Watch anyway" }, { keys: ["ESC"], label: "Stay" }]
-    : dialog === "showChoices" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Back" }]
-    : dialog === "remote" ? (remoteStep === "" ? [{ keys: ["ENTER"], label: "Turn on" }, { keys: ["ESC"], label: "Close" }]
-        : remoteStep === "confirm" ? [{ keys: ["ENTER"], label: "Turn on" }, { keys: ["ESC"], label: "Cancel" }]
+    : dialog === "help" ? [{ keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "agent" ? [{ keys: ["ENTER"], label: "Turn on", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["N"], label: "No thanks", touch: { key: Qt.Key_N } }, { keys: ["ESC"], label: "Later", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "demo" ? [{ keys: ["Y"], label: "Load them", touch: { key: Qt.Key_Y, primary: true } }, { keys: ["N"], label: "No thanks", touch: { key: Qt.Key_N } }]
+    : dialog === "recStream" ? [{ keys: ["ENTER"], label: "Watch anyway", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Stay", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "showChoices" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "remote" ? (remoteStep === "" ? [{ keys: ["ENTER"], label: "Turn on", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+        : remoteStep === "confirm" ? [{ keys: ["ENTER"], label: "Turn on", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
         : remoteStep === "firewall" ? [{ keys: [], label: "Waiting for your password…" }]
-        : remoteStep === "off" ? [{ keys: ["ENTER"], label: "Turn off, remove rule" }, { keys: ["N"], label: "Turn off, keep rule" }, { keys: ["ESC"], label: "Cancel" }]
-        : (remoteDevices.length ? [{ keys: ["↑", "↓"], label: "Phones" }, { keys: ["ENTER"], label: remoteArmed ? "Again to unpair" : "Unpair" }] : [])
-            .concat(remoteAllowedHere ? [] : [{ keys: ["A"], label: "Allow this network" }])
-            .concat([{ keys: ["T"], label: "Turn off" }, { keys: ["ESC"], label: "Close" }]))
-    : dialog === "rename" ? [{ keys: ["ENTER"], label: "Save" }, { keys: ["ESC"], label: "Cancel" }]
-    : dialog === "listings" ? (listingsAdding ? [{ keys: ["ENTER"], label: "Add" }, { keys: ["ESC"], label: "Back" }]
+        : remoteStep === "off" ? [{ keys: ["ENTER"], label: "Turn off, remove rule", touch: { key: Qt.Key_Return } }, { keys: ["N"], label: "Turn off, keep rule", touch: { key: Qt.Key_N } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
+        : (remoteDevices.length ? [{ keys: ["↑", "↓"], label: "Phones" }, { keys: ["ENTER"], label: remoteArmed ? "Again to unpair" : "Unpair", touch: { key: Qt.Key_Return } }] : [])
+            .concat(remoteAllowedHere ? [] : [{ keys: ["A"], label: "Allow this network", touch: { key: Qt.Key_A } }])
+            .concat([{ keys: ["T"], label: "Turn off", touch: { key: Qt.Key_T } }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]))
+    : dialog === "rename" ? [{ keys: ["ENTER"], label: "Save", touch: { run: function() { root.renameChannel(root.row, dialogBox.renameInput.text) }, primary: true } },
+                             { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.closeDialog() }, back: true } }]
+    : dialog === "listings" ? (listingsAdding ? [{ keys: ["ENTER"], label: "Add", touch: { run: function() { root.addListingsFrom(dialogBox.listingsInput.text) }, primary: true } },
+                                                 { keys: ["ESC"], label: "Back", touch: { run: function() { root.listingsBack() }, back: true } }]
         : [{ keys: ["↑", "↓"], label: "Move" },
            (listingRows[listingsCursor] || {}).type === "source" ? { keys: ["ENTER"], label: listingsArmed ? "Again to remove" : "Remove" }
            : (listingRows[listingsCursor] || {}).type === "add" ? { keys: ["ENTER"], label: "Add a link or file" } : { keys: ["ENTER"], label: "Fetch now" },
-           { keys: ["ESC"], label: "Close" }])
-    : dialog === "appsOn" || dialog === "unknownOn" || dialog === "devOn" ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "yes" ? "Turn on" : "Not now" }, { keys: ["ESC"], label: "Not now" }]
+           { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
+    : dialog === "appsOn" || dialog === "unknownOn" || dialog === "devOn" ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "yes" ? "Turn on" : "Not now" }, { keys: ["ESC"], label: "Not now", touch: { key: Qt.Key_Escape, back: true } }]
     : dialog === "appCatalog" ? (appsStore.inspecting ? [{ keys: [], label: "Checking it…" }]
         : [{ keys: ["↑", "↓"], label: "Pick" },
            { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "retry" ? "Try again" : appsStore.rowRecord(appsBoxRows[appsCursor]) && !appsStore.newer(((appsBoxRows[appsCursor] || {}).entry || {}).version, appsStore.rowRecord(appsBoxRows[appsCursor]).version) ? "Details" : "See what it asks for" },
-           { keys: ["ESC"], label: "Close" }])
+           { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "appReview" ? (appsStore.installing ? [{ keys: [], label: "Installing…" }]
         : [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "install" ? (appsStore.review && appsStore.review.updateConsent ? "Agree" : appsStore.review && appsStore.review.have && !appsStore.review.replaces ? "Update" : "Install")
                                                                        : (appsBoxRows[appsCursor] || {}).type === "fold" ? (reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Show all") : "Cancel" },
-           { keys: ["ESC"], label: (appsBoxRows[appsCursor] || {}).type === "fold" && reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Cancel" }])
+           { keys: ["ESC"], label: (appsBoxRows[appsCursor] || {}).type === "fold" && reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "appInfo" ? [{ keys: ["↑", "↓"], label: "Move" },
         (appsBoxRows[appsCursor] || {}).type === "fold" ? { keys: ["ENTER"], label: reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Show all" } :
         (appsBoxRows[appsCursor] || {}).type === "remove" ? { keys: ["ENTER"], label: appsArmed ? "Again to remove" : "Remove" }
         : (appsBoxRows[appsCursor] || {}).type === "toggle" ? { keys: ["ENTER"], label: "On / off" }
         : (appsBoxRows[appsCursor] || {}).type === "update" ? { keys: ["ENTER"], label: "See what it asks for" } : { keys: ["ENTER"], label: "Open it" },
-        { keys: ["ESC"], label: "Close" }]
-    : dialog === "category" ? [{ keys: [], label: "Type a new one, or" }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Set" }, { keys: ["ESC"], label: "Cancel" }]
-    : [{ keys: ["ENTER"], label: "Add" }, { keys: ["SHIFT", "+", "ENTER"], label: "New line" }, { keys: ["CTRL", "+", "O"], label: "Pick a file" }, { keys: ["ESC"], label: "Cancel" }]
+        { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "category" ? [{ keys: [], label: "Type a new one, or", touch: {} }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Set" },
+                               { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.closeDialog() }, back: true } }]
+    : [{ keys: ["ENTER"], label: "Add", touch: { run: function() { root.addChannel(dialogBox.addInput.text) }, primary: true } }, { keys: ["SHIFT", "+", "ENTER"], label: "New line" },
+       { keys: ["CTRL", "+", "O"], label: "Pick a file", touch: { run: function() { root.openPicker() }, icon: "file" } },
+       { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.closeDialog() }, back: true } }]
 
   // Every key, for the help box (?): [keys, what they do]; no keys is the mouse.
   readonly property var helpSections: [
@@ -5119,6 +5248,7 @@ Item {
 
   function readThemes() {
     themesItem.load()
+    remoteTemplatesItem.load()
   }
 
   // A picture of the guide as it is on screen, so an agent can look at what
@@ -5811,31 +5941,36 @@ Item {
   }
 
   readonly property var styleHintRows: {
-    if (styleNaming) return [[{ keys: [], label: "Type a name" }, { keys: ["ENTER"], label: namingArmed ? "Replace" : "Save" }, { keys: ["ESC"], label: "Cancel" }]]
+    // (tablet mode: the name field and the color picker have the keys, so
+    // their buttons run what those do)
+    if (styleNaming) return [[{ keys: [], label: "Type a name" }, { keys: ["ENTER"], label: namingArmed ? "Replace" : "Save", touch: { run: function() { root.finishNaming(true) }, primary: true } },
+                              { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.finishNaming(false) }, back: true } }]]
     if (styleEditing) return [
       [{ keys: ["←", "→", "↑", "↓"], label: "Shade" }, { keys: ["PGUP", "PGDN"], label: "Hue" }],
-      [{ keys: ["[", "]"], label: "See-through" }, { keys: ["ENTER"], label: "Keep" }, { keys: ["ESC"], label: "Undo" }]
+      [{ keys: ["[", "]"], label: "See-through" }, { keys: ["ENTER"], label: "Keep", touch: { run: function() { root.finishPick(true) }, primary: true } },
+       { keys: ["ESC"], label: "Undo", touch: { run: function() { root.finishPick(false) }, back: true } }]
     ]
     var row = styleRows[styleCursor] || {}
     var t = row.type
-    var back = styleView === "main" ? [{ keys: ["S", "/", "ESC"], label: "Close" }] : [{ keys: ["ESC"], label: "Back" }, { keys: ["S"], label: "Close" }]
+    var back = styleView === "main" ? [{ keys: ["S", "/", "ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+                                    : [{ keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }, { keys: ["S"], label: "Close", touch: { key: Qt.Key_S, icon: "close" } }]
     if (t === "open" || t === "part") return [[{ keys: ["ENTER"], label: "Open" }], [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
     if (t === "state") return [[{ keys: ["←", "→"], label: "Normal or a state" }], [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
     if (t === "prop" || t === "layout" || t === "font")
       return [(t === "prop" && row.kind === "color" ? [{ keys: ["ENTER"], label: "Pick" }]
                : t === "layout" && Look.LAYOUT_BY_KEY[row.key].kind === "columns" ? [{ keys: [], label: "Set by themes and agents" }]
-               : [{ keys: ["←", "→"], label: "Change" }]).concat([{ keys: ["DEL"], label: "Theme's" }]),
+               : [{ keys: ["←", "→"], label: "Change" }]).concat([{ keys: ["DEL"], label: "Theme's", touch: { key: Qt.Key_Delete } }]),
               [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
     if (t === "resetPart") return [[{ keys: ["ENTER"], label: styleArmed === t ? "Again to reset" : "Reset" }], [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
-    var first = t === "color" ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["DEL"], label: "Theme's" }]
-              : t === "theme" ? [{ keys: ["←", "→"], label: "Change theme" }, { keys: ["DEL"], label: "Premiere" }]
+    var first = t === "color" ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["DEL"], label: "Theme's", touch: { key: Qt.Key_Delete } }]
+              : t === "theme" ? [{ keys: ["←", "→"], label: "Change theme" }, { keys: ["DEL"], label: "Premiere", touch: { key: Qt.Key_Delete } }]
               : t === "saveTheme" ? [{ keys: ["ENTER"], label: "Name it and save" }]
               : t === "image" ? (areaImages[(styleRows[styleCursor] || {}).key]
-                                 ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["←", "→"], label: "Fit" }, { keys: ["[", "]"], label: "Fade" }, { keys: ["DEL"], label: "Off" }]
-                                 : [{ keys: ["ENTER"], label: "Pick a picture" }].concat(imageOverrides[(styleRows[styleCursor] || {}).key] !== undefined ? [{ keys: ["DEL"], label: "Theme's" }] : []))
+                                 ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["←", "→"], label: "Fit" }, { keys: ["[", "]"], label: "Fade" }, { keys: ["DEL"], label: "Off", touch: { key: Qt.Key_Delete } }]
+                                 : [{ keys: ["ENTER"], label: "Pick a picture" }].concat(imageOverrides[(styleRows[styleCursor] || {}).key] !== undefined ? [{ keys: ["DEL"], label: "Theme's", touch: { key: Qt.Key_Delete } }] : []))
               : t === "bg" ? [{ keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Pick a picture" }]
               : t === "dim" ? [{ keys: ["←", "→"], label: "Less / more" }]
-              : t === "lt" || t === "card" ? [{ keys: ["SPACE"], label: "On / off" }, { keys: ["←", "→"], label: "Seconds" }]
+              : t === "lt" || t === "card" ? [{ keys: ["SPACE"], label: "On / off", touch: { key: Qt.Key_Space } }, { keys: ["←", "→"], label: "Seconds" }]
               : t === "undoReset" ? [{ keys: ["ENTER"], label: "Undo" }]
               : [{ keys: ["ENTER"], label: styleArmed === t ? "Again to reset" : "Reset" }]
     return [first, [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
@@ -5923,9 +6058,11 @@ Item {
         { key: "barIcon", label: "Show in the top bar", kind: "switch" },
         { key: "rail", label: "Nav rail", kind: "opens" },
         { key: "keyHints", label: "Key hints", kind: "switch" },
+        { key: "touch", label: "Tablet mode", kind: "choice" },
         { key: "splash", label: "Splash screen", kind: "switch" },
         { key: "remote", label: "Phone remote", kind: "opens" },
         { key: "phones", label: "Paired phones", kind: "opens" },
+        { key: "remoteTemplate", label: "Remote template", kind: "choice" },
         { key: "skill", label: "AI agent skill", kind: "switch" },
         { key: "skillSave", label: "Save the agent skill", kind: "action" },
         { key: "style", label: "Style and themes", kind: "opens" },
@@ -6144,8 +6281,14 @@ Item {
   }
 
   readonly property string railCurrent: screen === "home" ? "home" : screen === "guide" ? "tv" : screen === "library" ? libraryTab : screen === "settings" ? "settings" : screen === "search" ? "search" : screen === "apps" || screen === "app" ? "apps" : ""
+  // How the rail shows: the layout's, tucked away on a compact screen (☰ on
+  // the guide's masthead opens it)
+  readonly property string railShows: Touch.railShows(layout.rail, screenFit)
+  // ☰ on the masthead (a title masthead): on a compact screen whenever the
+  // rail is tucked away, and in tablet mode with the rail on Focus
+  readonly property bool railButtonUp: railShows === "focus" && layout.masthead === "title" && (screenFit === "compact" || touchMode)
   // what the screens leave free at the left for the thin rail
-  readonly property real railSpace: layout.rail === "always" ? Math.round(u * layout.railWidth) : 0
+  readonly property real railSpace: railShows === "always" ? navRail.thinW : 0
 
   function openRail() {
     appViewItem.userActs()
@@ -6292,6 +6435,8 @@ Item {
     if (key === "filter") return root.hasIptv && root.shownSource !== "both" ? root.sourceName(root.shownSource) : root.filtered ? "Some categories" : "Everything"
     if (key === "phones") return !root.remoteEnabled ? "Phone remote is off" : !root.remoteDevices.length ? "None" : plural(root.remoteDevices.length, "phone", "phones")
     if (key === "remote") return root.remoteEnabled ? "On" + (root.remoteDevices.length ? " · " + plural(root.remoteDevices.length, "phone", "phones") : "") : "Off"
+    if (key === "remoteTemplate") return remoteTemplatesItem.nameOf(remoteTemplatesItem.defaultId) || "Classic"
+    if (key === "touch") return root.touchSetting === "on" ? "On" : root.touchSetting === "off" ? "Off" : "Auto"
     if (key === "refresh") return root.fetchedAt ? "Listings " + Math.max(0, Math.round((root.now - root.fetchedAt) / 60)) + " min old" : ""
     if (key === "libraryInfo") return plural(library.items.length, "movie", "movies") + " · " + plural(library.genres.length, "genre", "genres")
     if (key === "source") return root.settingsArmed === "source:" + (row || {}).source ? "Enter again to remove" : (row ? row.count : 0) + " · Remove"
@@ -6332,6 +6477,7 @@ Item {
     var key = (settingsRows[settingsCursor] || {}).key
     if (key === "logos") return "Each channel's logo in the guide. They're fetched a few at a time and kept, so the guide stays fast."
     if (key === "keyHints") return "The keys along the bottom of the guide. K turns them on or off anywhere in the guide."
+    if (key === "touch") return "Auto turns it on when you touch the screen."
     if (key === "splash") return "An old TV warming up, with the Uber TV logo, each time Uber TV turns on. About 9 seconds; any key skips it."
     if (key === "home") return "On: the guide opens on Home (continue watching, what's on, your library), and Esc in the guide goes back to it. C on Home customizes it. Off: the guide opens on the program guide, as before."
     if (key === "shortcut") return "Opens or closes the guide from anywhere. It's registered with Hyprland while the guide runs (your Hyprland config isn't changed) and taken out when the guide is turned off. Enter picks the next one; None for no shortcut."
@@ -6370,6 +6516,7 @@ Item {
     if (key === "filter") return root.hasCategories || root.hasIptv ? "Which categories show, and YouTube, IPTV or both. Also F, in the guide." : "Once your channels have categories (or there are IPTV channels), choose which show here."
     if (key === "phones") return "The phones paired as remotes, with when each was paired and last used. Pick one and press Enter twice to unpair it: it needs a new code to pair again. A phone can also unpair itself (UNPAIR on its remote page)."
     if (key === "remote") return "Your phone as a remote, on the same network: turn it on, pair a phone (a QR code, or a code to type), see the paired phones. Also T, on Home and in the guide."
+    if (key === "remoteTemplate") return "How the phone remote looks and is laid out. Each phone can pick its own with ⚙ on its remote page."
     if (key === "refresh") return "Fetches every channel's listings again and plans today's lineups anew. Also R, in the guide."
     if (key === "libraryInfo") return "Movies and series from your playlists: a playlist's video files come here when you add it (A), its live channels go in the guide. V opens the library."
     if (key === "source") return "Takes the movies that playlist brought in out of the library (and off My List). The playlist's live channels stay in the guide. Press Enter twice."
@@ -6534,6 +6681,13 @@ Item {
     else if (row.key === "home") { root.homeEnabled = !root.homeEnabled; root.saveSettings() }
     else if (row.key === "display") root.toggleDisplay()
     else if (row.key === "awake") { if (!you) return "only the user, at the screen"; root.awake = AwakeRules.next(root.awake); root.saveSettings() }
+    else if (row.key === "touch") root.setTouch(root.cycle(Touch.SETTINGS, root.touchSetting, d))
+    else if (row.key === "remoteTemplate") {
+      var tl = remoteTemplatesItem.list
+      if (!tl.length) return
+      var at = tl.findIndex(function(x) { return x.id === remoteTemplatesItem.defaultId })
+      remoteTemplatesItem.setDefault(tl[((at < 0 ? 0 : at) + (d < 0 ? tl.length - 1 : 1)) % tl.length].id)
+    }
     else if (row.key === "saverOn") { if (!you) return "only the user, at the screen"; root.setSaver({ on: !screenSaverItem.settings.on }) }
     else if (row.key === "saverAfter") root.setSaver({ after: SaverRules.next(SaverRules.AFTER, screenSaverItem.settings.after) })
     else if (row.key === "saverPictures") root.setSaver({ pictures: SaverRules.next(SaverRules.PICTURES, screenSaverItem.settings.pictures) })
@@ -6737,16 +6891,27 @@ Item {
   property bool recStopMenu: false
   // J K L with pause and rewind off: the banner says so, with Turn on
   property bool tsOffMenu: false
-  // Pause and rewind's choices, first (Pause focused): on a live channel
-  // with it on; Pause dimmed, saying why, while it can't run
-  readonly property var tsActions: !watching || vod || !timeshift.turnedOn || !Ts.supported(onAir) ? []
-    : timeshift.active ? [{ key: "tsPause", label: timeshift.paused ? "Resume" : "Pause", icon: "" },
-                          { key: "tsBack", label: "Back 30 s", icon: "" },
-                          { key: "tsForward", label: "Forward 30 s", icon: "" },
-                          { key: "tsLive", label: "Live", icon: "", unavailable: timeshift.atLive }]
-    : [{ key: "tsPause", label: "Pause", icon: "", unavailable: true, note: timeshift.cantPauseText }]
+  // ▲ again with it on but not running: Pause, dimmed, saying why
+  property bool tsCantMenu: false
+  // either of those reached by ▲ from the choices: ▼ goes back to them
+  property bool tsMenuFromChoices: false
+  // ▲ again, with pause and rewind running: the player controls (the bar of
+  // what's kept, back 30 s, pause / play, forward 30 s)
+  property bool playerControls: false
+  // Tablet mode: a tap on the picture brings up its controls at once (the
+  // banner's choices, with the player controls under them while pause and
+  // rewind runs; Guide; CH and 123); a tap again, or the banner's time, and
+  // they go (ui/TvScreen.qml)
+  property bool touchControls: false
+  onTouchModeChanged: if (!touchMode) touchControls = false
+  function toggleTouchControls() {
+    if (root.touchControls || root.bannerOptions || root.playerControls) { root.hideBanner(); return }
+    root.openBannerOptions()
+    root.touchControls = true
+  }
   readonly property var bannerActions: {
     if (tsOffMenu) return [{ key: "tsOn", label: "Turn on", icon: "", note: "Pause and rewind is off" }]
+    if (tsCantMenu) return [{ key: "tsPause", label: "Pause", icon: "", unavailable: true, note: timeshift.cantPauseText || "Can't pause right now" }]
     if (streamAsk) return [{ key: "streamYes", label: streamAskLabel, icon: "", rec: true, note: streamAskNote }, { key: "streamNo", label: "Stay", icon: "" }]
     if (recStopMenu && recOnTuned)
       return DvrRules.stopChoices(recOnTuned, onAir && onAir.epg ? onAir.end : 0, now, root.clock).map(function(c) { return { key: "recEnd", end: c.end, label: c.label, rec: true } })
@@ -6756,8 +6921,9 @@ Item {
                             { key: "recUntil", label: "Until " + root.clock(recOnTuned.end) + "  ›", icon: "", rec: true }]
             : recOffer ? [{ key: "record", label: dvr.busy ? "Starting…" : recOffer.label, icon: "record", rec: true, note: dvr.said || recOffer.note, unavailable: recOffer.unavailable }]
             : []
-    return tsActions.concat([{ key: "multiview", label: "Multiview", icon: "apps" }]).concat(rec).concat([{ key: "mini", label: "Mini player", icon: "window" },
-            { key: "guide", label: "Guide", icon: "tv" }, { key: "mute", label: root.muted ? "Sound on" : "Mute", icon: "" }])
+    // (tablet mode's controls have Guide of their own, top left)
+    return [{ key: "multiview", label: "Multiview", icon: "apps" }].concat(rec).concat([{ key: "mini", label: "Mini player", icon: "window" }])
+            .concat(touchControls ? [] : [{ key: "guide", label: "Guide", icon: "tv" }]).concat([{ key: "mute", label: root.muted ? "Sound on" : "Mute", icon: "" }])
   }
   // The REC badge on the banner: only on the channel that's recording, until
   // when (another channel's banner says nothing of it: the guide's top line
@@ -6775,6 +6941,9 @@ Item {
     root.bannerAct = 0
     root.recStopMenu = false
     root.tsOffMenu = false
+    root.tsCantMenu = false
+    root.tsMenuFromChoices = false
+    root.playerControls = false
     dvr.said = ""
     root.bannerOptions = true
     root.bannerShown = true
@@ -6787,11 +6956,18 @@ Item {
     root.bannerShown = false
     root.recStopMenu = false
     root.tsOffMenu = false
+    root.tsCantMenu = false
+    root.tsMenuFromChoices = false
+    root.playerControls = false
+    root.touchControls = false
+    root.cancelScrub()
     bannerTimer.stop()
   }
-  // Esc, ↓ or BACK on the banner's choices: out of the stop times first, then away
+  // Esc, ↓ or BACK on the banner's choices: out of the stop times first, then away.
+  // ↓ from the player controls (or from what ▲ again said) goes back to the choices
   function bannerBack() {
     if (root.streamAsk) { root.answerStream(false); return }
+    if (root.playerControls || ((root.tsOffMenu || root.tsCantMenu) && root.tsMenuFromChoices)) { root.cancelScrub(); root.openBannerOptions(); return }
     if (root.recStopMenu) {
       root.recStopMenu = false
       root.bannerAct = Math.max(0, root.bannerActions.findIndex(function(a) { return a.key === "recUntil" }))
@@ -6809,6 +6985,7 @@ Item {
     if (!a) return
     if (a.key === "mute") { root.muted = !root.muted; bannerTimer.restart(); return }
     if (a.key === "tsOn") { root.hideBanner(); dvr.set({ timeshift: 5 }); return }
+    if (a.key === "tsPause" && root.tsCantMenu) { bannerTimer.restart(); return }
     if (a.key.indexOf("ts") === 0) {
       bannerTimer.restart()
       if (a.unavailable) return
@@ -6847,16 +7024,170 @@ Item {
       root.bannerAct = 0
       root.recStopMenu = false
       root.tsOffMenu = true
+      root.tsCantMenu = false
+      root.tsMenuFromChoices = false
+      root.playerControls = false
       root.bannerOptions = true
       root.bannerShown = true
       bannerTimer.restart()
       return
     }
-    if (!timeshift.active) { root.openBannerOptions(); return }
+    if (!timeshift.active) { root.openPlayerControls(false); return }
     if (what === "pause") timeshift.togglePause()
     else if (what === "back") timeshift.back()
     else timeshift.forward()
-    root.showBanner()
+    if (root.playerControls) bannerTimer.restart()
+    else root.showBanner()
+  }
+
+  // ▲ again (from the choices; the keyboard's ↑ too): the player controls
+  // while pause and rewind runs; off, the banner says so with Turn on; on but
+  // not running, Pause dimmed saying why. ▼ goes back to the choices.
+  function openPlayerControls(fromChoices) {
+    if (!root.watching || root.vod) return
+    root.recStopMenu = false
+    root.bannerAct = 0
+    root.tsMenuFromChoices = fromChoices === true
+    if (!timeshift.turnedOn || !timeshift.active) {
+      root.tsOffMenu = !timeshift.turnedOn
+      root.tsCantMenu = timeshift.turnedOn
+      root.playerControls = false
+      root.bannerOptions = true
+    } else {
+      root.tsOffMenu = false
+      root.tsCantMenu = false
+      root.bannerOptions = false
+      root.playerControls = true
+    }
+    root.bannerShown = true
+    bannerTimer.restart()
+  }
+  // the player controls' buttons (a click, or the phone's arrows and OK;
+  // a finger, with tablet mode's controls up)
+  function controlsAct(what) {
+    if (!root.playerControls && !root.touchControls) return
+    if (what === "pause") timeshift.togglePause()
+    else if (what === "back") timeshift.back()
+    else if (what === "forward") timeshift.forward()
+    else if (what === "live") timeshift.live()
+    bannerTimer.restart()
+  }
+
+  // ---- Scrubbing: a held key (or the mouse on the bar) moves a mark on the
+  // player controls' bar, on its own clock (four steps a second: 10 s for the
+  // first second, 30 s the next, then a minute; a key's auto-repeat doesn't
+  // count), and the picture jumps there once, when it's let go. A scrub
+  // belongs to what was playing when it began: a channel, buffer, video or
+  // mode changing cancels it, and letting go then does nothing.
+  // What's playing, as one string (never sent: the phones get playToken,
+  // a number that changes with it)
+  readonly property string playSig: (timeshift.session || "") + "|" + tunedRow + "|" + (vod ? (vod.id || vod.url || vod.videoId || "vod") : "")
+                                    + "|" + (appPlaybackItem.session ? appPlaybackItem.session.epoch : "")
+  property int playToken: 1
+  onPlaySigChanged: { playToken += 1; cancelScrub() }
+  onPlayTokenChanged: remoteStateTimer.restart()
+  property var scrub: null            // { at (the buffer's ms, or a movie's s), dir, since, for, movie }
+  // the player controls' bar: where the picture is along what's kept, and
+  // how far behind live (the scrub's mark while one runs; nothing at Live)
+  readonly property real controlsAt: timeshift.active && timeshift.liveEnd > timeshift.win.oldest
+                                     ? Math.max(0, Math.min(1, (timeshift.point - timeshift.win.oldest) / (timeshift.liveEnd - timeshift.win.oldest))) : 0
+  readonly property string controlsChip: scrub && !scrub.movie ? (timeshift.liveEnd - scrub.at < Ts.NEAR ? "" : Ts.chip(false, timeshift.liveEnd - scrub.at))
+                                         : timeshift.active && (!timeshift.atLive || timeshift.paused) ? Ts.chip(false, timeshift.behind) : ""
+  readonly property real scrubFrac: {
+    if (!scrub) return -1
+    if (scrub.movie) return playDuration > 0 ? Math.max(0, Math.min(1, scrub.at * 1000 / playDuration)) : -1
+    var span = timeshift.liveEnd - timeshift.win.oldest
+    return span > 0 ? Math.max(0, Math.min(1, (scrub.at - timeshift.win.oldest) / span)) : -1
+  }
+  function scrubStart(dir, byKey, at) {
+    if (root.vod) {
+      if (!root.started || player.duration <= 0) return false
+      root.scrub = { at: at !== undefined ? at : player.position / 1000, dir: dir, since: Date.now(), for: root.playSig, movie: true }
+      root.vodBarShown = true
+      vodBarTimer.stop()
+    } else {
+      if (!timeshift.active) return false
+      root.scrub = { at: at !== undefined ? at : timeshift.point, dir: dir, since: Date.now(), for: root.playSig, movie: false }
+      if (!root.playerControls && !root.touchControls) root.openPlayerControls(false)
+      bannerTimer.stop()
+    }
+    if (byKey) scrubClock.start()
+    return true
+  }
+  // one step of a held key
+  function scrubStep() {
+    var s = root.scrub
+    if (!s || s.dir === 0) return
+    var held = Date.now() - s.since
+    if (held > 60000) { root.cancelScrub(); return }   // a key that never came back up
+    var step = held < 1000 ? 10 : held < 2000 ? 30 : 60
+    var c = { at: s.at, dir: s.dir, since: s.since, for: s.for, movie: s.movie }
+    if (s.movie) c.at = Math.max(0, Math.min(player.duration / 1000 - 1, s.at + s.dir * step))
+    else c.at = Math.max(timeshift.win.oldest, Math.min(timeshift.liveEnd, s.at + s.dir * step * 1000))
+    root.scrub = c
+  }
+  // the mouse along the bar: a fraction of it
+  function scrubTo(frac) {
+    var s = root.scrub
+    if (!s) return
+    var f = Math.max(0, Math.min(1, Number(frac) || 0))
+    var c = { at: 0, dir: 0, since: s.since, for: s.for, movie: s.movie }
+    c.at = s.movie ? f * player.duration / 1000 : timeshift.win.oldest + f * (timeshift.liveEnd - timeshift.win.oldest)
+    root.scrub = c
+  }
+  // let go: the picture goes there, if it's still what was playing
+  function scrubEnd() {
+    var s = root.scrub
+    root.scrub = null
+    scrubClock.stop()
+    if (!s) return
+    if (s.movie) {
+      vodBarTimer.restart()
+      if (s.for === root.playSig && root.vod) root.seekVodTo(s.at)
+      return
+    }
+    bannerTimer.restart()
+    if (s.for === root.playSig && root.watching && timeshift.active) timeshift.seekTo(s.at)
+  }
+  function cancelScrub() {
+    if (!root.scrub) return
+    root.scrub = null
+    scrubClock.stop()
+    if (root.playerControls || root.touchControls) bannerTimer.restart()
+  }
+  Timer { id: scrubClock; interval: 250; repeat: true; onTriggered: root.scrubStep() }
+
+  // ← → (and J, L) while watching: a tap or a hold, told apart by when it's
+  // let go (300 ms). A movie: a tap 10 s, a hold scrubs. A live channel with
+  // pause and rewind running: a hold scrubs (from nothing open or the player
+  // controls); a tap steps 30 s on the player controls, and J or L does with
+  // nothing open (← → then do nothing, as before). Not running: J's answer.
+  property var keyHold: null          // { dir, jl, began }
+  Timer { id: holdTimer; interval: 300; onTriggered: root.holdBegan() }
+  function scrubKeyDown(dir, jl) {
+    // a press while one is held: the letting go was missed (the focus went
+    // elsewhere): that one's over, and nothing of it happens
+    if (root.keyHold) { root.keyHold = null; holdTimer.stop(); root.cancelScrub() }
+    root.keyHold = { dir: dir, jl: jl === true, began: false }
+    holdTimer.restart()
+  }
+  function holdBegan() {
+    var h = root.keyHold
+    if (!h || !root.watching) return
+    root.keyHold = { dir: h.dir, jl: h.jl, began: true }
+    if (root.vod || timeshift.active) root.scrubStart(h.dir, true)
+    else root.tsKey(h.dir < 0 ? "back" : "forward")
+  }
+  function scrubKeyUp() {
+    var h = root.keyHold
+    root.keyHold = null
+    holdTimer.stop()
+    if (!h) return
+    if (h.began) { if (root.scrub) root.scrubEnd(); return }
+    if (!root.watching) return
+    if (root.vod) root.seekVod(h.dir * 10)
+    else if (root.playerControls) root.controlsAct(h.dir < 0 ? "back" : "forward")
+    else if (h.jl) root.tsKey(h.dir < 0 ? "back" : "forward")
   }
 
   // The TV
@@ -6941,7 +7272,10 @@ Item {
   // overtake it: it's not a choice of yours).
   property int mvRequest: 0
   property int mvWaitingFor: -1        // the request on its way, if it's still the latest
-  onAppPlayingChanged: if (appPlaying) { mvRequest += 1; timeshift.end() }   // an app's video, chosen since, overtakes it too (and the TV's buffer goes)
+  onAppPlayingChanged: {
+    if (appPlaying) { mvRequest += 1; timeshift.end() }   // an app's video, chosen since, overtakes it too (and the TV's buffer goes)
+    remoteStateTimer.restart()                            // and the phones' buttons follow what plays
+  }
   function requestMultiview() { root.mvRequest += 1; root.mvWaitingFor = root.mvRequest; return root.mvRequest }
   function startMultiview(urls, request) {
     if (request !== root.mvRequest || !root.opened) { if (root.mvWaitingFor === request) root.mvWaitingFor = -1; return "overtaken" }
@@ -7088,6 +7422,12 @@ Item {
   function showVodBar() {
     root.vodBarShown = true
     vodBarTimer.restart()
+  }
+  // tablet mode: a tap on a movie shows its bar, a tap again hides it (it
+  // stays while paused)
+  function toggleVodBar() {
+    if (root.vodBarShown) { root.vodBarShown = false; vodBarTimer.stop() }
+    else root.showVodBar()
   }
 
   // A movie's poster, or a YouTube video's picture, through the streamer's cache
@@ -7423,20 +7763,25 @@ Item {
     if (by !== root.byUser) return
     var m
     try { m = JSON.parse(line) } catch (e) { return }
-    if (m.ready) {
+    if (!m || typeof m !== "object") return
+    if (m.done !== undefined) {
+      remoteTemplatesItem.answered(m)    // a change to a phone's choices, saved or not
+    } else if (m.ready) {
       root.remoteNet = m.ready
       root.remoteReady = true
       root.sendRemoteState()
+      remoteTemplatesItem.send()
       if (root.dialog === "remote") root.remoteSend({ pairing: true })
     } else if (m.probe) {
       root.remoteNet = m.probe
     } else if (m.pairing) {
       root.remotePairing = m.pairing
     } else if (m.devices) {
-      root.remoteDevices = m.devices
+      root.remoteDevices = JSON.parse(JSON.stringify(m.devices))
       root.remoteCursor = Math.max(0, Math.min(root.remoteCursor, m.devices.length - 1))
+      remoteTemplatesItem.tidyPhones()
     } else if (m.command) {
-      root.remoteCommand(m.command.cmd, m.command.number, by, m.command.digits)
+      root.remoteCommand(m.command.cmd, m.command.number, by, m.command.digits, m.command)
     } else if (m.error) {
       root.remoteMessage = m.error
     }
@@ -7480,9 +7825,18 @@ Item {
       }
       var lockedNow = channelLockItem.blocks(c)
       list.push({ number: root.numbers[r], name: c.name, category: c.category || "", channelId: lockedNow ? "" : c.channelId || "",
-                  title: root.titlesHidden(c) ? "Locked" : root.showTitle(title), live: !!c.live && !root.titlesHidden(c), locked: lockedNow })
+                  title: root.titlesHidden(c) ? "Locked" : root.showTitle(title), live: !!c.live && !root.titlesHidden(c), locked: lockedNow,
+                  rec: !!dvr.onChannel(c) })
     }
     var vod = on && root.vod ? root.vod : null
+    // pause and rewind on a live channel watched with it on: whether it runs,
+    // paused, at Live or how far behind and how much is kept (seconds), or why not
+    var ts = on && !vod && timeshift.turnedOn && Ts.supported(root.onAir)
+      ? { on: true, running: timeshift.active, paused: timeshift.paused, atLive: timeshift.atLive, behind: Math.round(timeshift.behind / 1000),
+          window: timeshift.active ? Math.max(0, Math.round((timeshift.liveEnd - timeshift.win.oldest) / 1000)) : 0, why: timeshift.cantPauseText } : null
+    var media = root.appPlaying ? "app" : vod ? "movie" : on && (root.watching || root.pip) ? "live" : ""
+    // an app's video: its title and place, as a movie's (never its address)
+    var app = root.appPlaying && appPlaybackItem.session ? appPlaybackItem.session : null
     return {
       on: on, muted: root.muted, screen: root.opened ? root.screen : "",
       passcode: channelLockItem.boxUp && channelLockItem.typing,
@@ -7492,7 +7846,12 @@ Item {
       rec: on ? root.recBadge : "",
       pause: on && !vod && timeshift.active ? (timeshift.paused ? "Paused" : timeshift.atLive ? "" : timeshift.chipText) : "",
       mode: root.pip && on ? "mini" : root.watching && on ? "full" : root.opened ? root.screen : "off",
-      now: vod ? { vod: true, title: root.showTitle(vod.title), name: vod.subtitle || "", paused: root.vodPaused }
+      signal: root.reception, recHere: on && !!root.recOnTuned, media: media, ts: ts, play: root.playToken,
+      paused: media === "app" ? appPlaybackItem.paused : media === "movie" ? root.vodPaused : !!(ts && ts.paused),
+      now: app ? { vod: true, app: true, title: root.showTitle(String(app.title || "").slice(0, 200)), name: String(app.subtitle || "").slice(0, 200),
+                   paused: appPlaybackItem.paused, position: Math.round(appPlaybackItem.position), length: app.live ? 0 : Math.round(appPlaybackItem.duration) }
+         : vod ? { vod: true, title: root.showTitle(vod.title), name: vod.subtitle || "", paused: root.vodPaused,
+                   position: Math.round(root.playPosition / 1000), length: Math.round(root.playDuration / 1000) }
          : on && ch ? { number: root.numbers[root.tunedRow], name: ch.name, category: ch.category || "", channelId: ch.channelId || "",
                        title: root.showTitle(root.onAir.title), live: !!root.onAir.live, start: root.onAir.start, end: root.onAir.end } : null,
       channels: list
@@ -7518,12 +7877,13 @@ Item {
   }
 
   // A button on a phone, doing what the same key would on the TV.
-  function remoteCommand(cmd, number, by, digits) {
+  function remoteCommand(cmd, number, by, digits, extra) {
     // the phone is you too: it ends an agent's open of an app
     if (by === root.byUser && appViewItem.agentOpen) appViewItem.userActs()
     // Omarchy's screen saver is up: a key closes it (a phone press can't yet)
     if (nativeSaverItem.up || nativeSaverItem.settling) return "Omarchy's screen saver is up"
     if (by === root.byUser) {
+      root.noteInput("remote")
       // a press on your phone is you here: Hyprland's idle timers start over
       // as for a key (a hold, like a playing video's, still wins)
       if (Hyprland.usingLua) Hyprland.dispatch("hl.dsp.force_idle(0)")
@@ -7584,6 +7944,16 @@ Item {
       else if (!root.opened) root.remotePowerOn(-1)
       return
     }
+    // One full / mini button: full screen ↔ the mini player; elsewhere, as FULL
+    if (cmd === "window") {
+      if (root.pip) root.expandPip()
+      else if (root.watching && on) root.goPip()
+      else if (root.appPlaying) return
+      else if (root.opened) root.watch(root.row)
+      else root.remotePowerOn(-1)
+      return
+    }
+    if (cmd === "home") return root.remoteHome()
     // The apps boxes: the d-pad picks, OK says it (a paired phone is yours)
     if (["appsOn", "unknownOn", "devOn", "appCatalog", "appReview", "appInfo"].indexOf(root.dialog) >= 0) {
       if (appsStore.installing || (appsStore.inspecting && root.dialog !== "appInfo")) return
@@ -7619,7 +7989,7 @@ Item {
       if (root.dialog || root.railOpen) return
       // as I: the mini player's bar; full screen, the player bar or the banner's choices
       if (root.pip) { if (!root.streamAsk) root.showPipBanner(); return }
-      if (root.watching) { root.vod ? root.showVodBar() : root.bannerOptions ? root.hideBanner() : root.openBannerOptions(); return }
+      if (root.watching) { root.vod ? root.showVodBar() : root.bannerOptions || root.playerControls ? root.hideBanner() : root.openBannerOptions(); return }
       if (!root.opened) return
       if (root.screen === "home" && !root.homeEditing) root.openHomePanel()
       else if (root.screen === "guide") root.openShowChoices()
@@ -7642,6 +8012,8 @@ Item {
       if (cmd === "back") root.closeDialog()
       return
     }
+    // Pause / play, rewind, forward and Live: what's playing (J K L on a live channel)
+    if (["playpause", "rewind", "forward", "live", "seek"].indexOf(cmd) >= 0) return root.remoteTransport(cmd, extra)
     if (cmd === "chup" || cmd === "chdown") {
       var d = cmd === "chup" ? 1 : -1
       if (root.pip) root.pipSurf(d)
@@ -7668,9 +8040,17 @@ Item {
       else if (cmd === "down") root.pipSurf(-1)
       else if (cmd === "ok") root.expandPip()
       else if (cmd === "back") root.guidePip()
+    } else if (root.watching && root.playerControls) {
+      // the player controls: ◀ ▶ 30 s, OK pause / play, ▼ back to the choices, BACK closes
+      if (cmd === "left") root.controlsAct("back")
+      else if (cmd === "right") root.controlsAct("forward")
+      else if (cmd === "ok") root.controlsAct("pause")
+      else if (cmd === "down") root.bannerBack()
+      else if (cmd === "back") root.hideBanner()
     } else if (root.watching && root.bannerOptions) {
-      // the banner's choices: ◀ ▶ choose, OK picks, ▼ or BACK closes them
-      if (cmd === "left") root.moveBannerAct(-1)
+      // the banner's choices: ◀ ▶ choose, OK picks, ▲ the player controls, ▼ or BACK closes them
+      if (cmd === "up") { if (!root.recStopMenu && !root.streamAsk && !root.tsOffMenu && !root.tsCantMenu) root.openPlayerControls(true) }
+      else if (cmd === "left") root.moveBannerAct(-1)
       else if (cmd === "right") root.moveBannerAct(1)
       else if (cmd === "ok") root.pickBannerAct()
       else if (cmd === "down" || cmd === "back") root.bannerBack()
@@ -7789,15 +8169,64 @@ Item {
     }
   }
 
-  onOpenedChanged: remoteStateTimer.restart()
+  // The phone's transport buttons, per what's playing: a live channel full
+  // screen (as J K L, with pause and rewind's answers when it's off or can't
+  // run), a movie or video (10 s), an app's video; the mini player only for
+  // a movie. seek: the card's bar let go at a point (at: 0 to 1 along it),
+  // only for what it was drawn for (play: the playToken it had)
+  function remoteTransport(cmd, extra) {
+    if (cmd === "seek") return root.remoteSeek(extra ? extra.at : NaN, extra ? extra.play : NaN)
+    if (root.appPlaying) {
+      if (cmd === "playpause") appPlaybackItem.togglePause()
+      else if (cmd === "rewind" || cmd === "forward") appPlaybackItem.seek(cmd === "rewind" ? -10 : 10)
+      return
+    }
+    if (root.vod && (root.watching || root.pip)) {
+      if (cmd === "playpause") root.togglePause()
+      else if (cmd === "rewind" || cmd === "forward") root.seekVod(cmd === "rewind" ? -10 : 10)
+      return
+    }
+    if (!root.watching || root.reception === "off") return
+    if (cmd === "live") { if (timeshift.active) { timeshift.live(); root.showBanner() } return }
+    root.tsKey(cmd === "playpause" ? "pause" : cmd === "rewind" ? "back" : "forward")
+  }
+
+  function remoteSeek(at, play) {
+    if (typeof at !== "number" || !isFinite(at) || at < 0 || at > 1) return "not a point along the bar"
+    if (play !== root.playToken) return "something else is playing now"
+    if (root.appPlaying) { appPlaybackItem.seekTo(at * appPlaybackItem.duration); return }
+    if (root.vod && (root.watching || root.pip)) { if (player.duration > 0) root.seekVodTo(at * player.duration / 1000); return }
+    if (!root.watching || root.reception === "off") return
+    if (!timeshift.active) { root.tsKey("back"); return }   // its answer: Turn on, or why it can't run
+    timeshift.seekTo(timeshift.win.oldest + at * (timeshift.liveEnd - timeshift.win.oldest))
+    root.showBanner()
+  }
+
+  // HOME on the phone: Home, the picture stopped first (a movie keeps its
+  // place, an app's video closes as BACK closes it, Multiview's tiles stop,
+  // the mini player closes); nothing with Home off
+  function remoteHome(closed) {
+    if (!root.homeEnabled) return "Home is off"
+    if (root.appPlaying && !closed) { appPlaybackItem.close("user", function() { root.remoteHome(true) }); return }
+    root.turnOff()
+    if (root.opened) root.openHome()
+    else root.summonTo("home")
+  }
+
+  onOpenedChanged: {
+    remoteStateTimer.restart()
+    Qt.callLater(root.touchSessionCheck)
+  }
   onScreenChanged: remoteStateTimer.restart()
   onVodPausedChanged: remoteStateTimer.restart()
   onWatchingChanged: {
     remoteStateTimer.restart()
+    root.cancelScrub()
+    if (!watching) { root.playerControls = false; root.touchControls = false; root.keyHold = null }
     // a channel from the guide's preview (on, or still tuning), now full screen: through pause and rewind's buffer
     if (watching && timeshift.turnedOn && !timeshift.busy && !vod && (reception === "on" || reception === "tuning") && tunedRow >= 0 && timeshift.takes(onAir)) root.tune(tunedRow)
   }
-  onPipChanged: remoteStateTimer.restart()
+  onPipChanged: { remoteStateTimer.restart(); root.cancelScrub(); Qt.callLater(root.touchSessionCheck) }
   onMutedChanged: remoteStateTimer.restart()
   onChannelsChanged: remoteStateTimer.restart()
   onRecBadgeChanged: remoteStateTimer.restart()
@@ -7807,6 +8236,17 @@ Item {
   // that moves by 15 s, a seek; not each second)
   readonly property string remotePause: timeshift.active && !vod ? (timeshift.paused ? "paused" : timeshift.atLive ? "live" : "behind " + Math.round(timeshift.behind / 15000)) : ""
   onRemotePauseChanged: remoteStateTimer.restart()
+  // a movie's place (again when it moves by 15 s: a seek; the phone counts between)
+  readonly property string remoteMovie: vod ? Math.round(playPosition / 15000) + ":" + Math.round(playDuration / 1000) : ""
+  onRemoteMovieChanged: remoteStateTimer.restart()
+  // and an app's video's (its place every 15 s or a seek, its length, its title)
+  readonly property string remoteApp: appPlaying && appPlaybackItem.session
+                                      ? Math.round(appPlaybackItem.position / 15) + ":" + Math.round(appPlaybackItem.duration) + ":" + appPlaybackItem.session.title : ""
+  onRemoteAppChanged: remoteStateTimer.restart()
+  Connections {
+    target: appPlaybackItem
+    function onPausedChanged() { remoteStateTimer.restart() }
+  }
   onVisibleRowsChanged: remoteStateTimer.restart()
 
   // Media keys and the bar (MPRIS)
@@ -8178,8 +8618,13 @@ Item {
 
   Timer {
     id: bannerTimer
-    interval: root.bannerOptions ? 10000 : root.ltSeconds * 1000   // choosing: ten seconds from the last key
-    onTriggered: { root.bannerShown = false; root.bannerOptions = false; root.recStopMenu = false; root.streamAsk = null }
+    interval: root.bannerOptions || root.playerControls ? 10000 : root.ltSeconds * 1000   // choosing: ten seconds from the last key
+    onTriggered: {
+      if (root.scrub) return   // up through a scrub: its ten seconds start when it ends
+      root.bannerShown = false; root.bannerOptions = false; root.recStopMenu = false; root.streamAsk = null
+      root.playerControls = false; root.tsOffMenu = false; root.tsCantMenu = false; root.tsMenuFromChoices = false
+      root.touchControls = false
+    }
   }
 
   // yt-dlp, by its path ("--": a URL can never be read as an option, some
@@ -8391,6 +8836,7 @@ Item {
         root.shownSource = ["youtube", "iptv"].indexOf(saved.sources) >= 0 ? saved.sources : "both"
         root.showLogos = saved.logos !== false
         root.showKeyHints = saved.keyHints !== false
+        root.touchSetting = Touch.setting(saved.touch)
         root.splashOn = saved.splash !== false
         root.railCredits = saved.railCredits !== false
         updatesItem.on = !!saved.updates && saved.updates.on === true
@@ -8401,6 +8847,7 @@ Item {
           root.remoteRules = Array.isArray(saved.remote.rules)
             ? saved.remote.rules.filter(function(r) { return /^\d+\.\d+\.\d+\.\d+\/\d+ \d+$/.test(r) }) : []
           root.remoteEnabled = saved.remote.enabled === true
+          root.remoteTemplate = typeof saved.remote.template === "string" && /^[a-z0-9][a-z0-9-]{0,31}$/.test(saved.remote.template) ? saved.remote.template : "classic"
           if (root.remoteEnabled) root.startRemoteHelper()
         }
         root.lineupMode = saved.lineup === "latest" ? "latest" : "daily"
@@ -8702,6 +9149,14 @@ Item {
     id: themesItem
     guide: root
   }
+  // The phone remote's templates: read, saved, sent to the phones
+  RemoteTemplates {
+    id: remoteTemplatesItem
+    guide: root
+  }
+  readonly property var remotes: remoteTemplatesItem
+  // the TV's colors color the templates that follow the theme: open phones redraw
+  onColorsChanged: remoteTemplatesItem.sendSoon()
   Timer { id: styleRefusedTimer; interval: 4000; onTriggered: root.styleRefused = "" }
 
   // pictures of the guide for agents (snapshot "", appSnapshot): checked, written whole
@@ -8847,7 +9302,7 @@ Item {
 
   // The list of channels on screen (the grid's or the table's), and where the TV goes
   readonly property var channelList: listLoader.item ? listLoader.item.list : null
-  readonly property Item videoSlot: root.layout.list === "table" && listLoader.item && listLoader.item.videoSlot ? listLoader.item.videoSlot : infoPanel.videoSlot
+  readonly property Item videoSlot: root.layout.list === "table" && listLoader.item && listLoader.item.videoSlot && listLoader.item.panes ? listLoader.item.videoSlot : infoPanel.videoSlot
   readonly property bool agentStripUp: !agentSkill && agentAsked && !agentSettled && !managing
   // channels shown in each category
   readonly property var categoryCounts: {
@@ -9124,11 +9579,12 @@ Item {
         anchors.bottom: parent.bottom
         anchors.leftMargin: root.railSpace + root.u * 3
         anchors.rightMargin: root.u * 3
-        anchors.bottomMargin: root.showKeyHints ? root.u * 4.3 : root.u * 1.6
+        anchors.bottomMargin: root.touchMode ? root.fingerPx + root.u * 3 : root.showKeyHints ? root.u * 4.3 : root.u * 1.6
       }
 
       // The nav rail, over the screens, under the boxes and the TV
       NavRail {
+        id: navRail
         anchors.fill: parent
         guide: root
       }
@@ -9305,12 +9761,46 @@ Item {
           anchors.horizontalCenter: parent.horizontalCenter
           anchors.bottom: parent.bottom
           anchors.bottomMargin: root.u * 2
-          visible: root.showKeyHints
-          model: [{ keys: ["ESC"], label: "Cancel" }]
+          visible: root.showKeyHints || root.touchMode
+          model: [{ keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
+          touchGuide: root
           size: root.u * 1.55
           capStyle: root.look.keycap
           labelColor: appSplash.ink
         }
+      }
+
+      // Tablet mode's keyboard, up from the bottom while a field has the keys
+      TouchKeyboard {
+        id: touchKeyboard
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        z: 890000
+        guide: root
+        screen: screenItem
+      }
+
+      // Tablet mode's number pad (123)
+      NumberPad {
+        anchors.fill: parent
+        z: 895000
+        guide: root
+      }
+
+      // Tablet mode's ⋯ panel, over everything
+      TouchMore {
+        anchors.fill: parent
+        z: 900000
+        guide: root
+      }
+
+      // Tablet mode: notices a finger (or a real mouse) without taking it
+      TouchWatch {
+        anchors.fill: parent
+        z: 1000000
+        onTouched: function(at) { root.touchReleased(); touchKeyboard.tappedAt(at) }
+        onPointed: root.noteInput("pointer")
       }
     }
   }

@@ -220,7 +220,7 @@ Item {
       Item {
         anchors.fill: parent
         focus: true
-        Keys.onPressed: function(event) { event.accepted = true; saver.wake() }
+        Keys.onPressed: function(event) { guide.keyFirst(event); event.accepted = true; saver.wake() }
       }
       MouseArea {
         id: pointer

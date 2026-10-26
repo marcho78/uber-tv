@@ -1,0 +1,65 @@
+{
+  "id": "glance",
+  "name": "Glance",
+  "description": "The guide fills the phone; tap a channel to watch it. The full remote slides up.",
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": ["list"], "height": 60, "grow": true },
+      { "panel": "dock", "rows": [
+        { "row": [{ "control": "now", "weight": 4.4 }, { "control": "playpause", "alt": true }, "expand"], "height": 9 }
+      ] }
+    ],
+    "expanded": [
+      { "row": ["list"], "height": 22, "dim": true, "grow": true },
+      { "panel": "sheet", "handle": true, "rows": [
+        { "row": [{ "control": "now", "weight": 5 }, "collapse"], "height": 7 },
+        { "row": ["power", "mute", "window", "options"], "height": 7 },
+        { "row": [{ "control": "dpad", "variant": "cross", "arrows": "chevron", "scale": 0.82 }], "height": 25 },
+        { "row": [{ "control": "pad", "scale": 0.94 }], "height": 26, "pad": "on" },
+        { "row": [{ "control": "back", "face": "label" }, { "control": "guide", "face": "label" }, { "control": "home", "face": "label" }], "height": 7 },
+        { "row": ["rewind", "playpause", "forward", "live"], "height": 7 },
+        { "row": [{ "control": "rocker", "variant": "split", "weight": 2.1 }, "padToggle"], "height": 7 }
+      ] }
+    ],
+    "landscape": { "left": ["list"] }
+  },
+  "now": { "show": ["name", "title"], "side": "number" },
+  "guideList": { "show": ["number", "name", "title", "live", "rec"] },
+  "elements": {
+    "settingsButton": { "text": { "color": "textDim" } },
+    "band": { "border": "none", "padding": 3, "text": { "color": "textDim", "size": 3, "weight": "bold", "letterSpacing": 0.2, "case": "upper" } },
+    "listRow": { "border": { "width": 0.27, "color": "#191d29", "sides": ["bottom"] }, "padding": 3.3 },
+    "listRow:on": { "fill": "card", "border": { "width": 0.8, "color": "accent", "sides": ["left"] }, "radius": 4.4 },
+    "listNumber": { "text": { "color": "accent", "size": 4.1, "weight": "bold" } },
+    "listName": { "text": { "color": "text", "size": 4.1, "weight": "semibold" } },
+    "listTitle": { "text": { "color": "textDim", "size": 3.6 } },
+    "listTag": { "text": { "color": "alert", "size": 3, "weight": "semibold", "letterSpacing": 0.08 } },
+    "card": { "fill": "none", "border": "none", "padding": 0.6 },
+    "nowNumber": { "text": { "color": "accent", "size": 5.5, "weight": "bold" } },
+    "nowName": { "text": { "color": "textDim", "size": 3, "weight": "bold", "letterSpacing": 0.16, "case": "upper" } },
+    "nowTitle": { "text": { "color": "text", "size": 4.1, "weight": "semibold" } },
+    "dock": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 6.6, "padding": 2.2, "shadow": { "color": "#d9000000", "blur": 11, "x": 0, "y": 5.5 } },
+    "key": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 4.4, "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 }, "icon": 5.8 },
+    "key:pressed": { "fill": "cardEdge" },
+    "key:on": { "fill": "accent", "text": { "color": "accentText" } },
+    "power": { "fill": "card", "text": { "color": "alert" } },
+    "playpause": { "fill": "accent", "border": "none", "text": { "color": "accentText" } },
+    "playpause:alt": { "shape": "circle" },
+    "playpause:pressed": { "fill": "accent", "opacity": 0.8 },
+    "expand": { "fill": "cardEdge", "shape": "circle" },
+    "collapse": { "shape": "circle", "border": "none", "text": { "color": "textDim" }, "icon": 5 },
+    "live": { "text": { "color": "accent" } },
+    "arrow": { "text": { "color": "textDim" }, "icon": 5.5 },
+    "ok": { "fill": "accent", "border": "none", "shape": "circle", "text": { "color": "accentText", "size": 3.9, "weight": "bold", "letterSpacing": 0.08 } },
+    "rocker": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 4.4, "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 } },
+    "digit": { "text": { "size": 7, "weight": "light" } },
+    "go": { "fill": "accent", "border": "none", "text": { "color": "accentText", "size": 4.4, "weight": "bold" } },
+    "erase": { "fill": "none", "border": "none", "text": { "color": "textDim" }, "icon": 7 },
+    "sheet": { "fill": "bg", "border": { "width": 0.27, "color": "cardEdge", "sides": ["top"] }, "radius": [8.8, 8.8, 0, 0], "padding": 4.4, "shadow": { "color": "#cc000000", "blur": 16, "x": 0, "y": -8 } },
+    "handle": { "fill": "cardEdge", "radius": 1 },
+    "typed": { "fill": "card", "border": { "width": 0.4, "color": "accent" }, "radius": 6, "text": { "color": "accent", "size": 8, "weight": "semibold", "letterSpacing": 0.3 } }
+  }
+}

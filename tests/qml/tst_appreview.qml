@@ -50,6 +50,9 @@ Item {
 
   QtObject {
     id: guide
+    property string lastInput: "keyboard"
+    function noteInput(kind) { lastInput = kind }   // tablet mode: what was used last
+    function keyFirst(event) { noteInput("keyboard"); return false }   // (Guide.qml: and the ⋯ panel)
     property var byUser: ({})
     property string dialog: ""
     readonly property var apps: store

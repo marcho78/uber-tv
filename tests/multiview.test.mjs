@@ -266,7 +266,7 @@ const block = (text, opener) => {
   // what overtakes it: turning off, closing, a channel, a video, an app's video
   for (const opener of ["function turnOff() {", "function closeNow() {", "function tune(r, at, retrying) {", "function playVod(entry, from) {"])
     assert.match(block(guideSrc, opener), /root\.mvRequest \+= 1/, opener)
-  assert.match(guideSrc, /onAppPlayingChanged: if \(appPlaying\) \{ mvRequest \+= 1/)
+  assert.match(guideSrc, /onAppPlayingChanged: \{\n\s+if \(appPlaying\) \{ mvRequest \+= 1/)
 }
 
 // ---- the phone in full screen: ▲ opens the banner's choices (Multiview
@@ -274,19 +274,19 @@ const block = (text, opener) => {
 // ▼ or BACK closes them (the real handler and banner functions) ----
 {
   const remoteCommand = new Function("root", "appViewItem", "nativeSaverItem", "screenSaverItem", "Hyprland", "channelLockItem", "cmd", "number", "by",
-                                     block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"))
+                                     block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"))
   const fn = (opener, param) => new Function("root", "bannerTimer", param, block(guideSrc, opener))
   const open = new Function("root", "bannerTimer", "dvr", block(guideSrc, "function openBannerOptions() {")), hide = fn("function hideBanner() {", "_")
   const move = fn("function moveBannerAct(d) {", "d"), pick = fn("function pickBannerAct(i) {", "i")
   const bannerTimer = { restart() {}, stop() {} }
-  assert.match(block(guideSrc, "readonly property var bannerActions: {"), /return tsActions\.concat\(\[\{ key: "multiview", label: "Multiview", icon: "apps" \}\]\)\.concat\(rec\)\.concat\(\[\{ key: "mini",[^\n]*\n\s*\{ key: "guide",[^\n]*\{ key: "mute"/, "the choices, Multiview first (then a recording's); pause and rewind's before it, while that's on")
+  assert.match(block(guideSrc, "readonly property var bannerActions: {"), /return \[\{ key: "multiview", label: "Multiview", icon: "apps" \}\]\.concat\(rec\)\.concat\(\[\{ key: "mini",[^\n]*\n\s*\.concat\(touchControls \? \[\] : \[\{ key: "guide",[^\n]*\{ key: "mute"/, "the choices, Multiview first (then a recording's); pause and rewind's are the player controls now (▲ again); Guide but with tablet mode's controls (Guide of their own, top left)")
   const you = {}, seen = []
   const root = { byUser: you, splash: null, reception: "playing", authBusy: false, dialog: "", appOpening: false, appUp: false,
                  multiview: { active: false }, pip: false, vod: null, opened: true, watching: true, screen: "guide",
                  bannerOptions: false, bannerShown: false, bannerAct: 0, muted: false, ltShow: true,
                  bannerActions: [{ key: "multiview" }, { key: "mini" }, { key: "guide" }, { key: "mute" }],
                  surf: d => seen.push("surf " + d), showBanner: () => seen.push("banner"), showGuide: () => seen.push("guide"),
-                 openMultiview: () => seen.push("multiview"), goPip: () => seen.push("mini") }
+                 openMultiview: () => seen.push("multiview"), goPip: () => seen.push("mini"), openPlayerControls: (f) => seen.push("controls " + f), cancelScrub() {}, noteInput() {} }
   root.openBannerOptions = () => open(root, bannerTimer, { said: "", checkPlace() {} })
   root.hideBanner = () => hide(root, bannerTimer)
   root.bannerBack = () => root.hideBanner()
@@ -302,7 +302,7 @@ const block = (text, opener) => {
   press("up")
   assert.deepEqual([seen.splice(0), root.bannerOptions, root.bannerShown, root.bannerAct], [[], true, true, 0], "▲: the banner's choices, not a channel")
   press("up")
-  assert.deepEqual([seen.splice(0), root.bannerOptions], [[], true], "▲ again: they stay")
+  assert.deepEqual([seen.splice(0), root.bannerOptions], [["controls true"], true], "▲ again: the player controls (from the choices)")
   press("right"); press("right"); press("left")
   assert.deepEqual([seen.splice(0), root.bannerAct], [[], 1], "with them up, ◀ ▶ choose (the channel stays)")
   press("down")
@@ -318,7 +318,8 @@ const block = (text, opener) => {
 // ---- cancelling the picture picker from Multiview's gear goes back to Multiview, not the style panel ----
 {
   const dialogSrc = readFileSync(new URL("../ui/DialogBox.qml", import.meta.url), "utf8")
-  assert.match(dialogSrc, /Key_Escape\) guide\.pickImages && guide\.pickArea !== "home" && guide\.pickArea !== "multiview" \? guide\.backToStyle\(\) : guide\.closeDialog\(\)/)
+  assert.match(dialogSrc, /Key_Escape\) guide\.pickEscape\(\)/, "the picker's Esc (and tablet mode's Cancel) is one function")
+  assert.match(guideSrc, /function pickEscape\(\) \{\n\s+if \(root\.pickImages && root\.pickArea !== "home" && root\.pickArea !== "multiview"\) root\.backToStyle\(\)\n\s+else root\.closeDialog\(\)/)
 }
 
 console.log("multiview: ok")

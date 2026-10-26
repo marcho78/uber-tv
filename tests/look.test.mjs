@@ -765,12 +765,12 @@ assert.equal(L.bgFloored("image", "", "theme"), false)
   // the phone is you too: any of your phone's commands ends an agent's open
   // of an app before it does anything else; another caller's doesn't
   {
-    const remoteCommand = new Function("root", "appViewItem", "nativeSaverItem", "screenSaverItem", "Hyprland", "channelLockItem", "cmd", "number", "by", block(guideSrc, "function remoteCommand(cmd, number, by, digits) {"))
+    const remoteCommand = new Function("root", "appViewItem", "nativeSaverItem", "screenSaverItem", "Hyprland", "channelLockItem", "cmd", "number", "by", block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {"))
     const you = {}
     const run = by => {
       let ended = 0
       const view = { agentOpen: { guard() {} }, userActs() { ended++; view.agentOpen = null } }
-      const stop = new Proxy({ byUser: you }, { get: (t, k) => { if (k in t) return t[k]; throw new Error("stop") } })
+      const stop = new Proxy({ byUser: you, noteInput() {} }, { get: (t, k) => { if (k in t) return t[k]; throw new Error("stop") } })
       const idle = { up: false, settling: false, showing: false, activity() {}, wake() {} }
       try { remoteCommand(stop, view, idle, idle, { usingLua: false }, { boxUp: false }, "options", 0, by) } catch (e) { if (e.message !== "stop") throw e }
       return ended
@@ -784,7 +784,7 @@ assert.equal(L.bgFloored("image", "", "theme"), false)
       const seen = { dispatched: [], woke: 0, activity: 0 }
       const saver = { showing, settling: false, activity() { seen.activity++ }, wake() { seen.woke++ } }
       const hypr = { usingLua: true, dispatch(d) { seen.dispatched.push(d) } }
-      const stop = new Proxy({ byUser: you }, { get: (t, k) => { if (k in t) return t[k]; throw new Error("stop") } })
+      const stop = new Proxy({ byUser: you, noteInput() {} }, { get: (t, k) => { if (k in t) return t[k]; throw new Error("stop") } })
       try { seen.answer = remoteCommand(stop, { agentOpen: null }, { up: native, settling: false }, saver, hypr, { boxUp: false }, "down", 0, you) } catch (e) { if (e.message !== "stop") throw e }
       return seen
     }

@@ -1,0 +1,60 @@
+{
+  "id": "tiles",
+  "name": "Tiles",
+  "description": "Four big tiles, like a phone's control center; the rest is a tap away.",
+  "colors": { "bg": "#22264a", "bgTo": "#0a0b16", "card": "#16ffffff", "cardEdge": "#17ffffff", "key": "#16ffffff", "keyText": "#f5f6ff", "keyEdge": "#17ffffff",
+              "accent": "#9aa8ff", "accentText": "#14162c", "text": "#f5f6ff", "textDim": "#a6abcc", "alert": "#ff6b81" },
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": [{ "control": "now", "show": ["channel", "title", "progress"] }], "height": 18 },
+      { "row": [{ "control": "chup", "face": "both" }, { "control": "chdown", "face": "both" }], "height": 27 },
+      { "row": ["playpause", { "control": "mute", "face": "both" }], "height": 27 },
+      { "row": ["gap"], "height": 4, "grow": true },
+      { "row": ["expand"], "height": 9 }
+    ],
+    "expanded": [
+      { "row": [{ "control": "now", "show": ["channel", "title"] }], "height": 10 },
+      { "row": [{ "control": "power", "alt": true }, { "control": "mute", "alt": true }, { "control": "window", "alt": true }, { "control": "options", "alt": true }], "height": 12 },
+      { "row": [{ "control": "dpad", "variant": "ring", "weight": 2.5 }, { "control": "rocker", "variant": "tall", "weight": 1.5 }], "height": 25 },
+      { "row": [{ "control": "rewind", "alt": true }, { "control": "playpause", "alt": true }, { "control": "forward", "alt": true }, { "control": "live", "alt": true }], "height": 12 },
+      { "row": [{ "control": "pad", "scale": 0.94 }], "height": 26, "pad": "on" },
+      { "row": [{ "control": "back", "face": "label", "alt": true }, { "control": "guide", "face": "label", "alt": true }, { "control": "home", "face": "label", "alt": true }, { "control": "padToggle", "alt": true }], "height": 12 },
+      { "row": ["gap"], "height": 4, "grow": true },
+      { "row": [{ "control": "collapse", "alt": true }], "height": 9 }
+    ],
+    "landscape": { "left": ["now", "chup", "chdown", "dpad", "rocker"] }
+  },
+  "now": { "show": ["channel", "title", "progress"], "side": "logo" },
+  "elements": {
+    "page": { "fill": { "from": "bg", "to": "bgTo", "direction": "down" } },
+    "settingsButton": { "text": { "color": "textDim" } },
+    "card": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 8.2, "padding": 4.9 },
+    "nowLogo": { "fill": "cardEdge", "border": "none", "radius": 4.1, "size": 15, "text": { "color": "text", "size": 4, "weight": "bold" } },
+    "nowChannel": { "text": { "color": "textDim", "size": 3, "weight": "semibold", "letterSpacing": 0.18, "case": "upper" } },
+    "nowTitle": { "text": { "color": "text", "size": 5.2, "weight": "semibold" } },
+    "bar": { "fill": "accent", "track": "#24ffffff", "knob": "none", "height": 1.1, "radius": 0.6 },
+    "barLabel": { "text": { "color": "textDim", "size": 3 } },
+    "key": { "fill": "key", "border": { "width": 0.27, "color": "keyEdge" }, "radius": 8.2, "place": "corner", "padding": 4.9,
+             "text": { "color": "text", "size": 3.6, "weight": "semibold", "letterSpacing": 0.14 }, "icon": 9.3 },
+    "key:alt": { "radius": 7.1, "place": "center", "icon": 6, "text": { "size": 3.1, "letterSpacing": 0.12 } },
+    "key:pressed": { "fill": "#24ffffff" },
+    "key:on": { "fill": "text", "text": { "color": "accentText" } },
+    "playpause": { "fill": "text", "text": { "color": "accentText" } },
+    "playpause:pressed": { "fill": "text", "opacity": 0.8 },
+    "power": { "fill": "key", "text": { "color": "alert" } },
+    "live": { "text": { "color": "accent" } },
+    "expand": { "place": "center", "icon": 6.6 },
+    "dpad": { "fill": "#0affffff", "border": { "width": 0.27, "color": "keyEdge" } },
+    "arrow": { "text": { "color": "textDim" }, "icon": 5 },
+    "ok": { "fill": "text", "border": "none", "text": { "color": "accentText", "size": 3.6, "weight": "bold", "letterSpacing": 0.1 } },
+    "rocker": { "fill": "key", "border": { "width": 0.27, "color": "keyEdge" }, "radius": 7.1, "text": { "color": "textDim", "size": 2.9, "weight": "semibold", "letterSpacing": 0.14 }, "icon": 6 },
+    "digit": { "place": "center", "radius": 5.5, "text": { "size": 6.6, "weight": "light" } },
+    "erase": { "place": "center", "radius": 5.5, "icon": 7 },
+    "go": { "place": "center", "radius": 5.5, "fill": "accent", "text": { "color": "accentText", "size": 4.4, "weight": "bold" } },
+    "sheet": { "fill": "#f214162c", "border": { "width": 0.27, "color": "keyEdge", "sides": ["top"] }, "radius": [8.2, 8.2, 0, 0], "padding": 4.4 },
+    "typed": { "fill": "#f214162c", "border": { "width": 0.27, "color": "keyEdge" }, "radius": 8.2, "text": { "color": "text", "size": 8, "weight": "semibold", "letterSpacing": 0.3 } }
+  }
+}

@@ -10,7 +10,10 @@ import "../Look.js" as Look
 // and that channel plays full screen), Esc exits to the channel with the
 // sound. TV off, closing Uber TV and anything played instead stop every tile
 // (teardown). Four tiles stay made; a channel keeps its tile while others
-// come and go, so nothing reloads that didn't change.
+// come and go, so nothing reloads that didn't change. Tablet mode: a tap on
+// a tile gives it the sound, a tap on the one with the sound shows it full
+// screen (a mouse: a double click), a tap on a full-screen tile shows its
+// choices; the keys are buttons, the options bar's a finger tall.
 Item {
   id: mv
 
@@ -73,7 +76,7 @@ Item {
   // ---- where the tiles go ----
 
   readonly property real headH: u * 5
-  readonly property real footH: guide.showKeyHints ? u * 5.2 : u * 2.6
+  readonly property real footH: guide.touchMode ? Math.max(u * 5.2, guide.fingerPx + u * 1.6) : guide.showKeyHints ? u * 5.2 : u * 2.6
   readonly property real drawerW: Math.min(width * 0.36, u * 36)
   readonly property var area: ({ x: u * 1.5, y: headH, w: width - u * 3 - (mode === "picker" || mode === "look" ? drawerW + u : 0), h: height - headH - footH })
 
@@ -526,7 +529,11 @@ Item {
     }
     if (cmd === "guide") { mv.teardown(); guide.showGuide(); return true }
     if (cmd === "power") { guide.dismiss(); return true }   // the TV off: every tile stops
-    return cmd === "mini" || cmd === "full"
+    // the full / mini button: the selected tile full screen (as Enter), or back to the tiles
+    if (cmd === "window") { if (mv.mode === "tiles") mv.enter(); else if (mv.mode === "full") { mv.bannerUp = false; mv.mode = "tiles" } return true }
+    // HOME stops the tiles (the guide does it); the transport buttons do nothing here
+    if (cmd === "home") return false
+    return ["mini", "full", "playpause", "rewind", "forward", "live", "seek"].indexOf(cmd) >= 0
   }
 
   // Media keys (MPRIS) while Multiview is up: play and pause every tile,
@@ -623,7 +630,7 @@ Item {
           readonly property bool on: mv.mode === "bar" && mv.bar === index
           anchors.verticalCenter: parent.verticalCenter
           width: barLabel.implicitWidth + mv.u * 2.4
-          height: mv.u * 2.8
+          height: Math.max(mv.u * 2.8, mv.guide.touchMode ? mv.guide.fingerPx : 0)
           s: on ? mv.guide.look["menuRow:focused"] : mv.guide.look.menuRow
           unit: mv.u * 0.8
           Label { id: barLabel; anchors.centerIn: parent; text: modelData; s: parent.s; unit: mv.u * 0.8 }
@@ -636,8 +643,8 @@ Item {
         readonly property bool on: mv.mode === "bar" && mv.bar === 3 || mv.mode === "look"
         visible: mv.mode !== "picker" && mv.mode !== "look"
         anchors.verticalCenter: parent.verticalCenter
-        width: mv.u * 2.8
-        height: mv.u * 2.8
+        width: Math.max(mv.u * 2.8, mv.guide.touchMode ? mv.guide.fingerPx : 0)
+        height: width
         s: on ? mv.guide.look["menuRow:focused"] : mv.guide.look.menuRow
         unit: mv.u * 0.8
         Icon {
@@ -767,8 +774,16 @@ Item {
       MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: { if (mv.mode === "tiles" || mv.mode === "bar") { mv.mode = "tiles"; mv.select(cell.index) } }
-        onDoubleClicked: { if (mv.mode === "tiles") { mv.select(cell.index); mv.enter() } else if (mv.mode === "full") mv.mode = "tiles" }
+        onClicked: function(mouse) {
+          var finger = mv.guide.isFinger(mouse)
+          if (finger && mv.mode === "full") { mv.bannerAct = 0; mv.bannerUp = !mv.bannerUp; bannerTimer.restart(); return }
+          if (finger && mv.mode === "tiles" && mv.sel === cell.index) { mv.enter(); return }
+          if (mv.mode === "tiles" || mv.mode === "bar") { mv.mode = "tiles"; mv.select(cell.index) }
+        }
+        onDoubleClicked: function(mouse) {
+          if (mv.guide.isFinger(mouse)) return
+          if (mv.mode === "tiles") { mv.select(cell.index); mv.enter() } else if (mv.mode === "full") mv.mode = "tiles"
+        }
       }
     }
   }
@@ -793,6 +808,7 @@ Item {
     options: mv.fullActions
     optionFocus: mv.bannerAct
     onOptionPicked: function(i) { mv.bannerAct = i; mv.fullAct(i) }
+    touchPx: mv.guide.touchMode ? mv.guide.fingerPx : 0
   }
 
   // Full screen: which tile it is, and the way back
@@ -941,6 +957,7 @@ Item {
         edge: mv.guide.cellEdge
         swatches: mv.guide.pickerSwatches
         onChanged: function(value) { mv.pickedColor = value }
+        onKeyed: function(event) { guide.keyFirst(event) }
         onDone: function(keep) { mv.endColor(keep) }
       }
     }
@@ -953,15 +970,19 @@ Item {
     anchors.left: parent.left
     anchors.bottom: parent.bottom
     anchors.leftMargin: mv.u * 1.5
-    anchors.bottomMargin: mv.guide.showKeyHints ? mv.u * 3.4 : mv.u * 0.8
+    anchors.bottomMargin: mv.guide.touchMode ? mv.guide.fingerPx + mv.u * 1.4 : mv.guide.showKeyHints ? mv.u * 3.4 : mv.u * 0.8
     text: mv.message
     s: mv.guide.look.showing
     unit: mv.u
   }
 
+  // its keys; tablet mode: its buttons, always there (a tile, a row or a
+  // choice is tapped; the keys go to Multiview's own, through the guide's)
   KeyHints {
     z: 8
-    visible: mv.guide.showKeyHints
+    // (tablet mode: not over a full-screen tile's banner, which a tap on the
+    // picture hides and whose choices go back)
+    visible: (mv.guide.showKeyHints || mv.guide.touchMode) && !(mv.guide.touchMode && mv.mode === "full" && mv.bannerUp)
     anchors.left: parent.left
     anchors.bottom: parent.bottom
     anchors.leftMargin: mv.u * 1.5
@@ -969,14 +990,20 @@ Item {
     size: mv.u * 1.55
     capStyle: mv.guide.look.keycap
     labelStyle: mv.guide.look.keyLabel
-    model: mv.mode === "look" && mv.lookStep === "color" ? [{ keys: ["←", "→", "↑", "↓"], label: "Color" }, { keys: ["PGUP", "PGDN"], label: "Hue" }, { keys: ["ENTER"], label: "Keep" }, { keys: ["ESC"], label: "Cancel" }]
-         : mv.mode === "look" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: mv.lookStep === "wallpaper" ? "Back" : "Done" }]
-         : mv.mode === "picker" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["0–9"], label: "Number" }, { keys: ["ENTER"], label: mv.pickMode === "add" ? "Add" : "Use it" }, { keys: ["ESC"], label: mv.pickMode === "add" ? "Done" : "Cancel" }]
-         : mv.mode === "bar" ? [{ keys: ["←", "→"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["↓"], label: "Back to the tiles" }]
-         : mv.mode === "full" && mv.bannerUp ? [{ keys: ["←", "→"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Hide" }]
-         : mv.mode === "full" ? [{ keys: ["↑", "↓"], label: "Channel" }, { keys: ["I"], label: "Options" }, { keys: ["ESC"], label: "Back to Multiview" }]
-         : [{ keys: ["←", "→", "↑", "↓"], label: "Move the sound" }, { keys: ["ENTER"], label: "Full screen" }, { keys: ["PGUP", "PGDN"], label: "Channel" },
-            { keys: ["DEL"], label: "Take off" }, { keys: ["L"], label: "Layout" }, { keys: ["ESC"], label: "Exit Multiview" }]
+    touchGuide: mv.guide
+    touchWidth: mv.width - mv.u * 3
+    model: mv.mode === "look" && mv.lookStep === "color" ? [{ keys: ["←", "→", "↑", "↓"], label: "Color" }, { keys: ["PGUP", "PGDN"], label: "Hue" }, { keys: ["ENTER"], label: "Keep", touch: { run: function() { mv.endColor(true) }, primary: true } },
+                                                            { keys: ["ESC"], label: "Cancel", touch: { run: function() { mv.endColor(false) }, back: true } }]
+         : mv.mode === "look" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: mv.lookStep === "wallpaper" ? "Back" : "Done", touch: { run: function() { mv.lookBack() }, back: true } }]
+         : mv.mode === "picker" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["0–9"], label: "Number" }, { keys: ["ENTER"], label: mv.pickMode === "add" ? "Add" : "Use it" },
+                                   { keys: ["ESC"], label: mv.pickMode === "add" ? "Done" : "Cancel", touch: { run: function() { mv.closePicker() }, back: true } }]
+         : mv.mode === "bar" ? [{ keys: ["←", "→"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["↓"], label: "Back to the tiles", touch: { run: function() { mv.mode = "tiles" }, back: true } }]
+         : mv.mode === "full" && mv.bannerUp ? [{ keys: ["←", "→"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Hide", touch: { run: function() { mv.bannerUp = false }, back: true } }]
+         : mv.mode === "full" ? [{ keys: ["↑", "↓"], label: "Channel" }, { keys: ["I"], label: "Options", touch: { run: function() { mv.bannerAct = 0; mv.bannerUp = true; bannerTimer.restart() } } },
+                                 { keys: ["ESC"], label: "Back to Multiview", touch: { run: function() { mv.mode = "tiles" }, back: true } }]
+         : [{ keys: ["←", "→", "↑", "↓"], label: "Move the sound" }, { keys: ["ENTER"], label: "Full screen", touch: { run: function() { mv.enter() }, primary: true } }, { keys: ["PGUP", "PGDN"], label: "Channel" },
+            { keys: ["DEL"], label: "Take off", touch: { run: function() { mv.remove(mv.sel) } } }, { keys: ["L"], label: "Layout", touch: { run: function() { mv.cycleLayout() } } },
+            { keys: ["ESC"], label: "Exit Multiview", touch: { run: function() { mv.exit() }, back: true } }]
   }
 
   Timer { id: messageTimer; interval: 6000; onTriggered: mv.message = "" }

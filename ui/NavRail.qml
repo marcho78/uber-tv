@@ -14,13 +14,19 @@ Item {
   required property var guide
 
   readonly property real u: guide.u
-  readonly property real thinW: Math.round(u * guide.layout.railWidth)
+  // thin: the layout's width, and in tablet mode a finger wide inside its
+  // padding (the screens leave this room: Guide.qml railSpace)
+  readonly property real thinW: Math.round(Math.max(u * guide.layout.railWidth, guide.touchMode ? guide.fingerPx + strip.padding * 2 : 0))
   readonly property real openW: Math.round(u * guide.layout.railOpenWidth)
+  // each item: 3 units, and in tablet mode at least a finger tall
+  readonly property real itemH: Math.round(Math.max(u * 3, guide.touchMode ? guide.fingerPx : 0))
   readonly property bool wide: guide.railOpen || guide.railEditing || hover.hovered
-  // the credits' room at its foot, kept whether it's wide or thin
-  readonly property real creditRoom: guide.railCredits ? handle.implicitHeight + credit.spacing + site.implicitHeight + u : 0
+  // the credits' room at its foot, kept whether it's wide or thin; in tablet
+  // mode each line a finger tall (its link a finger's target)
+  readonly property real creditRowH: guide.touchMode ? guide.fingerPx : 0
+  readonly property real creditRoom: guide.railCredits ? Math.max(handle.implicitHeight, creditRowH) + credit.spacing + Math.max(site.implicitHeight, creditRowH) + u : 0
 
-  visible: guide.railEditing || (guide.layout.rail !== "none" && (guide.layout.rail === "always" || guide.railOpen) && !guide.watching)
+  visible: guide.railEditing || (guide.railShows !== "none" && (guide.railShows === "always" || guide.railOpen) && !guide.watching)
 
   // The shade over the screen while it's open; a click closes it
   Rectangle {
@@ -41,50 +47,77 @@ Item {
 
     HoverHandler { id: hover }
 
-    Column {
+    // The parts, in the room above its foot; more than fit (finger-tall
+    // items on a short screen) slide, the cursor's kept in view
+    Flickable {
+      id: parts
+      objectName: "railParts"
       y: rail.u * 2.4
       x: strip.padding
       width: strip.width - strip.padding * 2
-      spacing: rail.u * 0.5
+      height: Math.max(0, (foot.visible ? foot.y : strip.height - rail.u * 1.6 - rail.creditRoom) - y - rail.u * 0.5)
+      contentWidth: width
+      contentHeight: partList.implicitHeight
+      clip: true
+      interactive: contentHeight > height
+      boundsBehavior: Flickable.StopAtBounds
+      function keepInView() {
+        var i = guide.railCursor
+        if (!guide.railOpen || i < 0 || i >= guide.railItems.length) return
+        var top = i * (rail.itemH + partList.spacing)
+        if (top < contentY) contentY = top
+        else if (top + rail.itemH > contentY + height) contentY = Math.min(contentHeight - height, top + rail.itemH - height)
+      }
+      Connections {
+        target: rail.guide
+        function onRailCursorChanged() { parts.keepInView() }
+        function onRailOpenChanged() { Qt.callLater(parts.keepInView) }
+      }
 
-      Repeater {
-        model: guide.railItems
-        delegate: Box {
-          id: item
-          required property var modelData
-          required property int index
-          readonly property bool current: modelData.key === guide.railCurrent
-          readonly property bool focused: guide.railOpen && index === guide.railCursor
-          readonly property var st: focused ? guide.look["railItem:focused"] : current ? guide.look["railItem:current"] : guide.look.railItem
-          width: parent.width
-          height: Math.round(rail.u * 3)
-          s: st
-          unit: rail.u
+      Column {
+        id: partList
+        width: parent.width
+        spacing: rail.u * 0.5
 
-          Icon {
-            id: icon
-            // centered in the thin rail, so the icons don't move as it widens
-            x: Math.round((rail.thinW - strip.padding * 2 - width) / 2)
-            anchors.verticalCenter: parent.verticalCenter
-            name: item.modelData.icon
-            size: Math.round(rail.u * 1.45)
-            color: item.st.text ? item.st.text.color : "white"
-          }
-          Label {
-            anchors.left: icon.right
-            anchors.leftMargin: rail.u * 0.9
-            anchors.verticalCenter: parent.verticalCenter
-            opacity: rail.wide ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 120 } }
-            text: item.modelData.label
-            s: item.st
+        Repeater {
+          model: guide.railItems
+          delegate: Box {
+            id: item
+            required property var modelData
+            required property int index
+            readonly property bool current: modelData.key === guide.railCurrent
+            readonly property bool focused: guide.railOpen && index === guide.railCursor
+            readonly property var st: focused ? guide.look["railItem:focused"] : current ? guide.look["railItem:current"] : guide.look.railItem
+            width: parent.width
+            height: rail.itemH
+            s: st
             unit: rail.u
-          }
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            enabled: !guide.railEditing
-            onClicked: guide.railGo(item.index)
+
+            Icon {
+              id: icon
+              // centered in the thin rail, so the icons don't move as it widens
+              x: Math.round((rail.thinW - strip.padding * 2 - width) / 2)
+              anchors.verticalCenter: parent.verticalCenter
+              name: item.modelData.icon
+              size: Math.round(rail.u * 1.45)
+              color: item.st.text ? item.st.text.color : "white"
+            }
+            Label {
+              anchors.left: icon.right
+              anchors.leftMargin: rail.u * 0.9
+              anchors.verticalCenter: parent.verticalCenter
+              opacity: rail.wide ? 1 : 0
+              Behavior on opacity { NumberAnimation { duration: 120 } }
+              text: item.modelData.label
+              s: item.st
+              unit: rail.u
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              enabled: !guide.railEditing
+              onClicked: guide.railGo(item.index)
+            }
           }
         }
       }
@@ -94,10 +127,12 @@ Item {
     // after the parts for the cursor, drawn the same way
     Column {
       id: foot
+      objectName: "railFoot"
       x: strip.padding
       width: strip.width - strip.padding * 2
       anchors.bottom: parent.bottom
-      anchors.bottomMargin: rail.u * 1.6 + rail.creditRoom + (guide.railOpen && guide.showKeyHints ? rail.u * 3 : 0)
+      // over Customize while it shows (its keys, or tablet mode's button)
+      anchors.bottomMargin: rail.u * 1.6 + rail.creditRoom + (railHints.visible ? Math.max(rail.u * 3, railHints.height + rail.u) : 0)
       spacing: rail.u * 0.5
       visible: !guide.railEditing
 
@@ -110,7 +145,7 @@ Item {
           readonly property bool focused: guide.railOpen && guide.railCursor === guide.railItems.length + index
           readonly property var st: focused ? guide.look["railItem:focused"] : guide.look.railItem
           width: parent.width
-          height: Math.round(rail.u * 3)
+          height: rail.itemH
           s: st
           unit: rail.u
 
@@ -153,11 +188,14 @@ Item {
 
     // How to customize it, while it's open
     KeyHints {
-      visible: guide.railOpen && guide.showKeyHints
+      id: railHints
+      objectName: "railCustomize"
+      visible: guide.railOpen && (guide.showKeyHints || guide.touchMode)
       x: strip.padding + rail.u * 0.4
       anchors.bottom: parent.bottom
       anchors.bottomMargin: rail.u * 2 + rail.creditRoom
-      model: [{ keys: ["C"], label: "Customize" }]
+      touchGuide: rail.guide
+      model: [{ keys: ["C"], label: "Customize", touch: { key: Qt.Key_C, icon: "pencil" } }]
       size: rail.u * 1.4
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel
@@ -185,7 +223,7 @@ Item {
 
       Item {
         width: parent.width
-        height: handle.implicitHeight
+        height: Math.max(handle.implicitHeight, rail.creditRowH)
         Icon {
           x: Math.round(credit.markX - width / 2)
           anchors.verticalCenter: parent.verticalCenter
@@ -197,6 +235,7 @@ Item {
         Label {
           id: handle
           x: credit.textX
+          anchors.verticalCenter: parent.verticalCenter
           text: "@devsec_ai"
           s: guide.look.railItem
           unit: rail.u
@@ -206,6 +245,10 @@ Item {
           font.letterSpacing: rail.u * 0.02
           MouseArea {
             anchors.fill: parent
+            anchors.topMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)       // (its line's height,
+            anchors.bottomMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)    // and a finger wide)
+            anchors.leftMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
+            anchors.rightMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
             enabled: rail.wide
             cursorShape: Qt.PointingHandCursor
             onClicked: guide.openCredit("x")
@@ -215,6 +258,7 @@ Item {
         // Settings (placed for the open width, so it doesn't slide in)
         Label {
           x: rail.openW - strip.padding * 2 - rail.u * 0.7 - width
+          anchors.verticalCenter: parent.verticalCenter
           text: "Disable"
           s: guide.look.railItem
           unit: rail.u
@@ -225,6 +269,10 @@ Item {
           opacity: 0.68
           MouseArea {
             anchors.fill: parent
+            anchors.topMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)       // (its line's height,
+            anchors.bottomMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)    // and a finger wide)
+            anchors.leftMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
+            anchors.rightMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
             enabled: rail.wide
             cursorShape: Qt.PointingHandCursor
             onClicked: guide.openCreditSetting()
@@ -233,9 +281,10 @@ Item {
       }
       Item {
         width: parent.width
-        height: site.implicitHeight
+        height: Math.max(site.implicitHeight, rail.creditRowH)
         Label {
           x: Math.round(credit.markX - width / 2)
+          anchors.verticalCenter: parent.verticalCenter
           text: "W:"
           s: guide.look.railItem
           unit: rail.u
@@ -247,6 +296,7 @@ Item {
         Label {
           id: site
           x: credit.textX
+          anchors.verticalCenter: parent.verticalCenter
           text: "devsecai.sh"
           s: guide.look.railItem
           unit: rail.u
@@ -256,6 +306,10 @@ Item {
           font.letterSpacing: rail.u * 0.02
           MouseArea {
             anchors.fill: parent
+            anchors.topMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)       // (its line's height,
+            anchors.bottomMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)    // and a finger wide)
+            anchors.leftMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
+            anchors.rightMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
             enabled: rail.wide
             cursorShape: Qt.PointingHandCursor
             onClicked: guide.openCredit("web")
@@ -364,6 +418,8 @@ Item {
           dim: !prow.available
           danger: prow.type === "railReset"
           onActivated: { guide.railEditCursor = prow.index; guide.railPanelAct(1) }
+          touchParts: true
+          onStepped: function(dir) { guide.railEditCursor = prow.index; guide.railPanelAct(dir) }
         }
       }
     }
@@ -376,13 +432,17 @@ Item {
       anchors.margins: panel.padding
       spacing: rail.u * 0.5
       KeyHints {
-        model: [{ keys: ["SPACE"], label: "On / off" }, { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }]
+        touchGuide: rail.guide
+        touchWidth: panelHints.width
+        model: [{ keys: ["SPACE"], label: "On / off", touch: { key: Qt.Key_Space } }, { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }]
         size: rail.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel
       }
       KeyHints {
-        model: [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["C", "/", "ESC"], label: "Done" }]
+        touchGuide: rail.guide
+        touchWidth: panelHints.width
+        model: [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["C", "/", "ESC"], label: "Done", touch: { key: Qt.Key_Escape, back: true } }]
         size: rail.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel

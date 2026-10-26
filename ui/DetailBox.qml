@@ -199,18 +199,22 @@ Box {
 
       KeyHints {
         visible: details.recording
-        model: [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Back" }]
+        touchGuide: details.guide
+        touchWidth: parent.width
+        model: [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
         size: details.u * 1.55
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel
       }
       KeyHints {
         visible: !details.recording
-        model: [{ keys: ["ENTER"], label: details.resume > 0 ? "Resume" : "Play" }]
-               .concat(details.resume > 0 ? [{ keys: ["R"], label: "Start over" }] : [])
+        touchGuide: details.guide
+        touchWidth: parent.width
+        model: [{ keys: ["ENTER"], label: details.resume > 0 ? "Resume" : "Play", touch: { key: Qt.Key_Return, primary: true, icon: "playsolid" } }]
+               .concat(details.resume > 0 ? [{ keys: ["R"], label: "Start over", touch: { key: Qt.Key_R } }] : [])
                .concat(details.series ? [{ keys: ["↑", "↓"], label: "Episode" }] : [])
-               .concat([{ keys: ["L"], label: details.playId && guide.inLibraryList(details.playId) ? "Take off My List" : "Add to My List" },
-                        { keys: ["ESC"], label: "Back" }])
+               .concat([{ keys: ["L"], label: details.playId && guide.inLibraryList(details.playId) ? "Take off My List" : "Add to My List", touch: { key: Qt.Key_L, icon: "bookmark" } },
+                        { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }])
         size: details.u * 1.55
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel

@@ -1,0 +1,47 @@
+{
+  "id": "surfer",
+  "name": "Surfer",
+  "description": "Made for flipping channels: a big number pad and a tall channel rocker.",
+  "header": "none",
+  "face": "icon",
+  "pad": "on",
+  "layout": {
+    "portrait": [
+      { "row": ["power", { "control": "tabs", "weight": 5 }, "mute"], "height": 6.2 },
+      { "row": ["now"], "height": 11.5 },
+      { "row": [{ "control": "pad", "weight": 3 }, { "control": "rocker", "variant": "tall", "weight": 1 }], "height": 50, "grow": true, "pad": "on" },
+      { "row": [{ "control": "rocker", "variant": "split" }], "height": 8, "pad": "off" },
+      { "row": ["gap"], "height": 10, "pad": "off", "grow": true },
+      { "row": ["back", "home", { "control": "dpad", "variant": "ring", "weight": 2.6 }, "window", "guide"], "height": 19 }
+    ],
+    "landscape": { "left": ["now", "power", "tabs", "mute", "pad", "rocker"] }
+  },
+  "now": { "show": ["name", "title", "times"], "side": "number" },
+  "elements": {
+    "settingsButton": { "text": { "color": "textDim" } },
+    "tabs": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "shape": "pill", "padding": 0.8 },
+    "tab": { "radius": 5, "text": { "color": "textDim", "size": 3.3, "weight": "bold", "letterSpacing": 0.14, "case": "upper" } },
+    "tab:on": { "fill": "cardEdge", "text": { "color": "text" }, "shadow": { "color": "#59000000", "blur": 2, "x": 0, "y": 0.5 } },
+    "card": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 6.6, "padding": 4.4 },
+    "nowNumber": { "text": { "color": "accent", "size": 12, "weight": "semibold", "letterSpacing": -0.03 } },
+    "nowName": { "text": { "color": "textDim", "size": 3, "weight": "bold", "letterSpacing": 0.16, "case": "upper" } },
+    "nowTitle": { "text": { "color": "text", "size": 4.7, "weight": "semibold" } },
+    "nowTimes": { "text": { "color": "textDim", "size": 3.4, "weight": "medium" } },
+    "key": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "shape": "circle", "text": { "color": "text", "size": 3.6, "weight": "bold" }, "icon": 5.5 },
+    "key:pressed": { "fill": "cardEdge" },
+    "key:on": { "fill": "accent", "text": { "color": "accentText" } },
+    "power": { "fill": "card", "text": { "color": "alert" } },
+    "digit": { "text": { "size": 9.4, "weight": "light" } },
+    "go": { "fill": "accent", "border": "none", "text": { "color": "accentText", "size": 5.2, "weight": "bold", "letterSpacing": 0.08 }, "shadow": { "color": "#66000000", "blur": 6, "x": 0, "y": 3 } },
+    "go:pressed": { "fill": "accent", "opacity": 0.8 },
+    "erase": { "fill": "none", "border": "none", "text": { "color": "textDim" }, "icon": 8.2 },
+    "rocker": { "shape": "rect", "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 11, "text": { "color": "textDim", "size": 3.6, "weight": "bold", "letterSpacing": 0.14 }, "icon": 8.2 },
+    "dpad": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" } },
+    "arrow": { "text": { "color": "textDim" }, "icon": 4.4 },
+    "ok": { "fill": "cardEdge", "border": "none", "text": { "color": "text", "size": 3.9, "weight": "bold", "letterSpacing": 0.06 } },
+    "typed": { "fill": "card", "border": { "width": 0.4, "color": "accent" }, "radius": 6.6, "text": { "color": "accent", "size": 9, "weight": "semibold", "letterSpacing": 0.3 } },
+    "band": { "border": { "width": 0.27, "color": "cardEdge", "sides": ["bottom"] }, "padding": 2.2, "text": { "color": "textDim", "size": 3, "weight": "bold", "letterSpacing": 0.2, "case": "upper" } },
+    "listRow:on": { "fill": "card", "border": { "width": 0.8, "color": "accent", "sides": ["left"] }, "radius": 3 },
+    "sheet": { "fill": "card", "radius": [7, 7, 0, 0], "padding": 4.4 }
+  }
+}

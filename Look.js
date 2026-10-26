@@ -140,6 +140,13 @@ var ELEMENTS = [
   { key: "keyLabel", section: "KEYS", label: "Key label", about: "what each key does, beside it; size goes by the key's height",
     text: true, style: { text: { color: "textDim", size: 0.58, weight: "bold", case: "upper" } } },
 
+  // tablet mode's buttons (ui/TouchButton.qml): a finger sizes them (a theme
+  // can't make one smaller); corners, border and text size are fractions of it
+  { key: "touchButton", section: "TABLET MODE", label: "Touch button", about: "tablet mode's buttons; primary is a screen's main one (Watch, OK)",
+    box: ["fill", "border"], text: true, own: { radius: "fraction" }, states: ["primary"],
+    style: { fill: "boxBg", border: { width: 0.025, color: "cellBorder" }, radius: 0.22, text: { color: "text", font: "body", size: 0.3, weight: "medium", case: "none" } },
+    stateStyle: { primary: { fill: "accent", border: { color: "accent" } } } },
+
   { key: "scrim", section: "BOXES", label: "Shade", about: "the shade over the guide behind a box",
     box: ["fill"], style: { fill: "scrim" } },
   { key: "box", section: "BOXES", label: "Box", about: "dialog boxes (add channels, settings…) and the style panel",

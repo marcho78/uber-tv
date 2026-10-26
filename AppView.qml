@@ -470,6 +470,17 @@ Item {
     return true
   }
 
+  // a click or a tap on an item: the cursor goes there (as the arrows would)
+  function pick(line, col) {
+    view.userActs()
+    if (!view.topView || view.topView.kind === "page") return false
+    var s = Nav.normalize(view.model, { line: line, col: col, cols: (view.topView.sel || {}).cols })
+    if (!s) return false
+    view.topView.sel = s
+    view.sel = s
+    return true
+  }
+
   function enter(by) {
     view.userActs()
     if (by !== guide.byUser) return
@@ -557,7 +568,7 @@ Item {
     var theme = guide.currentTheme && guide.currentTheme.apps ? guide.currentTheme.apps : ({})
     var store = guide.appScreens
     var mine = store && view.record ? store.entryOf(view.record) : null
-    return { width: view.screenWidth, u: guide.u, layout: guide.layout, learned: view.learned[view.shapeKey] || ({}), defaults: view.rowDefaults,
+    return { width: view.screenWidth, u: guide.u, touch: guide.touchMode ? guide.fingerPx : 0, layout: guide.layout, learned: view.learned[view.shapeKey] || ({}), defaults: view.rowDefaults,
              choices: { mine: mine || ({}), all: store ? store.all : ({}), theme: theme },
              suggested: view.record && view.record.layout ? view.record.layout.look || "" : "" }
   }

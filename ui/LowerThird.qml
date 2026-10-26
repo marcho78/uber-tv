@@ -33,6 +33,26 @@ Item {
   property string note: ""         // a word above the banner while its choices aren't up (two streams from one provider)
   property int optionFocus: -1
   signal optionPicked(int index)
+  // The player controls (↑ again while pause and rewind runs), just above
+  // the banner in the choices' place: the bar of what's kept, with the
+  // picture's place (controlsAt) or a scrub's mark (controlsMark), how far
+  // behind live over it, Live at its end; back 30 s, pause / play, forward
+  // 30 s under it. A click or a drag along the bar scrubs.
+  property bool controls: false
+  property real controlsAt: 0
+  property real controlsMark: -1
+  property string controlsChip: ""
+  property bool controlsPaused: false
+  signal controlsPicked(string what)
+  signal controlsPressed(real frac)
+  signal controlsMoved(real frac)
+  signal controlsReleased()
+  signal controlsCanceled()
+  // tablet mode: a finger, in px (0: the keys' sizes). The choices and the
+  // controls' buttons are at least that big (the buttons a thumb's), the
+  // bar takes a finger along it, and the choices go above the controls,
+  // both up at once
+  property real touchPx: 0
 
   readonly property var s: look.lowerThird || ({})
   readonly property real margin: Look.px(s.margin !== undefined ? s.margin : 2, unit)
@@ -162,10 +182,140 @@ Item {
     }
   }
 
+  // The player controls, just above the banner
+  Box {
+    id: controlsBox
+    visible: lt.controls
+    s: lt.s
+    unit: lt.unit
+    x: banner.x
+    width: banner.width
+    height: lt.touchPx > 0 ? Math.round(lt.unit * 4.9 + lt.touchPx * 1.25) : lt.unit * 7.4
+    y: banner.y - height - lt.unit * 0.8
+    readonly property real at: lt.controlsMark >= 0 ? lt.controlsMark : Math.max(0, Math.min(1, lt.controlsAt))
+    readonly property var chipStyle: lt.look["liveChip:behind"] || lt.look.liveChip || ({})
+    readonly property color ink: (lt.look.ltTitle && lt.look.ltTitle.text && lt.look.ltTitle.text.color) || "white"
+    readonly property color fillColor: lt.bar.fill && typeof lt.bar.fill === "object" ? lt.bar.fill.from : (lt.bar.fill || ink)
+
+    Item {
+      id: barRow
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.leftMargin: lt.unit * 1.4
+      anchors.rightMargin: lt.unit * 1.4
+      anchors.topMargin: lt.unit * 1.9
+      height: lt.unit * 1.4
+      Rectangle {
+        id: ctrack
+        anchors.left: parent.left
+        anchors.right: liveEnd.left
+        anchors.rightMargin: lt.unit * 1.2
+        anchors.verticalCenter: parent.verticalCenter
+        height: Math.max(3, Look.px(lt.bar.height !== undefined ? lt.bar.height : 0.5, lt.unit))
+        radius: height / 2
+        color: lt.bar.track || "#55ffffff"
+        Rectangle {
+          height: parent.height
+          radius: parent.radius
+          width: parent.width * controlsBox.at
+          color: controlsBox.fillColor
+        }
+      }
+      // where you are (or the scrub's mark)
+      Rectangle {
+        width: Math.max(lt.unit * 1.3, lt.touchPx * 0.5)
+        height: width
+        radius: width / 2
+        x: ctrack.x + ctrack.width * controlsBox.at - width / 2
+        anchors.verticalCenter: ctrack.verticalCenter
+        color: controlsBox.ink
+        border.width: Math.max(2, lt.unit * 0.18)
+        border.color: controlsBox.fillColor
+      }
+      // how far behind live, over the mark
+      Box {
+        id: ctrlChip
+        visible: lt.controlsChip !== ""
+        s: controlsBox.chipStyle
+        unit: lt.unit
+        width: ctrlChipText.implicitWidth + padding * 2
+        height: ctrlChipText.implicitHeight + padding * 0.6
+        x: Math.max(0, Math.min(ctrack.width - width, ctrack.x + ctrack.width * controlsBox.at - width / 2))
+        y: ctrack.y - height - lt.unit * 0.5
+        Label { id: ctrlChipText; anchors.centerIn: parent; text: lt.controlsChip; s: controlsBox.chipStyle; unit: lt.unit }
+      }
+      Row {
+        id: liveEnd
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: lt.unit * 0.4
+        Rectangle {
+          anchors.verticalCenter: parent.verticalCenter
+          width: lt.unit * 0.55; height: width; radius: width / 2
+          // the REC badge's own color (the dot of LIVE)
+          color: lt.look.recordBadge && typeof lt.look.recordBadge.fill === "string" && lt.look.recordBadge.fill !== "transparent" ? lt.look.recordBadge.fill : "#ff4d4d"
+        }
+        Label { anchors.verticalCenter: parent.verticalCenter; text: "Live"; s: lt.look.ltChannel || ({}); unit: lt.unit }
+      }
+      MouseArea {
+        anchors.fill: ctrack
+        anchors.topMargin: -Math.max(lt.unit * 0.9, (lt.touchPx - ctrack.height) / 2)
+        anchors.bottomMargin: -Math.max(lt.unit * 0.9, (lt.touchPx - ctrack.height) / 2)
+        preventStealing: true
+        cursorShape: Qt.PointingHandCursor
+        function frac(x) { return Math.max(0, Math.min(1, x / Math.max(1, ctrack.width))) }
+        onPressed: function(mouse) { lt.controlsPressed(frac(mouse.x)) }
+        onPositionChanged: function(mouse) { if (pressed) lt.controlsMoved(frac(mouse.x)) }
+        onReleased: lt.controlsReleased()
+        onCanceled: lt.controlsCanceled()
+      }
+    }
+
+    Row {
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: lt.unit * 0.8
+      spacing: lt.unit * 2.6
+      Repeater {
+        model: [{ what: "back", icon: "rewind30" }, { what: "pause", icon: lt.controlsPaused ? "playsolid" : "pausebars" }, { what: "forward", icon: "forward30" }]
+        Item {
+          id: ctrlButton
+          required property var modelData
+          width: Math.max(lt.unit * 2.4, lt.touchPx * 1.25)
+          height: width
+          Accessible.role: Accessible.Button
+          Accessible.name: modelData.what === "back" ? "Back 30 seconds" : modelData.what === "forward" ? "Forward 30 seconds" : lt.controlsPaused ? "Play" : "Pause"
+          Accessible.onPressAction: lt.controlsPicked(modelData.what)
+          // tablet mode: a round button under it
+          Rectangle {
+            visible: lt.touchPx > 0
+            anchors.fill: parent
+            radius: width / 2
+            color: Qt.rgba(0, 0, 0, 0.35)
+            border.width: Math.max(1, Math.round(lt.unit * 0.08))
+            border.color: Qt.rgba(controlsBox.ink.r, controlsBox.ink.g, controlsBox.ink.b, 0.35)
+          }
+          Icon { anchors.centerIn: parent; name: parent.modelData.icon; size: lt.unit * 2.1; stroke: 1.9; color: controlsBox.ink }
+          Label {
+            visible: parent.modelData.what !== "pause"
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: lt.unit * 0.12
+            text: "30"
+            s: lt.look.ltTime || ({})
+            unit: lt.unit * 0.62
+            color: controlsBox.ink
+          }
+          MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: lt.controlsPicked(parent.modelData.what) }
+        }
+      }
+    }
+  }
+
   // A word above the banner (the choices take its place)
   Box {
     id: noteBox
-    visible: lt.note !== "" && lt.options.length === 0
+    visible: lt.note !== "" && lt.options.length === 0 && !lt.controls
     x: banner.x
     y: banner.y - height - lt.unit * 0.8
     width: noteText.implicitWidth + lt.unit * 1.6
@@ -182,14 +332,14 @@ Item {
     id: choices
     visible: lt.options.length > 0
     x: banner.x
-    y: banner.y - height - lt.unit * 0.8
+    y: (controlsBox.visible ? controlsBox.y : banner.y) - height - lt.unit * 0.8
     // as tall as the tallest choice (a note on two lines), all the same
     readonly property real tallest: {
       var h = 0
       for (var i = 0; i < choiceList.count; i++) { var it = choiceList.itemAt(i); if (it) h = Math.max(h, it.inside) }
       return h
     }
-    height: Math.max(lt.unit * (lt.anyNote ? 4 : 2.8), tallest + lt.unit * 1.2)
+    height: Math.max(lt.unit * (lt.anyNote ? 4 : 2.8), tallest + lt.unit * 1.2, lt.touchPx)
     spacing: lt.unit * 0.6
     Repeater {
       id: choiceList
@@ -201,7 +351,7 @@ Item {
         readonly property string el: option.modelData.rec ? "recordChoice" : "menuRow"
         readonly property var st: index === lt.optionFocus ? (lt.look[el + ":focused"] || ({})) : (lt.look[el] || ({}))
         readonly property real inside: optionCol.implicitHeight
-        width: Math.max(optionRow.implicitWidth, noteLabel.visible ? noteLabel.width : 0) + lt.unit * 2.2
+        width: Math.max(Math.max(optionRow.implicitWidth, noteLabel.visible ? noteLabel.width : 0) + lt.unit * 2.2, lt.touchPx)
         height: parent.height
         s: st
         unit: lt.unit * 0.8

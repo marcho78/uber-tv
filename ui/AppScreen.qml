@@ -37,6 +37,13 @@ Item {
   readonly property bool detail: !!page.cur && page.cur.kind === "detail" && !!page.cur.value
   readonly property bool cinematic: page.detail && model.detailStyle === "cinematic"
   readonly property var sel: Nav.locate(page.ls, view.sel)     // where the selection is: { line, col }
+  // a click or a tap on an item: the cursor there; a second click (a
+  // finger's first tap) opens it, as Enter
+  function tap(line, col, finger) {
+    var was = page.sel && page.sel.line === line && page.sel.col === col
+    if (!view.pick(line, col)) return
+    if (was || finger === true) view.enter(guide.byUser)
+  }
   readonly property real titleH: geo.titleH
   readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
   // what's around a card, and directly behind its title: the page's fill
@@ -433,8 +440,8 @@ Item {
       anchors.bottom: parent.bottom
       model: page.ls
       boundsBehavior: Flickable.StopAtBounds
-      Behavior on contentY { id: scroll; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-      interactive: false
+      Behavior on contentY { id: scroll; enabled: !guide.touchMode; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+      interactive: guide.touchMode          // a finger scrolls it (the keys move the cursor)
       clip: true
       // the lines just off the screen are made ahead, between frames, so a
       // line scrolling in doesn't make all its cards in one frame
@@ -499,6 +506,8 @@ Item {
             onScreen: lineItem.lineOnScreen
             ringColor: page.ringColor
             ringHalo: page.ringHalo
+            onTapped: function(c, finger) { page.tap(lineItem.index, c, finger) }
+            onChose: function(c) { page.view.pick(lineItem.index, c) }
           }
         }
 
@@ -506,17 +515,19 @@ Item {
         Row {
           visible: lineItem.line.layout === "actions"
           x: page.u * 3
-          y: page.u * 0.4
+          y: page.geo.actionY
           spacing: page.u * 1
           Repeater {
             model: lineItem.line.layout === "actions" ? lineItem.line.items : []
             delegate: Box {
               id: button
+              objectName: "appAction"
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, button.index, guide.isFinger(mouse)) } }
               width: actionLabel.implicitWidth + page.u * 3
-              height: page.u * 3.2
+              height: page.geo.actionH   // (a finger tall in tablet mode: AppLooks.geometry)
               s: current ? guide.look["appButton:focused"] : guide.look.appButton
               unit: page.u
               scale: current ? 1 + Looks.growOf(s) : 1                  // only the selected one grows (at most 15%)
@@ -581,6 +592,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, listRow.index, guide.isFinger(mouse)) } }
               // its picture for the row's shape, wanted first when it's
               // selected, then while its line is on the screen
               readonly property var img: Looks.cardImage(modelData, lineItem.line)
@@ -756,6 +768,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, tableRow.index, guide.isFinger(mouse)) } }
               width: table.width
               height: lineItem.line.rowH
               s: current ? guide.look["appTable:focused"] : guide.look.appTable
@@ -861,9 +874,10 @@ Item {
           preferredHighlightEnd: width - page.geo.margin - (lineItem.line.cardW || 0)
           highlightMoveDuration: 200
           boundsBehavior: Flickable.StopAtBounds
-          interactive: false
+          interactive: guide.touchMode          // a finger slides the row
           clip: true
           delegate: AppCard {
+            id: rowCard
             // drawn below the room kept for growing (the list places it at
             // its top, so it's moved by a transform the list doesn't touch)
             transform: Translate { y: rowCards.pad }
@@ -875,6 +889,7 @@ Item {
             ringColor: page.ringColor
             ringHalo: page.ringHalo
             selectedTitle: page.selectedTitle
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, rowCard.index, guide.isFinger(mouse)) } }
           }
         }
 
@@ -906,10 +921,12 @@ Item {
             onCountChanged: contentY = gridArea.into
             Component.onCompleted: contentY = gridArea.into
             delegate: AppCard {
+              id: gridCard
               guide: page.guide
               view: page.view
               line: lineItem.line
               current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, gridCard.index, guide.isFinger(mouse)) } }
               onScreen: y + height > grid.contentY && y < grid.contentY + grid.height
               ringColor: page.ringColor
               ringHalo: page.ringHalo
@@ -1075,10 +1092,14 @@ Item {
           danger: modelData.type === "clear"
           value: modelData.type === "clear" && view.armed === modelData.key ? "Enter again to clear"
                  : modelData.type === "switch" ? "" : String(modelData.value)
+          // a click picks first; a finger acts at once (a clearing still asks twice)
           onActivated: {
-            if (view.settingsCursor !== index) view.settingsCursor = index
-            else view.settingsAct(0, guide.byUser)
+            if (view.settingsCursor !== index) { view.settingsCursor = index; if (!byFinger) return }
+            view.settingsAct(0, guide.byUser)
           }
+          // tablet mode: ‹ › as ← → (the keys' own steps)
+          touchParts: true
+          onStepped: function(dir) { view.settingsCursor = index; view.settingsAct(dir, guide.byUser) }
         }
       }
       Label {
@@ -1196,10 +1217,12 @@ Item {
               maximumLength: 256
               clip: true
               KeyNavigation.tab: passField
-              Keys.onDownPressed: passField.forceActiveFocus()
-              Keys.onReturnPressed: signInBox.send()
-              Keys.onEnterPressed: signInBox.send()
-              Keys.onEscapePressed: view.back()
+              Keys.onPressed: function(event) { guide.keyFirst(event) }
+              Keys.onDownPressed: { if (guide.keyFirst(event)) return; passField.forceActiveFocus() }
+              Keys.onReturnPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEnterPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.back() }
+              function enterKey() { signInBox.send() }   // tablet mode's keyboard's Done
             }
           }
         }
@@ -1231,10 +1254,12 @@ Item {
               maximumLength: 1024
               clip: true
               KeyNavigation.backtab: userField
-              Keys.onUpPressed: userField.forceActiveFocus()
-              Keys.onReturnPressed: signInBox.send()
-              Keys.onEnterPressed: signInBox.send()
-              Keys.onEscapePressed: view.back()
+              Keys.onPressed: function(event) { guide.keyFirst(event) }
+              Keys.onUpPressed: { if (guide.keyFirst(event)) return; userField.forceActiveFocus() }
+              function enterKey() { signInBox.send() }   // tablet mode's keyboard's Done
+              Keys.onReturnPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEnterPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.back() }
             }
           }
         }
@@ -1290,9 +1315,11 @@ Item {
             font.pixelSize: Math.round(page.u * 1.3)
             maximumLength: 500
             clip: true
-            Keys.onReturnPressed: view.typedAddress(text, guide.byUser)
-            Keys.onEnterPressed: view.typedAddress(text, guide.byUser)
-            Keys.onEscapePressed: view.signInBack()
+            Keys.onPressed: function(event) { guide.keyFirst(event) }
+            function enterKey() { view.typedAddress(text, guide.byUser) }   // tablet mode's keyboard's Done
+            Keys.onReturnPressed: { if (guide.keyFirst(event)) return; view.typedAddress(text, guide.byUser) }
+            Keys.onEnterPressed: { if (guide.keyFirst(event)) return; view.typedAddress(text, guide.byUser) }
+            Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.signInBack() }
           }
         }
         Label {
@@ -1404,9 +1431,11 @@ Item {
           echoMode: view.editing && view.editing.type === "secret" ? TextInput.Password : TextInput.Normal
           maximumLength: view.editing && view.editing.type === "secret" ? 4096 : 500
           clip: true
-          Keys.onReturnPressed: view.editDone(text, guide.byUser)
-          Keys.onEnterPressed: view.editDone(text, guide.byUser)
-          Keys.onEscapePressed: view.back()
+          Keys.onPressed: function(event) { guide.keyFirst(event) }
+          function enterKey() { view.editDone(text, guide.byUser) }   // tablet mode's keyboard's Done
+          Keys.onReturnPressed: { if (guide.keyFirst(event)) return; view.editDone(text, guide.byUser) }
+          Keys.onEnterPressed: { if (guide.keyFirst(event)) return; view.editDone(text, guide.byUser) }
+          Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.back() }
         }
       }
       Label {
@@ -1422,24 +1451,38 @@ Item {
   }
 
   // ---- the keys ----
+  // its keys; in tablet mode its buttons, always there (where a field has
+  // the keys, the buttons run what the field does)
   KeyHints {
     id: hintsRow
-    visible: guide.showKeyHints
+    visible: guide.showKeyHints || guide.touchMode
     x: page.u * 3
     anchors.bottom: parent.bottom
     anchors.bottomMargin: page.u * 1.2
     size: guide.u * 1.5
     capStyle: guide.look.keycap
     labelStyle: guide.look.keyLabel
-    model: view.signIn ? (signInBox.typing ? [{ keys: ["ENTER"], label: "Sign in" }, { keys: ["TAB"], label: "Next field" }, { keys: ["ESC"], label: "Cancel" }]
-                          : view.signIn.stage === "address" ? [{ keys: ["ENTER"], label: "Use it" }, { keys: ["ESC"], label: "Back" }]
-                          : view.signInRows.length ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "OK" }, { keys: ["ESC"], label: view.signIn.stage === "servers" ? "Cancel" : "Back" }]
-                          : [{ keys: ["ESC"], label: "Cancel" }])
-           : view.editing ? [{ keys: ["ENTER"], label: view.editing.type === "search" ? "Search" : "Keep" }, { keys: ["ESC"], label: "Cancel" }]
-           : view.settingsOpen ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Set" }, { keys: ["ESC"], label: "Done" }]
-           : view.failed ? [{ keys: ["ENTER"], label: "Try again" }, { keys: [","], label: "Settings" }, { keys: ["ESC"], label: "Apps" }]
-           : page.cur && page.cur.kind === "page" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: [","], label: "Settings" }, { keys: ["ESC"], label: "Back" }]
-           : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: "Open" }, { keys: ["I"], label: "Details" }, { keys: ["/"], label: "Search" },
-              { keys: ["C"], label: "Customize" }, { keys: [","], label: "Settings" }, { keys: ["ESC"], label: view.stack.length > 1 || view.pending ? "Back" : "Apps" }]
+    touchGuide: page.guide
+    touchWidth: page.width - page.u * 6
+    model: view.signIn ? (signInBox.typing ? [{ keys: ["ENTER"], label: "Sign in", touch: { run: function() { signInBox.send() }, primary: true } }, { keys: ["TAB"], label: "Next field" },
+                                              { keys: ["ESC"], label: "Cancel", touch: { run: function() { view.back() }, back: true } }]
+                          : view.signIn.stage === "address" ? [{ keys: ["ENTER"], label: "Use it", touch: { run: function() { view.typedAddress(addressField.text, guide.byUser) }, primary: true } },
+                                                               { keys: ["ESC"], label: "Back", touch: { run: function() { view.signInBack() }, back: true } }]
+                          : view.signInRows.length ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "OK", touch: { key: Qt.Key_Return, primary: true } },
+                                                      { keys: ["ESC"], label: view.signIn.stage === "servers" ? "Cancel" : "Back", touch: { key: Qt.Key_Escape, back: true } }]
+                          : [{ keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
+           : view.editing ? [{ keys: ["ENTER"], label: view.editing.type === "search" ? "Search" : "Keep", touch: { run: function() { view.editDone(field.text, guide.byUser) }, primary: true } },
+                             { keys: ["ESC"], label: "Cancel", touch: { run: function() { view.back() }, back: true } }]
+           : view.settingsOpen ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Set" }, { keys: ["ESC"], label: "Done", touch: { key: Qt.Key_Escape, back: true } }]
+           : view.failed ? [{ keys: ["ENTER"], label: "Try again", touch: { key: Qt.Key_Return, primary: true } }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+                            { keys: ["ESC"], label: "Apps", touch: { key: Qt.Key_Escape, back: true } }]
+           : page.cur && page.cur.kind === "page" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+                                                    { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+           : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }]
+              .concat(guide.railShows === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { page.guide.openRail() }, icon: "menu" } }] : [])
+              .concat([{ keys: ["ENTER"], label: "Open" }, { keys: ["I"], label: "Details", touch: { key: Qt.Key_I, icon: "info" } },
+              { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } }, { keys: ["C"], label: "Customize", touch: { key: Qt.Key_C, icon: "pencil" } },
+              { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+              { keys: ["ESC"], label: view.stack.length > 1 || view.pending ? "Back" : "Apps", touch: { key: Qt.Key_Escape, back: true } }])
   }
 }

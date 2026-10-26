@@ -22,6 +22,16 @@ Item {
   property bool more: false           // a switch that also opens something (›)
   property bool oneClick: false       // a click acts at once: a double-click's second press is ignored
   signal activated()
+  // tablet mode, where the row's user handles them (touchParts): ‹ (-1) or ›
+  // (+1) tapped on a choice, and the switch tapped on a row that also opens
+  // (more); everywhere else, and in rows that don't, a tap is activated
+  property bool touchParts: false
+  signal stepped(int dir)
+  signal toggled()
+  // the last click a finger's: where a click picks first, a tap acts at once
+  property bool byFinger: false
+  readonly property bool touching: !!guide && guide.touchMode === true
+  readonly property bool parted: touching && touchParts
 
   readonly property real unit: u * size
   property string element: "menuRow"  // or a part that follows it (recordChoice)
@@ -31,7 +41,23 @@ Item {
   readonly property color ink: dim && !focused ? guide.dimInk : (st.text ? st.text.color : "white")
   readonly property color valueInk: danger && !focused ? guide.colors.alert : (vst.text ? vst.text.color : "white")
 
-  implicitHeight: Math.round(Look.px(guide.look.menuRow.height, unit))
+  // at least a finger tall in tablet mode (the whole row is a target)
+  implicitHeight: Math.max(Math.round(Look.px(guide.look.menuRow.height, unit)), touching ? guide.fingerPx : 0)
+
+  // a tap a finger's width round a part of the row (and the part shown)
+  function near(part, x) {
+    if (!part.visible) return false
+    var c = part.mapToItem(face, part.width / 2, 0).x
+    return Math.abs(x - c) <= Math.max(guide.fingerPx, part.width) / 2
+  }
+  function tapAt(x) {
+    if (row.parted && row.kind === "choice") {
+      if (row.near(leftArrow, x)) { row.stepped(-1); return }
+      if (row.near(rightArrow, x)) { row.stepped(1); return }
+    }
+    if (row.parted && row.more && row.kind === "switch" && row.near(toggle, x)) { row.toggled(); return }
+    row.activated()
+  }
 
   Box {
     id: face
@@ -75,8 +101,10 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       spacing: row.unit * 0.6
       Label {
+        id: leftArrow
+        objectName: "leftArrow"
         anchors.verticalCenter: parent.verticalCenter
-        visible: row.kind === "choice" && row.focused
+        visible: row.kind === "choice" && (row.focused || row.parted)
         text: "‹"
         s: row.vst
         unit: row.unit
@@ -98,8 +126,10 @@ Item {
         elide: row.element === "recordChoice" ? Text.ElideRight : Text.ElideMiddle
       }
       Label {
+        id: rightArrow
+        objectName: "rightArrow"
         anchors.verticalCenter: parent.verticalCenter
-        visible: row.kind === "opens" || (row.kind === "choice" && row.focused)
+        visible: row.kind === "opens" || (row.kind === "choice" && (row.focused || row.parted))
         text: "›"
         s: row.vst
         unit: row.unit
@@ -109,6 +139,7 @@ Item {
       // the switch
       Box {
         id: toggle
+        objectName: "toggle"
         anchors.verticalCenter: parent.verticalCenter
         visible: row.kind === "switch"
         width: Math.round(Look.px(row.sw.width, row.unit))
@@ -140,11 +171,11 @@ Item {
     MouseArea {
       anchors.fill: parent
       cursorShape: Qt.PointingHandCursor
-      onClicked: row.activated()
+      onClicked: function(mouse) { row.byFinger = row.guide.isFinger(mouse); row.tapAt(mouse.x) }
       // the second press of a double-click is a second click, except where
       // one click acts (so a switch doesn't flip back, and a row that asks
-      // twice isn't answered by a double-click)
-      onDoubleClicked: if (!row.oneClick) row.activated()
+      // twice isn't answered by a double-click), a tap's too
+      onDoubleClicked: function(mouse) { row.byFinger = row.guide.isFinger(mouse); if (!row.oneClick) row.tapAt(mouse.x) }
     }
   }
 }

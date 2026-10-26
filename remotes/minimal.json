@@ -1,0 +1,46 @@
+{
+  "id": "minimal",
+  "name": "Minimal",
+  "description": "Round keys and the d-pad first; the number pad stays behind 123.",
+  "colors": { "bg": "#000000", "bgTo": "#000000", "card": "#121214", "cardEdge": "#26262a", "key": "#1c1c1f", "keyText": "#f2f2f5", "keyEdge": "#2c2c30", "text": "#f2f2f5", "textDim": "#8e8e93" },
+  "fonts": { "body": "system", "display": "system", "mono": "dm-mono" },
+  "header": "title",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": [{ "control": "now", "show": ["name", "title", "dvr"], "side": "none" }], "height": 10 },
+      { "row": ["power", "mute", "options", "home"], "height": 8 },
+      { "row": [{ "control": "dpad", "variant": "ring", "scale": 0.88 }], "height": 36, "grow": true, "pad": "off" },
+      { "row": [{ "control": "dpad", "variant": "ring" }], "height": 24, "pad": "on" },
+      { "row": ["back", "guide", "window", "padToggle"], "height": 8 },
+      { "row": ["rewind", "playpause", "forward", "live"], "height": 8 },
+      { "row": [{ "control": "rocker", "variant": "split" }], "height": 7 },
+      { "row": [{ "control": "pad", "scale": 0.92 }], "height": 28, "pad": "on", "grow": true }
+    ],
+    "landscape": { "left": ["now", "dpad", "power", "mute", "options", "home"] }
+  },
+  "now": { "show": ["name", "title", "dvr"], "side": "none", "align": "left" },
+  "elements": {
+    "header": { "text": { "color": "textDim", "font": "display", "size": 3.2, "weight": "semibold", "case": "upper", "letterSpacing": 0.16 } },
+    "card": { "fill": "none", "border": "none", "padding": 1 },
+    "nowName": { "text": { "color": "textDim", "size": 3, "weight": "semibold", "case": "upper", "letterSpacing": 0.16 } },
+    "nowTitle": { "text": { "color": "text", "size": 5.6, "weight": "semibold" } },
+    "nowDvr": { "text": { "color": "alert", "size": 3.2, "weight": "semibold" } },
+    "key": { "fill": "key", "border": { "width": 0.27, "color": "keyEdge" }, "shape": "circle", "text": { "color": "keyText", "size": 3.4, "weight": "semibold", "letterSpacing": 0.08 }, "icon": 6 },
+    "key:pressed": { "fill": "#2c2c30" },
+    "key:on": { "fill": "accent", "border": { "width": 0, "color": "none" }, "text": { "color": "accentText" } },
+    "power": { "fill": "key", "border": { "width": 0.27, "color": "keyEdge" }, "text": { "color": "alert" } },
+    "playpause": { "fill": "accent", "border": { "width": 0, "color": "none" }, "text": { "color": "accentText" }, "icon": 7.4 },
+    "live": { "text": { "color": "accent" } },
+    "dpad": { "fill": "#141416", "border": { "width": 0.27, "color": "keyEdge" }, "shadow": { "color": "#cc000000", "blur": 8, "x": 0, "y": 4 } },
+    "arrow": { "text": { "color": "#6e6e73" }, "icon": 5.4 },
+    "ok": { "fill": "#232326", "border": { "width": 0.27, "color": "keyEdge" }, "text": { "color": "text", "size": 4.2, "weight": "semibold", "letterSpacing": 0.12 } },
+    "rocker": { "fill": "key", "border": { "width": 0.27, "color": "keyEdge" }, "shape": "pill", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.1 } },
+    "digit": { "fill": "key", "text": { "color": "text", "size": 8, "weight": "light" } },
+    "erase": { "fill": "none", "border": { "width": 0, "color": "none" }, "text": { "color": "textDim" }, "icon": 7.4 },
+    "go": { "fill": "accent", "border": { "width": 0, "color": "none" }, "text": { "color": "accentText", "size": 4.6, "weight": "bold" } },
+    "typed": { "fill": "#f2121214", "border": { "width": 0.27, "color": "keyEdge" }, "radius": 4, "text": { "color": "accent", "size": 8, "weight": "semibold", "letterSpacing": 0.3 } },
+    "sheet": { "fill": "#141416", "radius": [6, 6, 0, 0], "padding": 4.4 }
+  }
+}

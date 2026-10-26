@@ -1,0 +1,56 @@
+{
+  "id": "swipe",
+  "name": "Swipe",
+  "description": "The screen is a touch pad: swipe to move, tap for OK.",
+  "header": "none",
+  "face": "icon",
+  "pad": "off",
+  "layout": {
+    "portrait": [
+      { "row": ["now"], "height": 10 },
+      { "row": ["swipe"], "height": 60, "grow": true },
+      { "row": ["back", { "control": "chdown", "face": "both" }, { "control": "playpause", "weight": 1.3 }, { "control": "chup", "face": "both" }, "expand"], "height": 10 }
+    ],
+    "expanded": [
+      { "row": ["now"], "height": 10 },
+      { "row": ["swipe"], "height": 38, "grow": true },
+      { "panel": "sheet", "handle": true, "rows": [
+        { "row": [{ "control": "gap", "weight": 5 }, { "control": "collapse", "alt": true }], "height": 5 },
+        { "row": [{ "control": "power", "alt": true }, { "control": "mute", "alt": true }, { "control": "window", "alt": true }, { "control": "options", "alt": true }], "height": 8 },
+        { "row": [{ "control": "rewind", "alt": true }, { "control": "playpause", "alt": true }, { "control": "forward", "alt": true }, { "control": "live", "alt": true }], "height": 8 },
+        { "row": [{ "control": "back", "face": "label", "alt": true }, { "control": "guide", "face": "label", "alt": true }, { "control": "home", "face": "label", "alt": true }, { "control": "padToggle", "alt": true }], "height": 8 },
+        { "row": [{ "control": "pad", "scale": 0.94 }], "height": 26, "pad": "on" },
+        { "row": [{ "control": "rocker", "variant": "split" }], "height": 6.6 }
+      ] }
+    ],
+    "landscape": { "left": ["now", "swipe"] }
+  },
+  "now": { "show": ["channel", "title", "dvr"], "side": "none" },
+  "elements": {
+    "page": { "fill": "bg" },
+    "settingsButton": { "text": { "color": "textDim" } },
+    "card": { "fill": "none", "border": "none", "padding": 1.6 },
+    "nowChannel": { "text": { "color": "accent", "size": 3.3, "weight": "bold", "letterSpacing": 0.16, "case": "upper" } },
+    "nowTitle": { "text": { "color": "text", "size": 5.5, "weight": "semibold" } },
+    "nowDvr": { "text": { "color": "alert", "size": 3.3, "weight": "semibold", "letterSpacing": 0.06 } },
+    "swipe": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 9.8, "text": { "color": "textDim" } },
+    "key": { "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "shape": "circle", "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 }, "icon": 5.8 },
+    "key:alt": { "shape": "rect", "radius": 4.9 },
+    "key:pressed": { "fill": "cardEdge" },
+    "key:on": { "fill": "accent", "text": { "color": "accentText" } },
+    "power": { "fill": "card", "text": { "color": "alert" } },
+    "playpause": { "fill": "accent", "border": "none", "text": { "color": "accentText" }, "icon": 7.7, "shadow": { "color": "#99000000", "blur": 9, "x": 0, "y": 4 } },
+    "playpause:pressed": { "fill": "accent", "opacity": 0.8 },
+    "chup": { "text": { "color": "textDim", "size": 2.6, "weight": "bold" }, "icon": 5 },
+    "chdown": { "text": { "color": "textDim", "size": 2.6, "weight": "bold" }, "icon": 5 },
+    "live": { "text": { "color": "accent" } },
+    "collapse": { "fill": "card", "border": "none", "icon": 5, "text": { "color": "textDim" } },
+    "rocker": { "shape": "rect", "fill": "card", "border": { "width": 0.27, "color": "cardEdge" }, "radius": 4.9, "text": { "color": "text", "size": 3.3, "weight": "semibold", "letterSpacing": 0.12 } },
+    "digit": { "text": { "size": 7, "weight": "light" } },
+    "go": { "fill": "accent", "border": "none", "text": { "color": "accentText", "size": 4.4, "weight": "bold" } },
+    "erase": { "fill": "none", "border": "none", "text": { "color": "textDim" }, "icon": 7 },
+    "sheet": { "fill": "bgTo", "border": { "width": 0.27, "color": "cardEdge", "sides": ["top"] }, "radius": [8.2, 8.2, 0, 0], "padding": 4.4, "shadow": { "color": "#cc000000", "blur": 16, "x": 0, "y": -8 } },
+    "handle": { "fill": "cardEdge", "radius": 1 },
+    "typed": { "fill": "card", "border": { "width": 0.4, "color": "accent" }, "radius": 6, "text": { "color": "accent", "size": 8, "weight": "semibold", "letterSpacing": 0.3 } }
+  }
+}

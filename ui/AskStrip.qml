@@ -17,7 +17,7 @@ Box {
   readonly property string message: guide.stripQuestion || updates.strip
 
   visible: message !== "" && guide.stripPlace
-  height: Math.max(Math.round(u * 3), Math.round(said.implicitHeight + u * 1.4))
+  height: Math.max(Math.round(u * 3), Math.round(said.implicitHeight + u * 1.4), guide.touchMode ? Math.round(guide.fingerPx + u * 0.6) : 0)
   s: guide.look.box
   unit: u
 
@@ -65,14 +65,17 @@ Box {
         required property var modelData
         width: hint.implicitWidth
         height: hint.implicitHeight
+        // tablet mode: a button that answers (its own action, not the key)
         KeyHints {
           id: hint
-          model: [{ keys: action.modelData.keys, label: action.modelData.label }]
+          touchGuide: strip.guide
+          model: [{ keys: action.modelData.keys, label: action.modelData.label, touch: { run: function() { strip.guide.stripAnswer(action.modelData.yes) } } }]
           size: strip.u * 1.55
           capStyle: strip.guide.look.keycap
           labelStyle: strip.guide.look.keyLabel
         }
         MouseArea {
+          enabled: !hint.touching
           anchors.fill: parent
           anchors.margins: -strip.u * 0.3
           cursorShape: Qt.PointingHandCursor

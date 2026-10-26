@@ -6,11 +6,14 @@ import "Saver.js" as SaverRules
 import "AppAsks.js" as Asks
 import "Dvr.js" as DvrRules
 import "Timeshift.js" as Ts
+import "Remote.js" as Remote
+import "Touch.js" as Touch
 
 // The guide's commands, for scripts and AI agents: omarchy-shell om-pg <command> ...
 // (skills/program-guide/SKILL.md says how to use them). Each answers with
-// JSON. The phone remote isn't here: turning it on stays yours. Nor is turning
-// apps on or installing them: agents can see apps and turn one off, no more.
+// JSON. The phone remote's layouts and looks are here (its templates); turning
+// it on, pairing and the firewall stay yours. Nor is turning apps on or
+// installing them: agents can see apps and turn one off, no more.
 Scope {
   id: commands
 
@@ -23,6 +26,12 @@ Scope {
   }
 
   function failReply(message) { return JSON.stringify({ ok: false, error: message }) }
+
+  // Tablet mode: the setting, whether the touch controls are on now, what was
+  // used last, and how much room the screen gives
+  function touchInfo() {
+    return { setting: guide.touchSetting, on: guide.touchMode, lastInput: guide.lastInput, fit: guide.screenFit }
+  }
 
   function onOff(v) {
     var t = String(v).trim().toLowerCase()
@@ -256,6 +265,17 @@ Scope {
              lowerThird: { show: guide.ltShow, seconds: guide.ltSeconds }, card: { show: guide.cardShow, seconds: guide.cardSeconds } }
   }
 
+  // One paired phone's choices, through the phone remote's helper (the only
+  // writer of its file): answered at once, saved a moment later
+  function phonePrefs(phone, change) {
+    var rt = guide.remotes
+    if (!(guide.remoteDevices || []).some(function(d) { return d.id === phone })) return commands.failReply("no paired phone \"" + phone + "\" (remoteTemplates lists them)")
+    if (!guide.remoteReady) return commands.failReply("turn on the phone remote first (only the user can: Settings → General → Phone remote)")
+    var n = 0
+    n = rt.setPrefs(phone, change, function(r) { rt.last = { req: n, phone: phone, change: change, ok: r.ok, error: r.error } })
+    return commands.okReply({ phone: phone, change: change, sent: n, note: "remoteTemplates' last says once the phone remote saved it; the phone redraws" })
+  }
+
   readonly property var commandHelp: [
     ["help", "these commands"],
     ["state", "the guide at a glance: open, channels, theme, filters, settings, Recordings (on, how many recording, how many waiting (Scheduled or Conflict), series), pause and rewind (on, running, paused, how far behind live), and Multiview (its channels in order, layout and sound) while it's on"],
@@ -274,6 +294,13 @@ Scope {
     ["addTheme <json>", "saves a theme (its JSON itself, not a path) in ~/.config/om-pg/themes and puts it on; an id or name already there is replaced"],
     ["saveTheme <name> <description>", "saves the look on screen (the theme, the user's own colors, styles, fonts and layout, the pictures, banner and card) as a theme; the name of the theme that's on updates it (\"\" description keeps or makes one)"],
     ["removeTheme <id>", "deletes one of the user's themes (only when the user asks)"],
+    ["remoteTemplates", "the phone remote's templates (built in, and the user's in ~/.config/om-pg/remotes, apart from the TV's themes), the default, and each paired phone: {id, name, prefs: {template, pad, size}, uses}; also saved (the last save or removal) and last (the last change to a phone). Turning the remote on, pairing and the firewall stay the user's"],
+    ["remoteTemplate <id>", "one template: its layout, card and list lines and styles, the colors it has with the TV's theme on now, what its file had that was dropped, and where each control lands on a 360×640 and a 390×844 phone (keys under 44 px named)"],
+    ["remoteControls", "what a template can use: controls (labels, icons, faces, variants), the card's lines and sides, the list's columns, panels, elements and their properties, states, shapes, fonts, the color roles and the caps"],
+    ["addRemoteTemplate <json>", "checks a template (its JSON itself, not a path) and saves it in ~/.config/om-pg/remotes: the same id replaces the user's own, never a built-in. Answers what it dropped and why; remoteTemplates' saved says once it's written"],
+    ["setRemoteTemplate <id> <phone id|default>", "the default template (saved at once, the remote on or off), or one paired phone's (its id from remoteTemplates; only while the phone remote is on: remoteTemplates' last says once it's saved)"],
+    ["setRemotePrefs <phone id> <json>", "a paired phone's number pad and size: {\"pad\": \"on\" or \"off\", \"size\": -2 to 2} (only while the phone remote is on)"],
+    ["removeRemoteTemplate <id>", "deletes one of the user's templates (only when the user asks): the default goes back to Classic if it was it, and phones on it follow the default"],
     ["slots", "every color slot: [{key, section, label, theme, yours, now}]"],
     ["style", "the theme, the user's own colors, pictures, styles, fonts and layout, and the banner and card settings"],
     ["setColor <key> <#hex>", "one slot's color on top of the theme (\"\" for the theme's)"],
@@ -334,6 +361,7 @@ Scope {
     ["removeChannels <numbers>", "removes channels (only when the user asks)"],
     ["logos <on|off>", "channel logos in the guide"],
     ["keyHints <on|off>", "the key hints along the bottom"],
+    ["touchControls <auto|on|off|\"\">", "tablet mode's touch controls: auto (on once a finger touches the screen, until Uber TV closes), on or off; \"\" just says which, and whether they're on now. Only when the user asks"],
     ["refresh", "fetches the listings again"],
     ["apps", "apps: whether they're on, Developer mode, the catalog, and the installed apps (id, name, version, on or off, on the screen now, where from, whether it's been checked, what each is allowed to do, any problem, an update waiting)"],
     ["appOff <id>", "turns one installed app off; it stays installed. Turning apps or an app on, installing, updating and removing them stay the user's, in Settings → Apps: there's no command for those"],
@@ -357,7 +385,7 @@ Scope {
                             channels: guide.channels.length, iptv: guide.channels.filter(function(c) { return c.kind === "iptv" }).length,
                             shownNow: guide.visibleRows.length, categories: guide.categories.length,
                             source: guide.shownSource, shownCategories: guide.shownCategories,
-                            theme: guide.themeId, logos: guide.showLogos, keyHints: guide.showKeyHints, lineup: guide.lineupMode,
+                            theme: guide.themeId, logos: guide.showLogos, keyHints: guide.showKeyHints, touch: commands.touchInfo(), lineup: guide.lineupMode,
                             awake: guide.awake, keptAwake: guide.keptAwake, omarchySaver: !!guide.nativeSaver && guide.nativeSaver.up,
                             screenSaver: guide.screenSaver ? { on: guide.screenSaver.settings.on, showing: guide.screenSaver.showing } : null,
                             channelLock: guide.channelLock ? { passcode: guide.channelLock.set, on: guide.channelLock.on, locked: guide.channelLock.entries.length } : null,
@@ -765,6 +793,85 @@ Scope {
 
     function themes(): string {
       return commands.okReply({ themes: guide.themes.map(commands.themeInfo) })
+    }
+
+    // ---- the phone remote's templates (RemoteTemplates.qml, Remote.js) ----
+    function remoteTemplates(): string {
+      var rt = guide.remotes
+      if (!rt.loaded) return commands.failReply("the templates are still being read: try again in a moment")
+      return commands.okReply({
+        templates: rt.list.map(function(x) { return { id: x.id, name: x.name, description: x.description, builtIn: x.builtIn, default: x.id === rt.defaultId } }),
+        default: rt.defaultId, folder: rt.dir,
+        remote: guide.remoteEnabled ? (guide.remoteReady ? "on" : "starting") : "off",
+        phones: (guide.remoteDevices || []).map(function(d) {
+          var p = d.prefs || { template: null, pad: null, size: 0 }
+          return { id: d.id, name: d.name, prefs: p, uses: rt.has(p.template) ? p.template : rt.defaultId }
+        }),
+        saved: rt.lastSave, last: rt.last, problems: rt.problems })
+    }
+
+    function remoteTemplate(id: string): string {
+      var rt = guide.remotes
+      var t = rt.template(String(id).trim())
+      if (!t) return commands.failReply("no template \"" + id + "\" (remoteTemplates lists them)")
+      var sizes = { "360x640": Remote.sizes(t, 360, 640), "390x844": Remote.sizes(t, 390, 844) }
+      if (t.layout.expanded) sizes["390x844 expanded"] = Remote.sizes(t, 390, 844, "expanded")
+      return commands.okReply({ template: t, builtIn: !!rt.builtIn[t.id], colorsNow: Remote.resolve(t, guide.colors).colors, dropped: rt.dropped[t.id] || [], sizes: sizes })
+    }
+
+    function remoteControls(): string {
+      return commands.okReply(Remote.controls())
+    }
+
+    function addRemoteTemplate(json: string): string {
+      var rt = guide.remotes
+      var text = String(json).trim()
+      if (/^[~\/]/.test(text)) return commands.failReply("give the template's JSON itself, not a path: omarchy-shell om-pg addRemoteTemplate \"$(cat remote.json)\"")
+      if (text.length > 65536) return commands.failReply("that's too big for a template (64 KB at most)")
+      var given
+      try { given = JSON.parse(text) } catch (e) { return commands.failReply("not valid JSON: " + e.message) }
+      var res = Remote.check(given)
+      if (res.error) return commands.failReply(res.error)
+      if (rt.builtIn[res.template.id]) return commands.failReply("\"" + res.template.id + "\" is a built-in template: give yours another id")
+      if (rt.busy) return commands.failReply(rt.busyWhy)
+      rt.save(res.template, "replace", function(r) { rt.lastSave = { id: res.template.id, action: "save", ok: r.ok, outcome: r.outcome, error: r.error } })
+      return commands.okReply({ id: res.template.id, dropped: res.dropped, folder: rt.dir, note: "remoteTemplates' saved says once it's written" })
+    }
+
+    function setRemoteTemplate(id: string, phone: string): string {
+      var rt = guide.remotes
+      id = String(id).trim()
+      phone = String(phone).trim()
+      if (!rt.has(id)) return commands.failReply("no template \"" + id + "\" (remoteTemplates lists them)")
+      if (phone === "" || phone === "default") {
+        var d = rt.setDefault(id)
+        return d.ok ? commands.okReply({ default: id, note: "phones that follow the default redraw" }) : commands.failReply(d.error)
+      }
+      return commands.phonePrefs(phone, { template: id })
+    }
+
+    function setRemotePrefs(phone: string, json: string): string {
+      var given
+      try { given = JSON.parse(String(json)) } catch (e) { return commands.failReply("not valid JSON: " + e.message) }
+      if (!given || typeof given !== "object" || Array.isArray(given)) return commands.failReply("give {\"pad\": \"on\" or \"off\", \"size\": -2 to 2}")
+      var change = {}
+      for (var k in given) {
+        if (k === "pad" && (given.pad === "on" || given.pad === "off")) change.pad = given.pad
+        else if (k === "size" && typeof given.size === "number" && given.size === Math.round(given.size) && given.size >= -2 && given.size <= 2) change.size = given.size
+        else return commands.failReply(k + ": " + (k === "pad" ? "on or off" : k === "size" ? "a whole number, -2 to 2" : "only pad and size (setRemoteTemplate picks the template)"))
+      }
+      if (!Object.keys(change).length) return commands.failReply("give pad, size or both")
+      return commands.phonePrefs(String(phone).trim(), change)
+    }
+
+    function removeRemoteTemplate(id: string): string {
+      var rt = guide.remotes
+      id = String(id).trim()
+      if (rt.builtIn[id]) return commands.failReply("\"" + id + "\" is built in: it can't be removed")
+      if (!rt.yours[id]) return commands.failReply("no template \"" + id + "\" of the user's (remoteTemplates lists them)")
+      if (rt.busy) return commands.failReply(rt.busyWhy)
+      rt.remove(id, function(r) { rt.lastSave = { id: id, action: "remove", ok: r.ok, error: r.error } })
+      return commands.okReply({ removing: id, note: "remoteTemplates' saved says once it's gone" })
     }
 
     function theme(id: string): string {
@@ -1386,6 +1493,13 @@ Scope {
       if (v === null) return commands.failReply("on or off")
       guide.setKeyHints(v)
       return commands.okReply({ keyHints: guide.showKeyHints })
+    }
+
+    function touchControls(mode: string): string {
+      var m = String(mode).trim().toLowerCase()
+      if (m && Touch.SETTINGS.indexOf(m) < 0) return commands.failReply("auto, on, off or \"\"")
+      if (m) guide.setTouch(m)
+      return commands.okReply({ touch: commands.touchInfo() })
     }
 
     function refresh(): string {

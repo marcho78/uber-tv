@@ -84,6 +84,26 @@ Item {
     }
   }
 
+  // Tablet mode: a finger dragged sideways moves through time, a half hour
+  // for each half hour's width (up and down, the list scrolls itself). It
+  // only watches until the drag is sideways, so taps reach the shows; a
+  // finger only (a mouse drags nothing here).
+  Item {
+    anchors.fill: parent
+    z: 10
+    DragHandler {
+      id: timeDrag
+      enabled: guide.touchMode
+      acceptedDevices: PointerDevice.TouchScreen
+      target: null
+      xAxis.enabled: true
+      yAxis.enabled: false
+      property int from: 0
+      onActiveChanged: if (active) from = guide.slotOffset
+      onActiveTranslationChanged: if (active) guide.dragTime(from - Math.round(activeTranslation.x / Math.max(1, gridArea.slotW)))
+    }
+  }
+
   ListView {
     id: rows
     y: timeHeader.height
@@ -330,11 +350,22 @@ Item {
             MouseArea {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
-              onClicked: {
+              // a finger: a tap on the show already chosen watches it, and
+              // held on one opens its choices (as Record…); a mouse picks
+              // with a click and watches with a double click
+              readonly property bool chosen: guide.row === rowItem.r && !!guide.selected && guide.selected.start === cell.modelData.start
+              onClicked: function(mouse) {
+                if (guide.isFinger(mouse) && chosen) { guide.watch(rowItem.r); return }
                 guide.row = rowItem.r
                 guide.cursorTime = Math.max(cell.modelData.start, guide.windowStart)
               }
               onDoubleClicked: guide.watch(rowItem.r)
+              onPressAndHold: function(mouse) {
+                if (!guide.isFinger(mouse)) return
+                guide.row = rowItem.r
+                guide.cursorTime = Math.max(cell.modelData.start, guide.windowStart)
+                guide.openShowChoices()
+              }
             }
           }
         }

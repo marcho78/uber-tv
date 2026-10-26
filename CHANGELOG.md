@@ -10,6 +10,23 @@ versions (0.2.1…) bring fixes and small additions. 1.0.0 will be the public re
 and id are final (the rename to Uber TV) and the app interface is declared
 stable.
 
+## [0.4.1-beta] - 2026-10-26
+
+### Added
+
+- **Tablet mode** for touchscreens. Settings → General → Tablet mode: Auto (the default) turns it on when you touch the screen, until Uber TV closes; On and Off keep it that way. The keyboard, a mouse and the phone remote work as always.
+  - **Buttons** replace the key hints along the bottom: Back first, then what fits; ⋯ holds the rest. Each is at least a finger tall and wide (about 9 mm), whatever the screen.
+  - **The guide:** tap to choose, tap again to watch; hold a show for its choices; drag the grid sideways through time (Now comes back); 123 types a channel number.
+  - **Watching:** tap the picture for Guide, CH ▲ ▼, 123 and the banner's choices, and, with pause and rewind on, the bar with back 30 s, pause and forward 30 s. Movies, app videos, the mini player and Multiview work the same way.
+  - **Typing:** an on-screen keyboard comes up for any field, with Paste and Hide; the channel lock's passcode has its own pad.
+- **A theme part** for tablet mode's buttons: Touch button (S → Parts → TABLET MODE).
+- **Agent commands:** `touchControls` (Auto, On or Off); `state` reports tablet mode.
+
+### Changed
+
+- **A tablet in portrait, or a narrow window** (tablet mode or not): the nav rail tucks away (☰ opens it), the preview sits beside its details, and the grid shows an hour.
+- **The nav rail's parts scroll** when more than fit.
+
 ## [0.4.0-beta] - 2026-10-21
 
 ### Added

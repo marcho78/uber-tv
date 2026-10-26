@@ -79,7 +79,8 @@ Item {
     MouseArea {
       anchors.fill: parent
       cursorShape: Qt.IBeamCursor
-      onClicked: guide.searchInResults = false
+      // back to typing, and tablet mode's keyboard back up if it was hidden
+      onClicked: { guide.searchInResults = false; guide.showTouchKeyboard() }
     }
   }
 
@@ -187,25 +188,34 @@ Item {
     anchors.leftMargin: page.u * 3
     anchors.rightMargin: page.u * 3
     anchors.bottomMargin: page.u * 1.6
-    height: guide.showKeyHints ? page.u * 1.9 : 0
-    visible: guide.showKeyHints
+    // tablet mode: the buttons, always there, a finger tall (a tap on a card opens it)
+    height: guide.touchMode ? guide.fingerPx + page.u * 0.6 : guide.showKeyHints ? page.u * 1.9 : 0
+    visible: guide.showKeyHints || guide.touchMode
     s: guide.look.footer
     unit: page.u
     KeyHints {
+      id: searchKeys
       anchors.left: parent.left
       anchors.leftMargin: footer.padding
       anchors.verticalCenter: parent.verticalCenter
       transformOrigin: Item.Left
-      scale: Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
+      scale: searchKeys.touching ? 1 : Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
+      touchGuide: page.guide
+      touchWidth: footer.width - footer.padding * 2
+      // (tablet mode: a tap on a result opens it; "or type" and "Type to
+      // search again" are the keyboard's, so no words there)
       model: page.typing
-             ? [{ keys: [], label: "Type to search" }].concat(guide.searchRows.length || (!guide.searchTerms && guide.recentSearches.length) ? [{ keys: ["↓"], label: guide.searchTerms ? "Results" : "Recent searches" }] : [])
-               .concat([{ keys: ["DEL"], label: "Clear" }, { keys: ["←"], label: "Nav rail" }, { keys: ["ESC"], label: "Back" }])
+             ? [{ keys: [], label: "Type to search", touch: {} }].concat(guide.searchRows.length || (!guide.searchTerms && guide.recentSearches.length) ? [{ keys: ["↓"], label: guide.searchTerms ? "Results" : "Recent searches" }] : [])
+               .concat([{ keys: ["DEL"], label: "Clear", touch: { key: Qt.Key_Delete } },
+                        { keys: ["←"], label: "Nav rail", touch: guide.railShows === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
+                        { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }])
              : !guide.searchTerms
-             ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Search it" }, { keys: [], label: "or type" }, { keys: ["ESC"], label: "Back to typing" }]
+             ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Search it" }, { keys: [], label: "or type", touch: {} }, { keys: ["ESC"], label: "Back to typing", touch: { key: Qt.Key_Escape, back: true } }]
              : [{ keys: ["↑", "↓", "←", "→"], label: "Move" },
                 { keys: ["ENTER"], label: !page.card ? "Open" : page.card.kind === "channel" ? (page.card.starting ? "See it in the guide" : "Watch")
                                         : page.card.kind === "movie" || page.card.kind === "series" ? "Details" : "Play" },
-                { keys: ["SPACE"], label: "Play" }, { keys: [], label: "Type to search again" }, { keys: ["ESC"], label: "Back to typing" }]
+                { keys: ["SPACE"], label: "Play", touch: { key: Qt.Key_Space, icon: "playsolid" } }, { keys: [], label: "Type to search again", touch: {} },
+                { keys: ["ESC"], label: "Back to typing", touch: { key: Qt.Key_Escape, back: true } }]
       size: page.u * 1.55
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel

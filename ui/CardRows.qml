@@ -246,8 +246,9 @@ ListView {
           MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: rowsView.select(rowItem.index, card.index)
-            onDoubleClicked: rowsView.open(rowItem.index, card.index)
+            // a click picks, a double click opens; a finger opens at once
+            onClicked: function(mouse) { rowsView.select(rowItem.index, card.index); if (rowsView.guide.isFinger(mouse)) rowsView.open(rowItem.index, card.index) }
+            onDoubleClicked: function(mouse) { if (!rowsView.guide.isFinger(mouse)) rowsView.open(rowItem.index, card.index) }
           }
         }
 

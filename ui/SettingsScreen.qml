@@ -14,6 +14,9 @@ Item {
 
   readonly property real u: guide.u
   readonly property var row: guide.settingsRows[guide.settingsCursor] || ({})
+  // a compact screen: the parts across, or the rows of the one you went into
+  // (→ or a tap goes in, ← or Back comes out)
+  readonly property bool stacked: guide.screenFit === "compact"
 
   Label {
     id: title
@@ -41,7 +44,8 @@ Item {
     x: page.u * 3
     anchors.top: title.bottom
     anchors.topMargin: page.u * 2.4
-    width: Math.min(page.u * 26, page.width * 0.28)
+    visible: !page.stacked || !guide.settingsInRows
+    width: page.stacked ? page.width - page.u * 6 : Math.min(page.u * 26, page.width * 0.28)
     spacing: page.u * 0.6
 
     Repeater {
@@ -83,7 +87,7 @@ Item {
         MouseArea {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
-          onClicked: { guide.settingsPart = part.index; guide.settingsCursor = 0; guide.settingsInRows = false; guide.settingsArmed = "" }
+          onClicked: { guide.settingsPart = part.index; guide.settingsCursor = 0; guide.settingsInRows = page.stacked; guide.settingsArmed = "" }
         }
       }
     }
@@ -92,11 +96,11 @@ Item {
   // ---- the rows of the part you're on ----
   ListView {
     id: rows
-    anchors.left: parts.right
-    anchors.leftMargin: page.u * 2.4
+    x: page.stacked ? page.u * 3 : parts.x + parts.width + page.u * 2.4
     anchors.top: parts.top
+    visible: !page.stacked || guide.settingsInRows
     // as tall as its rows (worked out from them, not measured), the note right under them
-    readonly property real rowsH: guide.settingsRows.length * (Math.round(Look.px(guide.look.menuRow.height, page.u)) + spacing)
+    readonly property real rowsH: guide.settingsRows.length * (Math.max(Math.round(Look.px(guide.look.menuRow.height, page.u)), guide.touchMode ? guide.fingerPx : 0) + spacing)
     height: Math.max(0, Math.min(rowsH, footer.y - y - note.implicitHeight - page.u * 4))
     width: Math.min(page.width - x - page.u * 3, page.u * 72)
     clip: true
@@ -132,23 +136,26 @@ Item {
       // one click acts, as Enter does (the version's presses are counted
       // however fast they come)
       oneClick: modelData.key !== "about"
-      onActivated: {
-        // the cursor goes to the row first, so the keys carry on from it,
-        // without the list scrolling under the pointer
-        if (!focused) { rows.mouseIndex = index; guide.settingsInRows = true; guide.settingsCursor = index; guide.settingsArmed = "" }
-        guide.changeSetting(1, guide.byUser)
-      }
+      touchParts: true
+      // the cursor goes to the row first, so the keys carry on from it,
+      // without the list scrolling under the pointer
+      function pick() { if (!focused) { rows.mouseIndex = index; guide.settingsInRows = true; guide.settingsCursor = index; guide.settingsArmed = "" } }
+      onActivated: { pick(); guide.changeSetting(1, guide.byUser) }
+      // tablet mode: ‹ › step a choice; a switch that also opens flips (as Space)
+      onStepped: function(dir) { pick(); guide.changeSetting(dir, guide.byUser) }
+      onToggled: { pick(); guide.changeSetting(1, guide.byUser, true) }
     }
   }
 
   // What the focused row (or part) is about
   Label {
     id: note
-    anchors.left: rows.left
-    anchors.leftMargin: Math.ceil(rows.width * 0.03)
-    anchors.top: rows.bottom
+    readonly property Item under: page.stacked && !guide.settingsInRows ? parts : rows
+    anchors.left: under.left
+    anchors.leftMargin: Math.ceil(under.width * 0.03)
+    anchors.top: under.bottom
     anchors.topMargin: page.u * 1.6
-    width: rows.width * 0.94
+    width: under.width * 0.94
     text: guide.settingsNote
     s: guide.look.menuNote
     unit: page.u
@@ -165,25 +172,29 @@ Item {
     anchors.leftMargin: page.u * 3
     anchors.rightMargin: page.u * 3
     anchors.bottomMargin: page.u * 1.6
-    height: guide.showKeyHints ? page.u * 1.9 : 0
-    visible: guide.showKeyHints
+    // tablet mode: the buttons (Back), always there, a finger tall; a tap on a
+    // part or a row does the rest
+    height: guide.touchMode ? guide.fingerPx + page.u * 0.6 : guide.showKeyHints ? page.u * 1.9 : 0
+    visible: guide.showKeyHints || guide.touchMode
     s: guide.look.footer
     unit: page.u
     KeyHints {
       anchors.left: parent.left
       anchors.leftMargin: footer.padding
       anchors.verticalCenter: parent.verticalCenter
+      touchGuide: page.guide
+      touchWidth: footer.width - footer.padding * 2
       model: guide.channelLock && guide.channelLock.boxUp ? guide.channelLock.hints
              : !guide.settingsInRows
-             ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["→", "/", "ENTER"], label: "Open" }, { keys: ["←"], label: "Nav rail" },
-                { keys: ["?"], label: "All keys" }, { keys: ["ESC"], label: "Back" }]
+             ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["→", "/", "ENTER"], label: "Open" }, { keys: ["←"], label: "Nav rail", touch: guide.railShows === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
+                { keys: ["?"], label: "All keys" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
              : [{ keys: ["↑", "↓"], label: "Move" }].concat(page.row.key === "app" ? [{ keys: ["SPACE"], label: "On / off" }] : []).concat([
                 page.row.key === "app" ? { keys: ["ENTER"], label: "Details" }
                 : page.row.kind === "opens" ? { keys: ["ENTER"], label: "Open" }
                 : page.row.kind === "action" ? { keys: ["ENTER"], label: guide.settingsArmed ? "Again to do it" : "Do it" }
                 : page.row.kind === "info" ? { keys: [], label: "" }
                 : page.row.kind === "choice" ? { keys: ["ENTER"], label: "Change" } : { keys: ["ENTER"], label: "On / off" },
-                { keys: ["←", "/", "ESC"], label: "Back" },
+                { keys: ["←", "/", "ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } },
                 { keys: ["?"], label: "All keys" }])
       size: page.u * 1.55
       capStyle: guide.look.keycap
