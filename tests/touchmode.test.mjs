@@ -677,7 +677,7 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
     const area = mini.slice(mini.indexOf("  // Moving and resizing"), mini.indexOf("  // What's on, and the controls"))
     const handler = (name) => new Function("ma", "guide", "pipKeys", "pipWindow", "Qt", "mouse", "with (ma) { " + block(area, name + ": function(mouse) {") + " }")
     const press = handler("onPressed"), move = handler("onPositionChanged"), tap = handler("onClicked")
-    const ma = { fromX: 0, fromY: 0, startRight: 0, startBottom: 0, travel: 0, moved: false, pressed: true }
+    const ma = { fromX: 0, fromY: 0, startRight: 0, startBottom: 0, awayX: 0, awayY: 0, moved: false, pressed: true }
     const gd = Object.assign(pg(), { pipRight: 100, pipBottom: 100 })
     const env = [gd, { forceActiveFocus() {} }, { clampPlace() {} }, { styleHints: { startDragDistance: 10 } }]
     press(ma, ...env, { x: 50, y: 50, source: 2 })
@@ -690,6 +690,12 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
     move(ma, ...env, { x: 52, y: 51, source: 2 })
     tap(ma, ...env, FINGER)
     assert.equal(gd.shown, 1, "a finger that barely moves taps")
+    // a held finger's jitter, back and forth (never 10 px from where it pressed): still a tap
+    press(ma, ...env, { x: 50, y: 50, source: 2 })
+    for (let i = 0; i < 12; i++) move(ma, ...env, { x: i % 2 ? 47 : 53, y: 50, source: 2 })
+    assert.equal(ma.moved, false, "jitter isn't a drag")
+    tap(ma, ...env, FINGER)
+    assert.equal(gd.pipBannerShown, false, "it tapped (the bar, shown, went)")
   }
   // a cancelled resize near an edge: its size and its place as they were
   {

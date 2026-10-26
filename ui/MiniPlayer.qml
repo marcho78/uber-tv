@@ -95,23 +95,27 @@ PanelWindow {
     property real fromY: 0
     property real startRight: 0
     property real startBottom: 0
-    property real travel: 0             // how far the pointer has gone, all told (the window follows it)
-    property bool moved: false          // past a drag's start: letting go isn't a tap
+    property real awayX: 0              // how far the pointer is from where it pressed (the window
+    property real awayY: 0              // follows it, so each event's step adds up, with its sign)
+    property bool moved: false          // once past a drag's start: letting go isn't a tap
     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     onPressed: function(mouse) {
       fromX = mouse.x
       fromY = mouse.y
       startRight = guide.pipRight
       startBottom = guide.pipBottom
-      travel = 0
+      awayX = 0
+      awayY = 0
       moved = false
       pipKeys.forceActiveFocus()
     }
     onPositionChanged: function(mouse) {
       if (!pressed) return
-      // each event's step, before the window catches up (so a slow drag adds up)
-      travel += Math.abs(mouse.x - fromX) + Math.abs(mouse.y - fromY)
-      if (travel > Qt.styleHints.startDragDistance) moved = true
+      // each event's step, before the window catches up: a slow drag adds up,
+      // a finger's jitter back and forth doesn't
+      awayX += mouse.x - fromX
+      awayY += mouse.y - fromY
+      if (Math.abs(awayX) + Math.abs(awayY) > Qt.styleHints.startDragDistance) moved = true
       guide.pipRight -= mouse.x - fromX
       guide.pipBottom -= mouse.y - fromY
       pipWindow.clampPlace()
