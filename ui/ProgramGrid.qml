@@ -86,13 +86,15 @@ Item {
 
   // Tablet mode: a finger dragged sideways moves through time, a half hour
   // for each half hour's width (up and down, the list scrolls itself). It
-  // only watches until the drag is sideways, so taps reach the shows.
+  // only watches until the drag is sideways, so taps reach the shows; a
+  // finger only (a mouse drags nothing here).
   Item {
     anchors.fill: parent
     z: 10
     DragHandler {
       id: timeDrag
       enabled: guide.touchMode
+      acceptedDevices: PointerDevice.TouchScreen
       target: null
       xAxis.enabled: true
       yAxis.enabled: false
@@ -348,17 +350,18 @@ Item {
             MouseArea {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
-              // tablet mode: a tap on the show already chosen watches it, and
-              // holding a finger on one opens its choices (as Record…)
+              // a finger: a tap on the show already chosen watches it, and
+              // held on one opens its choices (as Record…); a mouse picks
+              // with a click and watches with a double click
               readonly property bool chosen: guide.row === rowItem.r && !!guide.selected && guide.selected.start === cell.modelData.start
-              onClicked: {
-                if (guide.touchMode && chosen) { guide.watch(rowItem.r); return }
+              onClicked: function(mouse) {
+                if (guide.isFinger(mouse) && chosen) { guide.watch(rowItem.r); return }
                 guide.row = rowItem.r
                 guide.cursorTime = Math.max(cell.modelData.start, guide.windowStart)
               }
               onDoubleClicked: guide.watch(rowItem.r)
-              onPressAndHold: {
-                if (!guide.touchMode) return
+              onPressAndHold: function(mouse) {
+                if (!guide.isFinger(mouse)) return
                 guide.row = rowItem.r
                 guide.cursorTime = Math.max(cell.modelData.start, guide.windowStart)
                 guide.openShowChoices()

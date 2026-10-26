@@ -178,9 +178,10 @@ Item {
         MouseArea {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
-          // tablet mode: a tap on the channel already chosen watches it
-          onClicked: {
-            if (guide.touchMode && !guide.managing && guide.row === rowItem.r) { guide.watch(rowItem.r); return }
+          // a finger: a tap on the channel already chosen watches it (a
+          // mouse: a double click)
+          onClicked: function(mouse) {
+            if (guide.isFinger(mouse) && !guide.managing && guide.row === rowItem.r) { guide.watch(rowItem.r); return }
             guide.row = rowItem.r
             if (guide.managing) guide.toggleMark(rowItem.r)
           }

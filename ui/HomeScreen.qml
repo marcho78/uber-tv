@@ -443,16 +443,16 @@ Item {
               MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
+                onClicked: function(mouse) {
                   guide.homeRow = secItem.index
                   var cols = {}
                   for (var k in guide.homeCols) cols[k] = guide.homeCols[k]
                   cols[secItem.modelData.key] = card.index
                   guide.homeCols = cols
                   // an app opens at once, as on a TV; anything at once with a finger
-                  if (card.modelData.kind === "app" || guide.touchMode) guide.homeOpen()
+                  if (card.modelData.kind === "app" || guide.isFinger(mouse)) guide.homeOpen()
                 }
-                onDoubleClicked: if (card.modelData.kind !== "app" && !guide.touchMode) guide.homeOpen()
+                onDoubleClicked: function(mouse) { if (card.modelData.kind !== "app" && !guide.isFinger(mouse)) guide.homeOpen() }
               }
             }
             Column {

@@ -16,6 +16,8 @@ Item {
   readonly property real u: guide.u
   readonly property real thinW: Math.round(u * guide.layout.railWidth)
   readonly property real openW: Math.round(u * guide.layout.railOpenWidth)
+  // each item: 3 units, and in tablet mode at least a finger tall
+  readonly property real itemH: Math.round(Math.max(u * 3, guide.touchMode ? guide.fingerPx : 0))
   readonly property bool wide: guide.railOpen || guide.railEditing || hover.hovered
   // the credits' room at its foot, kept whether it's wide or thin
   readonly property real creditRoom: guide.railCredits ? handle.implicitHeight + credit.spacing + site.implicitHeight + u : 0
@@ -57,7 +59,7 @@ Item {
           readonly property bool focused: guide.railOpen && index === guide.railCursor
           readonly property var st: focused ? guide.look["railItem:focused"] : current ? guide.look["railItem:current"] : guide.look.railItem
           width: parent.width
-          height: Math.round(rail.u * 3)
+          height: rail.itemH
           s: st
           unit: rail.u
 
@@ -110,7 +112,7 @@ Item {
           readonly property bool focused: guide.railOpen && guide.railCursor === guide.railItems.length + index
           readonly property var st: focused ? guide.look["railItem:focused"] : guide.look.railItem
           width: parent.width
-          height: Math.round(rail.u * 3)
+          height: rail.itemH
           s: st
           unit: rail.u
 

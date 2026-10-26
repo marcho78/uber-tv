@@ -2,13 +2,16 @@ import QtQuick
 import QtTest
 import "../../ui"
 import "../../Look.js" as Look
+import "../../Touch.js" as Touch
 
 // A Settings row in tablet mode (ui/MenuRow.qml): at least a finger tall; on
 // a choice whose user handles them (touchParts), ‹ and › are their own
 // targets, a finger's width round each, and the rest of the row is the row;
 // a switch that also opens has its switch apart; a row whose user doesn't
 // handle them (no touchParts) is one target as before, its arrows only where
-// the keys show them.
+// the keys show them. With tablet mode on, the row says whether a click was
+// a finger's (byFinger), for its users that pick with a click and act with
+// a tap: a mouse's click isn't, a touch is.
 Item {
   id: top
   width: 900; height: 500
@@ -26,6 +29,7 @@ Item {
     readonly property color ink: colors.text
     readonly property color dimInk: colors.textDim
     readonly property color marquee: colors.accent
+    function isFinger(mouse) { return Touch.byFinger(mouse) }   // (as Guide.qml's)
   }
 
   property var did: []
@@ -105,6 +109,20 @@ Item {
       mouseClick(sw, t.x, t.y)
       mouseClick(sw, 40, sw.height / 2)
       compare(top.did, ["switch", "options"])
+    }
+
+    function test_a_finger_or_the_mouse_with_tablet_mode_on() {
+      mouseClick(plain, 40, plain.height / 2)
+      compare(top.did, ["plain"])
+      verify(!plain.byFinger, "a mouse's click, tablet mode on: not a finger")
+      var t = touchEvent(plain)
+      t.press(0, plain, 40, plain.height / 2).commit()
+      t.release(0, plain, 40, plain.height / 2).commit()
+      compare(top.did, ["plain", "plain"])
+      verify(plain.byFinger, "a touch: a finger")
+      wait(400)   // (not a double click)
+      mouseClick(plain, 40, plain.height / 2)
+      verify(!plain.byFinger, "the mouse again")
     }
 
     function test_with_the_keyboard_its_one_row_as_before() {

@@ -122,7 +122,7 @@ Box {
             on: lockBox.lock.rowOn(modelData.key)
             value: lockBox.lock.rowValue(modelData.key)
             // a click picks first; a finger acts at once
-            onActivated: { if (lockBox.lock.cursor !== index) { lockBox.lock.cursor = index; if (!lockBox.guide.touchMode) return } lockBox.lock.act(modelData.key) }
+            onActivated: { if (lockBox.lock.cursor !== index) { lockBox.lock.cursor = index; if (!byFinger) return } lockBox.lock.act(modelData.key) }
           }
         }
       }

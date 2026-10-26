@@ -461,7 +461,7 @@ Box {
                 focused: reviewBox.focusedOn(modelData.key)
                 label: open ? "Fewer" : "And " + (modelData.lines.length - 3) + " more"
                 kind: "opens"
-                onActivated: { var i = reviewBox.foldIndex(modelData.key); if (guide.appsCursor !== i && !guide.touchMode) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
+                onActivated: { var i = reviewBox.foldIndex(modelData.key); if (guide.appsCursor !== i && !byFinger) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
               }
               Label {
                 width: parent.width
@@ -484,7 +484,7 @@ Box {
           focused: reviewBox.focusedOn("before")
           label: "And what it had before"
           kind: "opens"
-          onActivated: { var i = reviewBox.foldIndex("before"); if (guide.appsCursor !== i && !guide.touchMode) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
+          onActivated: { var i = reviewBox.foldIndex("before"); if (guide.appsCursor !== i && !byFinger) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
         }
         Label {
           width: parent.width
@@ -506,7 +506,7 @@ Box {
           icon: "shield"
           label: "Can't reach your files, channels, other apps or sites it didn't list"
           kind: "opens"
-          onActivated: { var i = reviewBox.foldIndex("cant"); if (guide.appsCursor !== i && !guide.touchMode) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
+          onActivated: { var i = reviewBox.foldIndex("cant"); if (guide.appsCursor !== i && !byFinger) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
         }
         Label {
           width: parent.width
@@ -732,7 +732,7 @@ Box {
           onActivated: {
             if (guide.appsBusy()) return
             // a finger acts at once (a removal still asks again); a click picks first
-            if (guide.appsCursor !== index + appRows.offset) { guide.appsCursor = index + appRows.offset; guide.appsArmed = ""; if (!guide.touchMode) return }
+            if (guide.appsCursor !== index + appRows.offset) { guide.appsCursor = index + appRows.offset; guide.appsArmed = ""; if (!byFinger) return }
             guide.appsAct(guide.byUser)
           }
         }
@@ -830,7 +830,7 @@ Box {
             value: guide.remoteArmed === modelData.id ? "Enter again to unpair"
                  : "Paired " + Qt.formatDateTime(new Date(modelData.added * 1000), "MMM d") + " · used " + Qt.formatDateTime(new Date(modelData.seen * 1000), "MMM d")
                    + (index === guide.remoteCursor ? " · Unpair" : "")
-            onActivated: { if (guide.remoteCursor !== index) { guide.remoteCursor = index; guide.remoteArmed = ""; if (!guide.touchMode) return } guide.unpairAct() }
+            onActivated: { if (guide.remoteCursor !== index) { guide.remoteCursor = index; guide.remoteArmed = ""; if (!byFinger) return } guide.unpairAct() }
           }
         }
       }
@@ -1117,7 +1117,7 @@ Box {
               MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: { guide.pickCursor = pickRow.index; if (guide.touchMode) guide.choosePick(guide.byUser) }
+                onClicked: function(mouse) { guide.pickCursor = pickRow.index; if (guide.isFinger(mouse)) guide.choosePick(guide.byUser) }
                 onDoubleClicked: { guide.pickCursor = pickRow.index; guide.choosePick(guide.byUser) }
               }
             }
@@ -1211,7 +1211,7 @@ Box {
             label: modelData.label
             value: modelData.note || ""
             dim: modelData.unavailable === true
-            onActivated: { if (guide.showCursor === index || guide.touchMode) { guide.showCursor = index; guide.showChoiceAct(index) } else guide.showCursor = index }
+            onActivated: { if (guide.showCursor === index || byFinger) { guide.showCursor = index; guide.showChoiceAct(index) } else guide.showCursor = index }
           }
         }
       }

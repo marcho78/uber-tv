@@ -52,6 +52,13 @@ function hoursAcross(hours, fit) { return fit === "compact" ? Math.min(hours, 1)
 // A row a finger taps: in tablet mode never shorter than a finger
 function rowPx(px, touch, finger) { return touch ? Math.max(px, finger) : px }
 
+// A click a finger (or a pen) made: Qt makes a mouse click of a touch and
+// says so (MouseEvent.source 2, or 1 where the system made it); a mouse's
+// or a touchpad's own click is 0. Tablet mode being on says what the screen
+// shows, never what made a click: a mouse still picks with a click and
+// opens with a double click.
+function byFinger(mouse) { return !!mouse && (mouse.source === 2 || mouse.source === 1) }
+
 // Qt's own key codes (tests/qml/tst_touchmode.qml checks they match)
 var KEY = { left: 0x01000012, up: 0x01000013, right: 0x01000014, down: 0x01000015,
             pageUp: 0x01000016, pageDown: 0x01000017, j: 0x4a, l: 0x4c }

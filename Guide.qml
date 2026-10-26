@@ -1942,6 +1942,8 @@ Item {
   // A row a finger taps, as tall as its layout says and in tablet mode never
   // shorter than a finger (the table's and the board's)
   function fingerRow(px) { return Touch.rowPx(px, root.touchMode, root.fingerPx) }
+  // whether a click was a finger's (Touch.js): a tap acts at once, a click picks
+  function isFinger(mouse) { return Touch.byFinger(mouse) }
 
   // Text that reads on a fill: the color asked for, or dark on a light
   // fill and light on a dark one when the two are too alike

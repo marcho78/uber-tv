@@ -28,6 +28,8 @@ Item {
   property bool touchParts: false
   signal stepped(int dir)
   signal toggled()
+  // the last click a finger's: where a click picks first, a tap acts at once
+  property bool byFinger: false
   readonly property bool touching: !!guide && guide.touchMode === true
   readonly property bool parted: touching && touchParts
 
@@ -169,11 +171,11 @@ Item {
     MouseArea {
       anchors.fill: parent
       cursorShape: Qt.PointingHandCursor
-      onClicked: function(mouse) { row.tapAt(mouse.x) }
+      onClicked: function(mouse) { row.byFinger = row.guide.isFinger(mouse); row.tapAt(mouse.x) }
       // the second press of a double-click is a second click, except where
       // one click acts (so a switch doesn't flip back, and a row that asks
       // twice isn't answered by a double-click), a tap's too
-      onDoubleClicked: function(mouse) { if (!row.oneClick) row.tapAt(mouse.x) }
+      onDoubleClicked: function(mouse) { row.byFinger = row.guide.isFinger(mouse); if (!row.oneClick) row.tapAt(mouse.x) }
     }
   }
 }

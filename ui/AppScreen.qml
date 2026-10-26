@@ -37,12 +37,12 @@ Item {
   readonly property bool detail: !!page.cur && page.cur.kind === "detail" && !!page.cur.value
   readonly property bool cinematic: page.detail && model.detailStyle === "cinematic"
   readonly property var sel: Nav.locate(page.ls, view.sel)     // where the selection is: { line, col }
-  // a click or a tap on an item: the cursor there; a second click (a tap in
-  // tablet mode) opens it, as Enter
-  function tap(line, col) {
+  // a click or a tap on an item: the cursor there; a second click (a
+  // finger's first tap) opens it, as Enter
+  function tap(line, col, finger) {
     var was = page.sel && page.sel.line === line && page.sel.col === col
     if (!view.pick(line, col)) return
-    if (was || guide.touchMode) view.enter(guide.byUser)
+    if (was || finger === true) view.enter(guide.byUser)
   }
   readonly property real titleH: geo.titleH
   readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
@@ -506,6 +506,8 @@ Item {
             onScreen: lineItem.lineOnScreen
             ringColor: page.ringColor
             ringHalo: page.ringHalo
+            onTapped: function(c, finger) { page.tap(lineItem.index, c, finger) }
+            onChose: function(c) { page.view.pick(lineItem.index, c) }
           }
         }
 
@@ -522,9 +524,9 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
-              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, button.index) }
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, button.index, guide.isFinger(mouse)) } }
               width: actionLabel.implicitWidth + page.u * 3
-              height: page.u * 3.2
+              height: Math.max(page.u * 3.2, guide.touchMode ? guide.fingerPx : 0)   // (a finger tall in tablet mode)
               s: current ? guide.look["appButton:focused"] : guide.look.appButton
               unit: page.u
               scale: current ? 1 + Looks.growOf(s) : 1                  // only the selected one grows (at most 15%)
@@ -589,7 +591,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
-              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, listRow.index) }
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, listRow.index, guide.isFinger(mouse)) } }
               // its picture for the row's shape, wanted first when it's
               // selected, then while its line is on the screen
               readonly property var img: Looks.cardImage(modelData, lineItem.line)
@@ -765,7 +767,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
-              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, tableRow.index) }
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, tableRow.index, guide.isFinger(mouse)) } }
               width: table.width
               height: lineItem.line.rowH
               s: current ? guide.look["appTable:focused"] : guide.look.appTable
@@ -886,7 +888,7 @@ Item {
             ringColor: page.ringColor
             ringHalo: page.ringHalo
             selectedTitle: page.selectedTitle
-            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, rowCard.index) }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, rowCard.index, guide.isFinger(mouse)) } }
           }
         }
 
@@ -923,7 +925,7 @@ Item {
               view: page.view
               line: lineItem.line
               current: lineItem.col === index
-              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, gridCard.index) }
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, gridCard.index, guide.isFinger(mouse)) } }
               onScreen: y + height > grid.contentY && y < grid.contentY + grid.height
               ringColor: page.ringColor
               ringHalo: page.ringHalo
@@ -1091,7 +1093,7 @@ Item {
                  : modelData.type === "switch" ? "" : String(modelData.value)
           // a click picks first; a finger acts at once (a clearing still asks twice)
           onActivated: {
-            if (view.settingsCursor !== index) { view.settingsCursor = index; if (!guide.touchMode) return }
+            if (view.settingsCursor !== index) { view.settingsCursor = index; if (!byFinger) return }
             view.settingsAct(0, guide.byUser)
           }
           // tablet mode: ‹ › as ← → (the keys' own steps)

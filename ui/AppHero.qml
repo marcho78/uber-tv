@@ -8,7 +8,10 @@ import "../AppLooks.js" as Looks
 // text; dots say which of its items it is. ← and → change items. With no
 // backdrop and no logo, its title on the card's color. The guide's focus
 // ring goes round it when it's selected, and its title reads against
-// what's behind it. Plain text.
+// what's behind it. Plain text. A click or a tap on it is on the item it
+// shows (tapped: the app screen picks it, and opens it at a finger's first
+// tap or a click's second); in tablet mode the dots are spaced a finger
+// apart, and a tap on one shows its item (chose).
 Item {
   id: hero
 
@@ -21,6 +24,8 @@ Item {
   property bool onScreen: true
   property string ringColor: "#ffffff"
   property string ringHalo: ""
+  signal tapped(int col, bool finger)
+  signal chose(int col)
 
   readonly property real u: guide.u
   readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
@@ -155,24 +160,40 @@ Item {
       }
     }
 
+    // on the item it shows (under the dots, which take their own taps)
+    MouseArea {
+      anchors.fill: parent
+      cursorShape: Qt.PointingHandCursor
+      onClicked: function(mouse) { hero.tapped(hero.col, hero.guide.isFinger(mouse)) }
+    }
+
     // which of its items this is
     Row {
       objectName: "heroDots"
       visible: hero.items.length > 1
+      readonly property real dot: Math.round(hero.u * 0.7)
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       anchors.margins: hero.u * 1.2
-      spacing: hero.u * 0.5
+      spacing: hero.guide.touchMode ? Math.max(hero.u * 0.5, hero.guide.fingerPx - dot) : hero.u * 0.5
       Repeater {
         model: hero.items.length
         delegate: Rectangle {
           required property int index
-          width: Math.round(hero.u * 0.7)
+          width: parent.dot
           height: width
           radius: width / 2
           color: index === hero.col ? hero.ringColor : "transparent"
           border.width: Math.max(1, Math.round(hero.u * 0.1))
           border.color: hero.ringColor
+          // a finger's width round it, in tablet mode
+          MouseArea {
+            enabled: hero.guide.touchMode
+            anchors.centerIn: parent
+            width: Math.max(parent.width, hero.guide.fingerPx)
+            height: width
+            onClicked: hero.chose(parent.index)
+          }
         }
       }
     }
