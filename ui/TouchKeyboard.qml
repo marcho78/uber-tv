@@ -24,7 +24,7 @@ Item {
   property bool shift: false
   readonly property bool up: wanted && !hidden
 
-  onFieldChanged: { hidden = false; numbers = false; shift = false }
+  onFieldChanged: { hidden = false; numbers = false; shift = false; Qt.callLater(kb.relift) }
   // a finger let go at this point of the screen: on the field it was hidden
   // from, it comes back
   function tappedAt(at) {
@@ -33,6 +33,36 @@ Item {
     if (p.x >= 0 && p.y >= 0 && p.x <= field.width && p.y <= field.height) hidden = false
   }
   onSearchingChanged: if (searching) hidden = false
+
+  // The field kept above the keyboard: the surface it's on (the screen's
+  // child holding it: a box, a panel, a screen) moves up by what the keyboard
+  // would cover, and back when it goes. Measured where it was, unmoved.
+  property real lift: 0
+  property Item host: null
+  property var hostTransforms: []
+  Translate { id: lifter; y: -kb.lift }
+  function hostOf(item) {
+    var it = item
+    while (it && it.parent && it.parent !== screen) it = it.parent
+    return it && it.parent === screen ? it : null
+  }
+  function relift() {
+    var next = up && field && screen ? hostOf(field) : null
+    if (host && host !== next) { host.transform = hostTransforms; host = null; hostTransforms = [] }
+    if (!next) { lift = 0; return }
+    if (host !== next) {
+      var kept = []
+      for (var i = 0; i < next.transform.length; i++) kept.push(next.transform[i])
+      hostTransforms = kept
+      host = next
+      next.transform = kept.concat([lifter])
+    }
+    var bottom = field.mapToItem(screen, 0, field.height).y + lift   // where it is unmoved
+    lift = Math.max(0, Math.round(bottom + f * 0.3 - (screen.height - height)))
+  }
+  onUpChanged: Qt.callLater(kb.relift)
+  onHeightChanged: Qt.callLater(kb.relift)
+  Connections { target: kb.screen; function onHeightChanged() { Qt.callLater(kb.relift) } }
 
   readonly property real f: guide.fingerPx
   readonly property real pad: Math.round(f * 0.22)

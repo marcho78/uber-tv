@@ -119,20 +119,27 @@ Item {
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     anchors.margins: lib.u * 2
-    height: guide.showKeyHints ? lib.u * 1.9 : 0
-    visible: guide.showKeyHints
+    // tablet mode: the buttons, always there, a finger tall (a tap on a card opens it)
+    height: guide.touchMode ? guide.fingerPx + lib.u * 0.6 : guide.showKeyHints ? lib.u * 1.9 : 0
+    visible: guide.showKeyHints || guide.touchMode
     s: guide.look.footer
     unit: lib.u
     KeyHints {
+      id: libKeys
       anchors.left: parent.left
       anchors.leftMargin: footer.padding
       anchors.verticalCenter: parent.verticalCenter
       transformOrigin: Item.Left
-      scale: Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
-      model: [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: guide.libraryTab === "recordings" ? "Choices" : "Details" }, { keys: ["SPACE"], label: ["Starting", "Recording", "Saving"].indexOf((guide.libCard || {}).recState) >= 0 ? "Watch live" : "Play" }]
-              .concat(guide.libraryTab === "recordings" ? [] : [{ keys: ["L"], label: "My List" }]).concat((guide.libraryRows[guide.libRow] || { key: "" }).key.indexOf("continue") === 0 ? [{ keys: ["X"], label: "Off this row" }] : [])
-              .concat([{ keys: ["TAB"], label: lib.tabs.map(function(t) { return t.key === "movies" ? "Movies" : t.label }).join(" · ") }, { keys: ["/"], label: "Search" }, { keys: ["S"], label: "Style" },
-              { keys: ["?"], label: "All keys" }, { keys: ["ESC"], label: "Back" }])
+      scale: libKeys.touching ? 1 : Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
+      touchGuide: lib.guide
+      touchWidth: footer.width - footer.padding * 2
+      model: [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: guide.libraryTab === "recordings" ? "Choices" : "Details" },
+              { keys: ["SPACE"], label: ["Starting", "Recording", "Saving"].indexOf((guide.libCard || {}).recState) >= 0 ? "Watch live" : "Play", touch: { key: Qt.Key_Space, icon: "playsolid" } }]
+              .concat(guide.libraryTab === "recordings" ? [] : [{ keys: ["L"], label: "My List", touch: { key: Qt.Key_L, icon: "bookmark" } }])
+              .concat((guide.libraryRows[guide.libRow] || { key: "" }).key.indexOf("continue") === 0 ? [{ keys: ["X"], label: "Off this row", touch: { key: Qt.Key_X } }] : [])
+              .concat([{ keys: ["TAB"], label: lib.tabs.map(function(t) { return t.key === "movies" ? "Movies" : t.label }).join(" · ") }, { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } },
+              { keys: ["S"], label: "Style", touch: { key: Qt.Key_S } },
+              { keys: ["?"], label: "All keys" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }])
       size: lib.u * 1.55
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel

@@ -470,6 +470,17 @@ Item {
     return true
   }
 
+  // a click or a tap on an item: the cursor goes there (as the arrows would)
+  function pick(line, col) {
+    view.userActs()
+    if (!view.topView || view.topView.kind === "page") return false
+    var s = Nav.normalize(view.model, { line: line, col: col, cols: (view.topView.sel || {}).cols })
+    if (!s) return false
+    view.topView.sel = s
+    view.sel = s
+    return true
+  }
+
   function enter(by) {
     view.userActs()
     if (by !== guide.byUser) return

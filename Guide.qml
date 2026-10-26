@@ -2431,11 +2431,18 @@ Item {
   // key is used up)
   function keyFirst(event) {
     root.noteInput("keyboard")
-    if (!root.touchMore) return false
+    if (!root.touchMore && !root.numberPad) return false
     root.touchMore = null
+    root.numberPad = false
     if (event && event.key === Qt.Key_Escape) { event.accepted = true; return true }
     return false
   }
+
+  // Tablet mode's number pad (123): a channel by its number
+  property bool numberPad: false
+  function openNumberPad() { root.touchMore = null; root.numberPad = true }
+  function closeNumberPad() { root.numberPad = false }
+  function numberWatch(r) { root.numberPad = false; root.watch(r) }
 
   // A touch button (ui/KeyHints.qml, ui/TouchMore.qml): its hint's own touch,
   // a text field's own action (run), or a key, which does what that key does
@@ -2454,6 +2461,8 @@ Item {
   property var touchMore: null
   // how much of the screen tablet mode's keyboard takes (boxes go above it)
   readonly property real touchKeyboardHeight: touchKeyboard.up ? touchKeyboard.height : 0
+  // the keyboard back after Hide (a tap on Search's box: no field of its own)
+  function showTouchKeyboard() { touchKeyboard.hidden = false }
   function openTouchMore(list) { root.touchMore = Array.isArray(list) && list.length ? list : null }
   function closeTouchMore() { root.touchMore = null }
 
@@ -4318,6 +4327,17 @@ Item {
     if (root.channelList) root.channelList.positionViewAtIndex(p, ListView.Beginning)
   }
 
+  // Tablet mode: the time window dragged to a half hour offset (never before
+  // now), the cursor kept in it; Now goes back
+  function dragTime(offset) {
+    root.slotOffset = Math.max(0, Math.min(root.maxSlotOffset, Math.round(offset)))
+    root.cursorTime = root.cursorAt
+  }
+  function timeToNow() {
+    root.slotOffset = 0
+    root.cursorTime = Date.now() / 1000
+  }
+
   function moveTime(delta) {
     var s = root.selected
     if (delta > 0) {
@@ -4712,6 +4732,8 @@ Item {
     .concat(dvr.settings.on ? [{ keys: ["I"], label: "Record…", touch: { key: Qt.Key_I, icon: "record" } }] : [])
     .concat([{ keys: ["V"], label: "Library", touch: { key: Qt.Key_V, icon: "film" } },
     { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } }, { keys: ["P"], label: "Mini player", touch: { key: Qt.Key_P, icon: "mini" } },
+    { keys: [], label: "Now", touchOnly: true, touch: { run: function() { root.timeToNow() }, icon: "clock" } },
+    { keys: [], label: "123", touchOnly: true, touch: { run: function() { root.openNumberPad() }, moreLabel: "Channel number" } },
     { keys: ["W"], label: windowed ? "Full screen" : "Window", touch: { key: Qt.Key_W, icon: windowed ? "fullscreen" : "window" } },
     { keys: ["T"], label: "Phone remote", touch: { key: Qt.Key_T } }, { keys: ["A"], label: "Add", touch: { key: Qt.Key_A, icon: "plus" } },
     { keys: ["E"], label: "Manage", touch: { key: Qt.Key_E, icon: "pencil" } },
@@ -9719,6 +9741,13 @@ Item {
         z: 890000
         guide: root
         screen: screenItem
+      }
+
+      // Tablet mode's number pad (123)
+      NumberPad {
+        anchors.fill: parent
+        z: 895000
+        guide: root
       }
 
       // Tablet mode's ⋯ panel, over everything

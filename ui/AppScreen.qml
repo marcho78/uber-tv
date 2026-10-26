@@ -37,6 +37,13 @@ Item {
   readonly property bool detail: !!page.cur && page.cur.kind === "detail" && !!page.cur.value
   readonly property bool cinematic: page.detail && model.detailStyle === "cinematic"
   readonly property var sel: Nav.locate(page.ls, view.sel)     // where the selection is: { line, col }
+  // a click or a tap on an item: the cursor there; a second click (a tap in
+  // tablet mode) opens it, as Enter
+  function tap(line, col) {
+    var was = page.sel && page.sel.line === line && page.sel.col === col
+    if (!view.pick(line, col)) return
+    if (was || guide.touchMode) view.enter(guide.byUser)
+  }
   readonly property real titleH: geo.titleH
   readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
   // what's around a card, and directly behind its title: the page's fill
@@ -433,8 +440,8 @@ Item {
       anchors.bottom: parent.bottom
       model: page.ls
       boundsBehavior: Flickable.StopAtBounds
-      Behavior on contentY { id: scroll; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-      interactive: false
+      Behavior on contentY { id: scroll; enabled: !guide.touchMode; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+      interactive: guide.touchMode          // a finger scrolls it (the keys move the cursor)
       clip: true
       // the lines just off the screen are made ahead, between frames, so a
       // line scrolling in doesn't make all its cards in one frame
@@ -515,6 +522,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, button.index) }
               width: actionLabel.implicitWidth + page.u * 3
               height: page.u * 3.2
               s: current ? guide.look["appButton:focused"] : guide.look.appButton
@@ -581,6 +589,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, listRow.index) }
               // its picture for the row's shape, wanted first when it's
               // selected, then while its line is on the screen
               readonly property var img: Looks.cardImage(modelData, lineItem.line)
@@ -756,6 +765,7 @@ Item {
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, tableRow.index) }
               width: table.width
               height: lineItem.line.rowH
               s: current ? guide.look["appTable:focused"] : guide.look.appTable
@@ -861,9 +871,10 @@ Item {
           preferredHighlightEnd: width - page.geo.margin - (lineItem.line.cardW || 0)
           highlightMoveDuration: 200
           boundsBehavior: Flickable.StopAtBounds
-          interactive: false
+          interactive: guide.touchMode          // a finger slides the row
           clip: true
           delegate: AppCard {
+            id: rowCard
             // drawn below the room kept for growing (the list places it at
             // its top, so it's moved by a transform the list doesn't touch)
             transform: Translate { y: rowCards.pad }
@@ -875,6 +886,7 @@ Item {
             ringColor: page.ringColor
             ringHalo: page.ringHalo
             selectedTitle: page.selectedTitle
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, rowCard.index) }
           }
         }
 
@@ -906,10 +918,12 @@ Item {
             onCountChanged: contentY = gridArea.into
             Component.onCompleted: contentY = gridArea.into
             delegate: AppCard {
+              id: gridCard
               guide: page.guide
               view: page.view
               line: lineItem.line
               current: lineItem.col === index
+              MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.tap(lineItem.index, gridCard.index) }
               onScreen: y + height > grid.contentY && y < grid.contentY + grid.height
               ringColor: page.ringColor
               ringHalo: page.ringHalo

@@ -1151,7 +1151,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   toggle({ libDetail: null, libCard: { kind: "movie", entry: { id: "m" } } }, { toggleList: e => toggled.push(e.id) })
   assert.deepEqual(toggled, ["m"], "a recording isn't put on My List; a movie is")
   // the library's footer: Watch live on one still being made
-  const footer = read("ui/LibraryScreen.qml").match(/label: (\["Starting", "Recording", "Saving"\].*? : "Play") \}/)[1]
+  const footer = read("ui/LibraryScreen.qml").match(/label: (\["Starting", "Recording", "Saving"\].*? : "Play")(?: \}|, touch: )/)[1]
   const label = card => new Function("guide", "return " + footer)({ libCard: card })
   assert.deepEqual([label({ recState: "Recording" }), label({ recState: "Saving" }), label({ recState: "Done" }), label(null)], ["Watch live", "Watch live", "Play", "Play"])
   assert.equal(D.reasonText("cap"), "", "no reason that's never stored")

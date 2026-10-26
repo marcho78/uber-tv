@@ -350,6 +350,11 @@ assert.match(cmdSrc, /keyHints: guide\.showKeyHints, touch: commands\.touchInfo\
   assert.match(read("ui/MenuRow.qml"), /readonly property bool parted: touching && touchParts/)
 }
 assert.match(guideSrc, /property var touchMore: null/)
+// the keyboard: Search's box brings it back after Hide (Search has no field)
+assert.match(guideSrc, /function showTouchKeyboard\(\) \{ touchKeyboard\.hidden = false \}/)
+assert.match(read("ui/SearchScreen.qml"), /onClicked: \{ guide\.searchInResults = false; guide\.showTouchKeyboard\(\) \}/)
+// and keeps the field above it, lifting its surface (tests/qml/tst_touchlift.qml)
+assert.match(read("ui/TouchKeyboard.qml"), /onFieldChanged: \{ hidden = false; numbers = false; shift = false; Qt\.callLater\(kb\.relift\) \}/)
 assert.match(guideSrc, /TouchMore \{\n\s+anchors\.fill: parent\n\s+z: 900000\n\s+guide: root\n\s+\}/, "the ⋯ panel over everything but the watcher")
 
 

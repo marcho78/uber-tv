@@ -47,7 +47,7 @@ Item {
           required property var modelData
           guide: more.guide
           width: more.cell
-          label: modelData.label
+          label: modelData.touch.moreLabel || modelData.label   // (123: Channel number)
           icon: modelData.touch.icon || ""
           onTapped: more.guide.touchPress(modelData.touch)
         }

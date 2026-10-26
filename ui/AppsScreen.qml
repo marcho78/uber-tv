@@ -223,20 +223,25 @@ Item {
     anchors.leftMargin: page.u * 3
     anchors.rightMargin: page.u * 3
     anchors.bottomMargin: page.u * 1.6
-    height: guide.showKeyHints ? page.u * 1.9 : 0
-    visible: guide.showKeyHints
+    // tablet mode: the buttons, always there, a finger tall (a tap on a card opens it)
+    height: guide.touchMode ? guide.fingerPx + page.u * 0.6 : guide.showKeyHints ? page.u * 1.9 : 0
+    visible: guide.showKeyHints || guide.touchMode
     s: guide.look.footer
     unit: page.u
     KeyHints {
       anchors.left: parent.left
       anchors.leftMargin: footer.padding
       anchors.verticalCenter: parent.verticalCenter
+      touchGuide: page.guide
+      touchWidth: footer.width - footer.padding * 2
       model: [{ keys: ["↑", "↓", "←", "→"], label: "Move" },
               { keys: ["ENTER"], label: page.tile && page.tile.kind === "get" ? "Get apps" : page.appOn ? "Back to it" : "Open" }]
-             .concat(page.appOn ? [{ keys: ["X"], label: "Close it" }] : [])
-             .concat(page.app ? [{ keys: ["I"], label: "Details" }] : [])
-             .concat(page.tile && page.tile.kind === "get" ? [] : [{ keys: ["G"], label: "Get apps" }])
-             .concat([{ keys: [","], label: "Settings" }, { keys: ["←"], label: "Nav rail" }, { keys: ["ESC"], label: "Back" }])
+             .concat(page.appOn ? [{ keys: ["X"], label: "Close it", touch: { key: Qt.Key_X, icon: "close" } }] : [])
+             .concat(page.app ? [{ keys: ["I"], label: "Details", touch: { key: Qt.Key_I, icon: "info" } }] : [])
+             .concat(page.tile && page.tile.kind === "get" ? [] : [{ keys: ["G"], label: "Get apps", touch: { key: Qt.Key_G, icon: "plus" } }])
+             .concat([{ keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+                      { keys: ["←"], label: "Nav rail", touch: guide.layout.rail === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
+                      { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }])
       size: page.u * 1.55
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel
