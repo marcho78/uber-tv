@@ -997,6 +997,9 @@ Box {
                 }
                 MouseArea {
                   anchors.fill: parent
+                  // tablet mode: a finger tall, past the pill
+                  anchors.topMargin: guide.touchMode ? -Math.max(0, (guide.fingerPx - parent.height) / 2) : 0
+                  anchors.bottomMargin: guide.touchMode ? -Math.max(0, (guide.fingerPx - parent.height) / 2) : 0
                   cursorShape: Qt.PointingHandCursor
                   onClicked: { if (!parent.on) guide.pickToggleBrowse(); pickField.forceActiveFocus() }
                 }

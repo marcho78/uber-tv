@@ -742,6 +742,31 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   assert.match(kbSrc, /readonly property bool lockSearching: !!guide\.channelLock && guide\.channelLock\.boxUp && guide\.dialog === "lockChannels"/)
   assert.match(kbSrc, /else if \(lockSearching\) guide\.channelLock\.key\(\{ key: 0, text: c \}\)/)
 }
+// The full size check (milestone 5): in tablet mode the thin rail is a
+// finger wide inside its padding, its credits' links a finger tall, the
+// style panel's rows a finger tall with ‹ › a finger taps on each that
+// steps, the file picker's pills a finger tall to tap
+{
+  const rail = read("ui/NavRail.qml")
+  assert.match(rail, /readonly property real thinW: Math\.round\(Math\.max\(u \* guide\.layout\.railWidth, guide\.touchMode \? guide\.fingerPx \+ strip\.padding \* 2 : 0\)\)/)
+  assert.match(rail, /readonly property real creditRowH: guide\.touchMode \? guide\.fingerPx : 0/)
+  assert.equal((rail.match(/anchors\.topMargin: -Math\.max\(0, \(parent\.parent\.height - parent\.height\) \/ 2\)/g) || []).length, 3, "the credits' three links, a finger tall")
+  assert.equal((rail.match(/anchors\.leftMargin: -Math\.max\(0, \(rail\.creditRowH - parent\.width\) \/ 2\)/g) || []).length, 3, "and a finger wide")
+  const sp = read("ui/StylePanel.qml")
+  assert.match(sp, /readonly property real rowH: Math\.max\(Math\.round\(Look\.px\(guide\.look\.menuRow\.height, rowUnit\)\), guide\.touchMode \? guide\.fingerPx : 0\)/)
+  assert.match(sp, /readonly property bool arrows: styleItem\.adjustable && \(styleItem\.current \|\| guide\.touchMode\)/)
+  // a finger on ‹ or › steps, anywhere else acts; a mouse acts (its ← → are the keys')
+  const at = sp.indexOf("function arrowAt(x) {")
+  const click = new Function("guide", "styleItem", "arrowAt", "mouse", block(sp.slice(at), "onClicked: function(mouse) {"))
+  const sg = () => ({ touchMode: true, styleCursor: 0, styleArmed: "x", did: [], isFinger(m) { return this.touchMode && T.byFinger(m) },
+                      adjustStyle(d) { this.did.push("step " + d) }, activateStyle() { this.did.push("act") } })
+  let g1 = sg(); click(g1, { index: 2 }, () => 1, FINGER)
+  assert.deepEqual([g1.styleCursor, g1.did], [2, ["step 1"]], "› steps up (the cursor there first)")
+  g1 = sg(); click(g1, { index: 2 }, () => -1, FINGER); assert.deepEqual(g1.did, ["step -1"], "‹ steps down")
+  g1 = sg(); click(g1, { index: 2 }, () => 0, FINGER); assert.deepEqual(g1.did, ["act"], "the rest of the row acts")
+  g1 = sg(); click(g1, { index: 2 }, () => 1, MOUSE); assert.deepEqual(g1.did, ["act"], "a mouse's click acts, as before")
+  assert.match(read("ui/DialogBox.qml"), /anchors\.topMargin: guide\.touchMode \? -Math\.max\(0, \(guide\.fingerPx - parent\.height\) \/ 2\) : 0/, "the picker's pills")
+}
 // A compact screen's layout (the mockup's portrait): the rail tucked away
 // with ☰ on the masthead, the preview no wider than half beside the words,
 // an hour across, the table across (the TV in the info area), Settings'
@@ -753,7 +778,7 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   assert.match(guideSrc, /readonly property real rowH: Touch\.rowPx\(u \* layout\.rowHeight, touchMode, fingerPx\)\n/)
   assert.match(guideSrc, /function fingerRow\(px\) \{ return Touch\.rowPx\(px, root\.touchMode, root\.fingerPx\) \}/)
   assert.match(guideSrc, /readonly property string railShows: Touch\.railShows\(layout\.rail, screenFit\)\n/)
-  assert.match(guideSrc, /readonly property real railSpace: railShows === "always" \? Math\.round\(u \* layout\.railWidth\) : 0\n/)
+  assert.match(guideSrc, /readonly property real railSpace: railShows === "always" \? navRail\.thinW : 0\n/, "the screens leave the thin rail's room, its tablet mode width too")
   assert.match(guideSrc, /readonly property bool railButtonUp: railShows === "focus" && layout\.masthead === "title" && \(screenFit === "compact" \|\| touchMode\)\n/)
   assert.match(guideSrc, /\.concat\(railShows === "focus" && !railButtonUp \? \[\{ keys: \["←"\], label: "Nav rail", touchOnly: true/, "the guide's bar: Nav rail only without ☰")
   assert.match(guideSrc, /listLoader\.item\.videoSlot && listLoader\.item\.panes \? listLoader\.item\.videoSlot : infoPanel\.videoSlot/, "the TV: the table's preview only while it shows")

@@ -6288,7 +6288,7 @@ Item {
   // rail is tucked away, and in tablet mode with the rail on Focus
   readonly property bool railButtonUp: railShows === "focus" && layout.masthead === "title" && (screenFit === "compact" || touchMode)
   // what the screens leave free at the left for the thin rail
-  readonly property real railSpace: railShows === "always" ? Math.round(u * layout.railWidth) : 0
+  readonly property real railSpace: railShows === "always" ? navRail.thinW : 0
 
   function openRail() {
     appViewItem.userActs()
@@ -9584,6 +9584,7 @@ Item {
 
       // The nav rail, over the screens, under the boxes and the TV
       NavRail {
+        id: navRail
         anchors.fill: parent
         guide: root
       }

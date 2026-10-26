@@ -22,9 +22,10 @@ Box {
   unit: guide.u
   image: guide.areaImages.box
   readonly property real inner: width - guide.u * 2.4
-  // TV-style rows, like Settings (menuRow), a little smaller
+  // TV-style rows, like Settings (menuRow), a little smaller; in tablet mode
+  // a finger tall
   readonly property real rowUnit: guide.u * 0.8
-  readonly property real rowH: Math.round(Look.px(guide.look.menuRow.height, rowUnit))
+  readonly property real rowH: Math.max(Math.round(Look.px(guide.look.menuRow.height, rowUnit)), guide.touchMode ? guide.fingerPx : 0)
 
   MouseArea { anchors.fill: parent }
 
@@ -184,7 +185,10 @@ Box {
           anchors.verticalCenter: parent.verticalCenter
           width: Math.min(implicitWidth, face.width * 0.5)
           visible: styleItem.hasValue
-          text: (styleItem.current && styleItem.adjustable ? "‹  " : "") + guide.styleValue(styleItem.modelData) + (styleItem.current && styleItem.adjustable ? "  ›" : "")
+          // ‹ › round what ← → change: on the row under the cursor, and in
+          // tablet mode on every one (a finger taps them)
+          readonly property bool arrows: styleItem.adjustable && (styleItem.current || guide.touchMode)
+          text: (arrows ? "‹  " : "") + guide.styleValue(styleItem.modelData) + (arrows ? "  ›" : "")
           s: styleItem.vst
           unit: styleItem.ru
           // what you changed is bright and bold; the theme's is dim
@@ -200,10 +204,18 @@ Box {
         cursorShape: Qt.PointingHandCursor
         // one click acts, as Enter does (the cursor goes to the row first,
         // so the keys carry on from it); a double-click's second press is
-        // ignored, so a row that asks twice (a reset) still needs two clicks
-        onClicked: {
+        // ignored, so a row that asks twice (a reset) still needs two clicks.
+        // A finger on ‹ or › (a finger's width round each) steps it, as ← →.
+        function arrowAt(x) {
+          if (!styleVal.arrows || !styleVal.visible) return 0
+          var left = styleVal.mapToItem(styleItem, 0, 0).x, right = left + styleVal.width, reach = guide.fingerPx / 2
+          return Math.abs(x - left - reach * 0.4) <= reach ? -1 : Math.abs(x - right + reach * 0.4) <= reach ? 1 : 0
+        }
+        onClicked: function(mouse) {
           if (guide.styleCursor !== styleItem.index) { guide.styleCursor = styleItem.index; guide.styleArmed = "" }
-          guide.activateStyle()
+          var step = guide.isFinger(mouse) ? arrowAt(mouse.x) : 0
+          if (step) guide.adjustStyle(step)
+          else guide.activateStyle()
         }
         onDoubleClicked: {}
       }

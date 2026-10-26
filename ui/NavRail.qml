@@ -14,13 +14,17 @@ Item {
   required property var guide
 
   readonly property real u: guide.u
-  readonly property real thinW: Math.round(u * guide.layout.railWidth)
+  // thin: the layout's width, and in tablet mode a finger wide inside its
+  // padding (the screens leave this room: Guide.qml railSpace)
+  readonly property real thinW: Math.round(Math.max(u * guide.layout.railWidth, guide.touchMode ? guide.fingerPx + strip.padding * 2 : 0))
   readonly property real openW: Math.round(u * guide.layout.railOpenWidth)
   // each item: 3 units, and in tablet mode at least a finger tall
   readonly property real itemH: Math.round(Math.max(u * 3, guide.touchMode ? guide.fingerPx : 0))
   readonly property bool wide: guide.railOpen || guide.railEditing || hover.hovered
-  // the credits' room at its foot, kept whether it's wide or thin
-  readonly property real creditRoom: guide.railCredits ? handle.implicitHeight + credit.spacing + site.implicitHeight + u : 0
+  // the credits' room at its foot, kept whether it's wide or thin; in tablet
+  // mode each line a finger tall (its link a finger's target)
+  readonly property real creditRowH: guide.touchMode ? guide.fingerPx : 0
+  readonly property real creditRoom: guide.railCredits ? Math.max(handle.implicitHeight, creditRowH) + credit.spacing + Math.max(site.implicitHeight, creditRowH) + u : 0
 
   visible: guide.railEditing || (guide.railShows !== "none" && (guide.railShows === "always" || guide.railOpen) && !guide.watching)
 
@@ -219,7 +223,7 @@ Item {
 
       Item {
         width: parent.width
-        height: handle.implicitHeight
+        height: Math.max(handle.implicitHeight, rail.creditRowH)
         Icon {
           x: Math.round(credit.markX - width / 2)
           anchors.verticalCenter: parent.verticalCenter
@@ -231,6 +235,7 @@ Item {
         Label {
           id: handle
           x: credit.textX
+          anchors.verticalCenter: parent.verticalCenter
           text: "@devsec_ai"
           s: guide.look.railItem
           unit: rail.u
@@ -240,6 +245,10 @@ Item {
           font.letterSpacing: rail.u * 0.02
           MouseArea {
             anchors.fill: parent
+            anchors.topMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)       // (its line's height,
+            anchors.bottomMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)    // and a finger wide)
+            anchors.leftMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
+            anchors.rightMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
             enabled: rail.wide
             cursorShape: Qt.PointingHandCursor
             onClicked: guide.openCredit("x")
@@ -249,6 +258,7 @@ Item {
         // Settings (placed for the open width, so it doesn't slide in)
         Label {
           x: rail.openW - strip.padding * 2 - rail.u * 0.7 - width
+          anchors.verticalCenter: parent.verticalCenter
           text: "Disable"
           s: guide.look.railItem
           unit: rail.u
@@ -259,6 +269,10 @@ Item {
           opacity: 0.68
           MouseArea {
             anchors.fill: parent
+            anchors.topMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)       // (its line's height,
+            anchors.bottomMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)    // and a finger wide)
+            anchors.leftMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
+            anchors.rightMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
             enabled: rail.wide
             cursorShape: Qt.PointingHandCursor
             onClicked: guide.openCreditSetting()
@@ -267,9 +281,10 @@ Item {
       }
       Item {
         width: parent.width
-        height: site.implicitHeight
+        height: Math.max(site.implicitHeight, rail.creditRowH)
         Label {
           x: Math.round(credit.markX - width / 2)
+          anchors.verticalCenter: parent.verticalCenter
           text: "W:"
           s: guide.look.railItem
           unit: rail.u
@@ -281,6 +296,7 @@ Item {
         Label {
           id: site
           x: credit.textX
+          anchors.verticalCenter: parent.verticalCenter
           text: "devsecai.sh"
           s: guide.look.railItem
           unit: rail.u
@@ -290,6 +306,10 @@ Item {
           font.letterSpacing: rail.u * 0.02
           MouseArea {
             anchors.fill: parent
+            anchors.topMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)       // (its line's height,
+            anchors.bottomMargin: -Math.max(0, (parent.parent.height - parent.height) / 2)    // and a finger wide)
+            anchors.leftMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
+            anchors.rightMargin: -Math.max(0, (rail.creditRowH - parent.width) / 2)
             enabled: rail.wide
             cursorShape: Qt.PointingHandCursor
             onClicked: guide.openCredit("web")
