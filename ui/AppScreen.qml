@@ -1448,24 +1448,36 @@ Item {
   }
 
   // ---- the keys ----
+  // its keys; in tablet mode its buttons, always there (where a field has
+  // the keys, the buttons run what the field does)
   KeyHints {
     id: hintsRow
-    visible: guide.showKeyHints
+    visible: guide.showKeyHints || guide.touchMode
     x: page.u * 3
     anchors.bottom: parent.bottom
     anchors.bottomMargin: page.u * 1.2
     size: guide.u * 1.5
     capStyle: guide.look.keycap
     labelStyle: guide.look.keyLabel
-    model: view.signIn ? (signInBox.typing ? [{ keys: ["ENTER"], label: "Sign in" }, { keys: ["TAB"], label: "Next field" }, { keys: ["ESC"], label: "Cancel" }]
-                          : view.signIn.stage === "address" ? [{ keys: ["ENTER"], label: "Use it" }, { keys: ["ESC"], label: "Back" }]
-                          : view.signInRows.length ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "OK" }, { keys: ["ESC"], label: view.signIn.stage === "servers" ? "Cancel" : "Back" }]
-                          : [{ keys: ["ESC"], label: "Cancel" }])
-           : view.editing ? [{ keys: ["ENTER"], label: view.editing.type === "search" ? "Search" : "Keep" }, { keys: ["ESC"], label: "Cancel" }]
-           : view.settingsOpen ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Set" }, { keys: ["ESC"], label: "Done" }]
-           : view.failed ? [{ keys: ["ENTER"], label: "Try again" }, { keys: [","], label: "Settings" }, { keys: ["ESC"], label: "Apps" }]
-           : page.cur && page.cur.kind === "page" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: [","], label: "Settings" }, { keys: ["ESC"], label: "Back" }]
-           : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: "Open" }, { keys: ["I"], label: "Details" }, { keys: ["/"], label: "Search" },
-              { keys: ["C"], label: "Customize" }, { keys: [","], label: "Settings" }, { keys: ["ESC"], label: view.stack.length > 1 || view.pending ? "Back" : "Apps" }]
+    touchGuide: page.guide
+    touchWidth: page.width - page.u * 6
+    model: view.signIn ? (signInBox.typing ? [{ keys: ["ENTER"], label: "Sign in", touch: { run: function() { signInBox.send() }, primary: true } }, { keys: ["TAB"], label: "Next field" },
+                                              { keys: ["ESC"], label: "Cancel", touch: { run: function() { view.back() }, back: true } }]
+                          : view.signIn.stage === "address" ? [{ keys: ["ENTER"], label: "Use it", touch: { run: function() { view.typedAddress(addressField.text, guide.byUser) }, primary: true } },
+                                                               { keys: ["ESC"], label: "Back", touch: { run: function() { view.signInBack() }, back: true } }]
+                          : view.signInRows.length ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "OK", touch: { key: Qt.Key_Return, primary: true } },
+                                                      { keys: ["ESC"], label: view.signIn.stage === "servers" ? "Cancel" : "Back", touch: { key: Qt.Key_Escape, back: true } }]
+                          : [{ keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
+           : view.editing ? [{ keys: ["ENTER"], label: view.editing.type === "search" ? "Search" : "Keep", touch: { run: function() { view.editDone(field.text, guide.byUser) }, primary: true } },
+                             { keys: ["ESC"], label: "Cancel", touch: { run: function() { view.back() }, back: true } }]
+           : view.settingsOpen ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Set" }, { keys: ["ESC"], label: "Done", touch: { key: Qt.Key_Escape, back: true } }]
+           : view.failed ? [{ keys: ["ENTER"], label: "Try again", touch: { key: Qt.Key_Return, primary: true } }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+                            { keys: ["ESC"], label: "Apps", touch: { key: Qt.Key_Escape, back: true } }]
+           : page.cur && page.cur.kind === "page" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+                                                    { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+           : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: "Open" }, { keys: ["I"], label: "Details", touch: { key: Qt.Key_I, icon: "info" } },
+              { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } }, { keys: ["C"], label: "Customize", touch: { key: Qt.Key_C, icon: "pencil" } },
+              { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+              { keys: ["ESC"], label: view.stack.length > 1 || view.pending ? "Back" : "Apps", touch: { key: Qt.Key_Escape, back: true } }]
   }
 }

@@ -280,13 +280,19 @@ assert.match(cmdSrc, /keyHints: guide\.showKeyHints, touch: commands\.touchInfo\
   assert.equal(press(make(false), { run: () => did++ }), true); assert.equal(did, 1, "a field's own action runs as it is")
   assert.equal(ran.length, 0, "without the router")
 }
-// The hint lists made touch so far (the guide's, the boxes', Home's, Settings',
-// the nav rail's, the style panel's, the backups'): every hint with Esc is a
-// Back button (Back is always there), every touch key is one a finger may
-// press, and every button has its own key or action
+// Every file whose hints are made touch (any hint with a touch:): every hint
+// with Esc is a Back button (Back is always there), every touch key is one a
+// finger may press, and every button has its own key or action
 {
-  const files = { "Guide.qml": guideSrc, "Backups.qml": read("Backups.qml"), "ui/HomeScreen.qml": read("ui/HomeScreen.qml"),
-                  "ui/SettingsScreen.qml": read("ui/SettingsScreen.qml"), "ui/NavRail.qml": read("ui/NavRail.qml") }
+  const files = {}
+  for (const f of readdirSync(new URL("../", import.meta.url)).filter((f) => f.endsWith(".qml"))
+                  .concat(readdirSync(new URL("../ui/", import.meta.url)).filter((f) => f.endsWith(".qml")).map((f) => "ui/" + f))) {
+    const src = read(f)
+    if (/touch: \{/.test(src)) files[f] = src
+  }
+  for (const f of ["Guide.qml", "Backups.qml", "ui/HomeScreen.qml", "ui/SettingsScreen.qml", "ui/NavRail.qml", "ui/LibraryScreen.qml",
+                   "ui/SearchScreen.qml", "ui/AppsScreen.qml", "ui/DetailBox.qml", "ui/AppScreen.qml", "ui/AppCustomize.qml"])
+    assert.ok(f in files, f + ": its hints are touch")
   const braced = (text, open) => {
     let depth = 0
     for (let i = open; i < text.length; i++) {
@@ -348,6 +354,26 @@ assert.match(cmdSrc, /keyHints: guide\.showKeyHints, touch: commands\.touchInfo\
   }
   assert.ok(rows >= 25 && parted >= 6, "found them: " + rows + " rows, " + parted + " with parts")
   assert.match(read("ui/MenuRow.qml"), /readonly property bool parted: touching && touchParts/)
+}
+// The table and the board: a tap chooses a channel; in tablet mode a tap on
+// the one chosen watches it; with the mouse a click only chooses (a double
+// click watches); in the channel manager a tap marks, never watches
+for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
+  const src = read(f)
+  const at = src.indexOf("// tablet mode: a tap on the channel already chosen watches it")
+  assert.ok(at > 0, f + ": the row's tap")
+  const run = new Function("guide", "rowItem", block(src.slice(at), "onClicked: {"))
+  const make = (touchMode, managing, row) => ({ touchMode, managing, row, watched: [], marked: [],
+                                                 watch(r) { this.watched.push(r) }, toggleMark(r) { this.marked.push(r) } })
+  let g = make(true, false, 3); run(g, { r: 5 })
+  assert.deepEqual([g.row, g.watched], [5, []], f + ": a first tap chooses")
+  g = make(true, false, 5); run(g, { r: 5 })
+  assert.deepEqual(g.watched, [5], f + ": a tap on the one chosen watches")
+  g = make(false, false, 5); run(g, { r: 5 })
+  assert.deepEqual(g.watched, [], f + ": a click only chooses")
+  g = make(true, true, 5); run(g, { r: 5 })
+  assert.deepEqual([g.watched, g.marked], [[], [5]], f + ": in the manager a tap marks")
+  assert.match(src.slice(at, at + 600), /onDoubleClicked: if \(!guide\.managing\) guide\.watch\(rowItem\.r\)/, f + ": a double click watches")
 }
 assert.match(guideSrc, /property var touchMore: null/)
 // the keyboard: Search's box brings it back after Hide (Search has no field)
