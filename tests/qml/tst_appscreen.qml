@@ -89,7 +89,7 @@ Item {
     id: guide
     property bool touchMode: false
     property real fingerPx: 44
-    function isFinger(mouse) { return Touch.byFinger(mouse) }   // (as Guide.qml's)
+    function isFinger(mouse) { return guide.touchMode && Touch.byFinger(mouse) }   // (as Guide.qml's)
     property string lastInput: "keyboard"
     function noteInput(kind) { lastInput = kind }   // tablet mode: what was used last
     function keyFirst(event) { noteInput("keyboard"); return false }   // (Guide.qml: and the ⋯ panel)

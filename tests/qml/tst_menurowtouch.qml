@@ -29,7 +29,7 @@ Item {
     readonly property color ink: colors.text
     readonly property color dimInk: colors.textDim
     readonly property color marquee: colors.accent
-    function isFinger(mouse) { return Touch.byFinger(mouse) }   // (as Guide.qml's)
+    function isFinger(mouse) { return guide.touchMode && Touch.byFinger(mouse) }   // (as Guide.qml's)
   }
 
   property var did: []
@@ -123,6 +123,12 @@ Item {
       wait(400)   // (not a double click)
       mouseClick(plain, 40, plain.height / 2)
       verify(!plain.byFinger, "the mouse again")
+      wait(400)
+      guide.touchMode = false
+      t = touchEvent(plain)
+      t.press(0, plain, 40, plain.height / 2).commit()
+      t.release(0, plain, 40, plain.height / 2).commit()
+      verify(!plain.byFinger, "tablet mode off: a tap is a click, as before")
     }
 
     function test_with_the_keyboard_its_one_row_as_before() {

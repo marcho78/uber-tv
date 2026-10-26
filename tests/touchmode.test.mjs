@@ -101,7 +101,14 @@ assert.equal(T.byFinger(MOUSE), false, "a mouse's own click")
 assert.equal(T.byFinger({ source: 3 }), false, "one an app made")
 assert.equal(T.byFinger({}), false)
 assert.equal(T.byFinger(undefined), false)
-assert.match(guideSrc, /function isFinger\(mouse\) \{ return Touch\.byFinger\(mouse\) \}/)
+// the guide's: a finger's click with tablet mode on (off, a tap is a click)
+{
+  const body = guideSrc.match(/function isFinger\(mouse\) \{ (.*) \}\n/)[1]
+  const isFinger = (touchMode, mouse) => new Function("root", "Touch", "mouse", body)({ touchMode }, T, mouse)
+  assert.equal(isFinger(true, FINGER), true)
+  assert.equal(isFinger(true, MOUSE), false, "tablet mode on, the mouse: a click")
+  assert.equal(isFinger(false, FINGER), false, "tablet mode off: a tap is a click, as before")
+}
 assert.ok(guideSrc.includes('import "Touch.js" as Touch'))
 assert.match(guideSrc, /readonly property real fingerPx: Touch\.fingerPx\(shownScreen \? shownScreen\.physicalPixelDensity : 0, shownScreen \? shownScreen\.devicePixelRatio : 1, u\)/)
 assert.match(guideSrc, /readonly property real shownWidth: windowed && guideWindow\.width > 100 \? guideWindow\.width : panel\.width\n/)
@@ -401,7 +408,7 @@ assert.match(cmdSrc, /keyHints: guide\.showKeyHints, touch: commands\.touchInfo\
 // The table and the board, tablet mode on: a tap chooses a channel and a
 // tap on the one chosen watches it; a mouse's click only chooses (a double
 // click watches); in the channel manager a tap marks, never watches
-const fingerGuide = (over) => Object.assign({ touchMode: true, isFinger: T.byFinger }, over)
+const fingerGuide = (over) => Object.assign({ touchMode: true, isFinger(m) { return this.touchMode && T.byFinger(m) } }, over)
 for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   const src = read(f)
   const at = src.indexOf("// a finger: a tap on the channel already chosen watches it")
@@ -417,6 +424,8 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   assert.deepEqual(g.watched, [], f + ": a mouse's click only chooses, tablet mode on")
   g = make(true, 5); run(g, { r: 5 }, FINGER)
   assert.deepEqual([g.watched, g.marked], [[], [5]], f + ": in the manager a tap marks")
+  g = make(false, 5); g.touchMode = false; run(g, { r: 5 }, FINGER)
+  assert.deepEqual(g.watched, [], f + ": tablet mode off, a tap is a click")
   assert.match(src.slice(at, at + 600), /onDoubleClicked: if \(!guide\.managing\) guide\.watch\(rowItem\.r\)/, f + ": a double click watches")
 }
 // The grid in tablet mode: a tap chooses a show, a tap on the one chosen
@@ -490,6 +499,8 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   assert.deepEqual(v.did, ["select 1,2"], "a mouse's click picks, tablet mode on")
   dbl(v, { index: 1 }, { index: 2 }, MOUSE)
   assert.deepEqual(v.did, ["select 1,2", "open 1,2"], "a double click opens")
+  v = rv(); v.guide.touchMode = false; click(v, { index: 1 }, { index: 2 }, FINGER)
+  assert.deepEqual(v.did, ["select 1,2"], "tablet mode off: a tap picks, as a click")
   const app = read("ui/AppScreen.qml")
   const tapBody = block(app, "function tap(line, col, finger) {")
   const tap = new Function("page", "view", "guide", "line", "col", "finger", tapBody)
