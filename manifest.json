@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "marcho78.om-pg",
   "name": "Uber TV",
-  "version": "0.4.0-beta",
+  "version": "0.4.1-beta",
   "author": "marcho78",
   "description": "A unified media center for Omarchy: YouTube, IPTV, EPG, On Demand Videos and Apps. Press Super+Alt+T (or click the TV in the top bar) to open it.",
   "kinds": [
