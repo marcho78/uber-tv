@@ -787,6 +787,28 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   g1 = sg(); click(g1, { index: 2 }, () => 1, MOUSE); assert.deepEqual(g1.did, ["act"], "a mouse's click acts, as before")
   assert.match(read("ui/DialogBox.qml"), /anchors\.topMargin: guide\.touchMode \? -Math\.max\(0, \(guide\.fingerPx - parent\.height\) \/ 2\) : 0/, "the picker's pills")
 }
+// The theme (milestone 5): tablet mode's buttons are a style element (the
+// style panel's TABLET MODE, Touch button, with its primary state), Retro's
+// colors by default; a finger sizes them, corners, border and text size
+// fractions of it, a gradient fill as Box draws one
+// (tests/qml/tst_touchbutton.qml draws them)
+{
+  const look = read("Look.js")
+  const at = look.indexOf('{ key: "touchButton"')
+  assert.ok(at > 0)
+  const el = look.slice(at, look.indexOf("\n\n", at))
+  assert.match(el, /section: "TABLET MODE", label: "Touch button"/)
+  assert.match(el, /states: \["primary"\]/)
+  assert.match(el, /own: \{ radius: "fraction" \}/)
+  assert.match(el, /style: \{ fill: "boxBg", border: \{ width: 0\.025, color: "cellBorder" \}, radius: 0\.22, text: \{ color: "text", font: "body", size: 0\.3, weight: "medium", case: "none" \} \}/, "today's look by default")
+  assert.match(el, /stateStyle: \{ primary: \{ fill: "accent", border: \{ color: "accent" \} \} \}/)
+  const tb = read("ui/TouchButton.qml")
+  assert.match(tb, /readonly property var st: \(guide\.look && guide\.look\[primary \? "touchButton:primary" : "touchButton"\]\) \|\| \(\{\}\)/)
+  assert.match(tb, /implicitHeight: h\n/, "a finger tall, whatever the theme")
+  assert.match(tb, /return typeof guide\.textOn === "function" \? guide\.textOn\(fill, c\) : c/, "its words read on its fill")
+  assert.match(tb, /var w = st\.border \? st\.border\.width : 0\.025\n\s+var px = w \? Look\.px\(w, h\) : 0\n\s+return px > 0 \? Math\.max\(1, Math\.round\(px\)\) : 0/, "its border: the element's width, whole pixels, 0 for none")
+  assert.match(tb, /gradient: btn\.grad && !tap\.pressed \? faceGradient : null\n\s+border\.width: btn\.edgeW\n/, "a gradient fill, and the element's border width")
+}
 // A compact screen's layout (the mockup's portrait): the rail tucked away
 // with ☰ on the masthead, the preview no wider than half beside the words,
 // an hour across, the table across (the TV in the info area), Settings'
