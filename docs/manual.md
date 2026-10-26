@@ -721,6 +721,34 @@ thumbnail). When the TV is off it steps aside, and the keys go back to your
 other players. If another player is also playing, the shell decides which one
 the keys control, as with any two players.
 
+## Tablet mode
+
+On a touchscreen, Uber TV works with your fingers. Settings → General →
+**Tablet mode**: **Auto** turns it on when you touch the screen, until Uber
+TV closes; **On** and **Off** keep it that way. The keyboard, a mouse and the
+phone remote work as always: with a mouse, a click still picks and a double
+click opens.
+
+- **Buttons** take the key hints' place along the bottom: **Back** first (what
+  Esc does), then what fits; **⋯** holds the rest.
+- **Tap** to choose, tap again to watch; cards and an app's items open at the
+  first tap. **Hold** a show in the grid for its choices. **Drag** the grid
+  sideways to move through time; **Now** comes back. **123** types a channel
+  number.
+- **Watching:** tap the picture for its controls: **Guide**, **CH** ▲ ▼,
+  **123**, the banner's choices, and, with pause and rewind on, the bar (drag
+  it or tap a spot) with back 30 s, pause and forward 30 s. Tap again, or
+  wait, and they go. Movies, app videos, the mini player and Multiview work
+  the same way.
+- **Typing:** a keyboard comes up from the bottom for any field: letters,
+  numbers and the signs of web addresses, **Paste** and **Hide**. The channel
+  lock's passcode has its own pad.
+- **A tablet in portrait, or a narrow window** (tablet mode or not): the nav
+  rail tucks away (☰ opens it), the preview sits beside its details, and the
+  grid shows an hour.
+- Everything you tap is at least about 9 mm, whatever the screen. Its buttons'
+  colors are the theme's (**S** → *Parts* → TABLET MODE).
+
 ## Phone remote
 
 Control the guide from any phone's web browser on your network: a remote
