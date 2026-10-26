@@ -77,8 +77,8 @@ Box {
       maximumLength: 40
       clip: true
       onAccepted: { box.panel.rename(text); guide.focusKeys() }
-      Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-      Keys.onEscapePressed: { guide.noteInput("keyboard"); box.panel.close(); guide.focusKeys() }
+      Keys.onPressed: function(event) { guide.keyFirst(event) }
+      Keys.onEscapePressed: { if (guide.keyFirst(event)) return; box.panel.close(); guide.focusKeys() }
     }
     onVisibleChanged: {
       if (!visible) return
@@ -155,6 +155,9 @@ Box {
                  return "" }
         on: prow.type === "rowShow" && line.c.show !== false
         onActivated: { box.panel.cursor = prow.index; box.panel.act(0) }
+        // tablet mode: ‹ › as ← → (the keys' own steps)
+        touchParts: true
+        onStepped: function(dir) { box.panel.cursor = prow.index; box.panel.act(dir) }
       }
     }
   }

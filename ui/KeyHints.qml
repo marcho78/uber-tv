@@ -130,6 +130,7 @@ Row {
     sourceComponent: TouchButton {
       guide: hints.touchGuide
       icon: "more"
+      accessibleName: "More"
       lit: hints.touchGuide.touchMore !== null
       onTapped: hints.touchGuide.openTouchMore(hints.touchRest)
     }

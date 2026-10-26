@@ -365,6 +365,7 @@ Item {
           dim: !prow.available
           danger: prow.type === "railReset"
           onActivated: { guide.railEditCursor = prow.index; guide.railPanelAct(1) }
+          touchParts: true
           onStepped: function(dir) { guide.railEditCursor = prow.index; guide.railPanelAct(dir) }
         }
       }

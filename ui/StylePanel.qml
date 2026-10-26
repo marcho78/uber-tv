@@ -239,9 +239,10 @@ Box {
         maximumLength: 40
         clip: true
         onTextEdited: { guide.namingNote = ""; guide.namingArmed = "" }
+        function enterKey() { guide.finishNaming(true) }   // (and the keyboard's Done)
         Keys.onPressed: function(event) {
-          guide.noteInput("keyboard")
-          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) guide.finishNaming(true)
+          if (guide.keyFirst(event)) return
+          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) enterKey()
           else if (event.key === Qt.Key_Escape) guide.finishNaming(false)
           else return
           event.accepted = true
@@ -278,7 +279,7 @@ Box {
     allowAlpha: true
     swatches: guide.pickerSwatches
     onChanged: function(value) { guide.previewColor(value) }
-    onKeyed: guide.noteInput("keyboard")
+    onKeyed: function(event) { guide.keyFirst(event) }
     onDone: function(keep) { guide.finishPick(keep) }
   }
 

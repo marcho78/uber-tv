@@ -17,14 +17,27 @@ Item {
   property string lastInput: "touch"
   property int escapes: 0
 
-  // a text field as the guide's have them: its Keys.onPressed notes the
-  // keyboard without taking the key, its Esc notes it too
-  QtObject { id: guideStub; function noteInput(kind) { top.lastInput = kind } }
+  // a text field as the guide's have them: every key goes through keyFirst
+  // first (the keyboard; the ⋯ panel goes; an Esc that closed it is used up),
+  // its Keys.onPressed without taking the key, its Esc with it
+  property bool moreOpen: false
+  QtObject {
+    id: guideStub
+    function noteInput(kind) { top.lastInput = kind }
+    // (as Guide.qml keyFirst, tests/touchmode.test.mjs runs the real one)
+    function keyFirst(event) {
+      noteInput("keyboard")
+      if (!top.moreOpen) return false
+      top.moreOpen = false
+      if (event && event.key === Qt.Key_Escape) { event.accepted = true; return true }
+      return false
+    }
+  }
   TextInput {
     id: field
     x: 20; y: 120; width: 160; height: 30
-    Keys.onPressed: function(event) { guideStub.noteInput("keyboard") }
-    Keys.onEscapePressed: { guideStub.noteInput("keyboard"); top.escapes++ }
+    Keys.onPressed: function(event) { guideStub.keyFirst(event) }
+    Keys.onEscapePressed: { if (guideStub.keyFirst(event)) return; top.escapes++ }
   }
 
   Rectangle {
@@ -114,6 +127,22 @@ Item {
       compare(Touch.KEY.pageUp, Qt.Key_PageUp); compare(Touch.KEY.pageDown, Qt.Key_PageDown)
       compare(Touch.KEY.j, Qt.Key_J); compare(Touch.KEY.l, Qt.Key_L)
       compare(Touch.SHIFT, Qt.ShiftModifier)
+    }
+
+    function test_the_more_panel_goes_with_a_key_in_a_field() {
+      top.escapes = 0
+      field.text = ""
+      field.forceActiveFocus()
+      top.moreOpen = true
+      keyClick(Qt.Key_C)
+      compare(field.text, "c", "the key still types")
+      verify(!top.moreOpen, "and the ⋯ panel went")
+      top.moreOpen = true
+      keyClick(Qt.Key_Escape)
+      verify(!top.moreOpen, "Esc closes ⋯")
+      compare(top.escapes, 0, "and does nothing else")
+      keyClick(Qt.Key_Escape)
+      compare(top.escapes, 1, "the next Esc is the field's")
     }
 
     function test_a_real_mouse_is_noticed() {

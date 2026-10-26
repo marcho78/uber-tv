@@ -132,6 +132,7 @@ Item {
       // one click acts, as Enter does (the version's presses are counted
       // however fast they come)
       oneClick: modelData.key !== "about"
+      touchParts: true
       // the cursor goes to the row first, so the keys carry on from it,
       // without the list scrolling under the pointer
       function pick() { if (!focused) { rows.mouseIndex = index; guide.settingsInRows = true; guide.settingsCursor = index; guide.settingsArmed = "" } }

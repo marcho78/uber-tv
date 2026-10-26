@@ -1130,7 +1130,7 @@ assert.match(dvrQml, /r\.start\(\["\/usr\/bin\/python3", "-I", dvr\.helper\]\.co
   const mini = (asking, key) => {
     const seen = []
     const guide = { streamAsk: asking ? { row: 1 } : null, answerStream: y => seen.push("stream " + y), closePip: () => seen.push("close"), expandPip: () => seen.push("full"),
-                    pipSurf: d => seen.push("surf " + d), guidePip() {}, showPipBanner() {}, muted: false, noteInput() {} }
+                    pipSurf: d => seen.push("surf " + d), guidePip() {}, showPipBanner() {}, muted: false, noteInput() {}, keyFirst() { return false } }
     const event = { key, accepted: false }
     miniKeys(guide, event, K)
     return seen

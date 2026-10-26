@@ -179,6 +179,21 @@ Item {
       shot2.save("/tmp/claude-1000/-home-marcho-projects-omarchy-plugins-om-pg/7ff86474-6d7f-4124-92be-1bc5de7b1344/scratchpad/touch-more.png")
     }
 
+    function test_screen_readers_find_and_press_them() {
+      guide.touchMode = true
+      hints.touchWidth = 620
+      waitForRendering(hints)
+      var b = buttons()
+      compare(b[0].Accessible.name, "Home")
+      compare(b[1].Accessible.name, "Watch")
+      compare(b[b.length - 1].Accessible.name, "More", "⋯ has a name")
+      b[1].Accessible.pressAction()
+      compare(guide.pressed.length, 1, "a screen reader's press runs it as a tap")
+      compare(guide.pressed[0].key, Qt.Key_Return)
+      b[b.length - 1].Accessible.pressAction()
+      verify(guide.touchMore !== null, "and opens ⋯")
+    }
+
     function test_the_panel_runs_one_and_its_shade_closes_it() {
       guide.touchMode = true
       guide.openTouchMore([{ label: "Style", touch: { key: Qt.Key_S } }, { label: "Settings", touch: { key: Qt.Key_Comma } }])

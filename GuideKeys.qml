@@ -16,12 +16,7 @@ Item {
     if (k === Qt.Key_Left || k === Qt.Key_Right || k === Qt.Key_J || k === Qt.Key_L) { guide.scrubKeyUp(); event.accepted = true }
   }
   Keys.onPressed: function(event) {
-    guide.noteInput("keyboard")
-    // tablet mode's ⋯ panel goes with any key (Esc only closes it)
-    if (guide.touchMore) {
-      guide.closeTouchMore()
-      if (event.key === Qt.Key_Escape) { event.accepted = true; return }
-    }
+    if (guide.keyFirst(event)) return   // the keyboard; tablet mode's ⋯ panel goes
     keys.press(event)
   }
   // A key in the box that's open, then the screen: what it does there. A real

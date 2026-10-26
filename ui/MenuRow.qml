@@ -22,11 +22,14 @@ Item {
   property bool more: false           // a switch that also opens something (›)
   property bool oneClick: false       // a click acts at once: a double-click's second press is ignored
   signal activated()
-  // tablet mode: ‹ (-1) or › (+1) tapped on a choice, and the switch tapped
-  // on a row that also opens (more); everywhere else a tap is activated
+  // tablet mode, where the row's user handles them (touchParts): ‹ (-1) or ›
+  // (+1) tapped on a choice, and the switch tapped on a row that also opens
+  // (more); everywhere else, and in rows that don't, a tap is activated
+  property bool touchParts: false
   signal stepped(int dir)
   signal toggled()
   readonly property bool touching: !!guide && guide.touchMode === true
+  readonly property bool parted: touching && touchParts
 
   readonly property real unit: u * size
   property string element: "menuRow"  // or a part that follows it (recordChoice)
@@ -46,11 +49,11 @@ Item {
     return Math.abs(x - c) <= Math.max(guide.fingerPx, part.width) / 2
   }
   function tapAt(x) {
-    if (row.touching && row.kind === "choice") {
+    if (row.parted && row.kind === "choice") {
       if (row.near(leftArrow, x)) { row.stepped(-1); return }
       if (row.near(rightArrow, x)) { row.stepped(1); return }
     }
-    if (row.touching && row.more && row.kind === "switch" && row.near(toggle, x)) { row.toggled(); return }
+    if (row.parted && row.more && row.kind === "switch" && row.near(toggle, x)) { row.toggled(); return }
     row.activated()
   }
 
@@ -97,8 +100,9 @@ Item {
       spacing: row.unit * 0.6
       Label {
         id: leftArrow
+        objectName: "leftArrow"
         anchors.verticalCenter: parent.verticalCenter
-        visible: row.kind === "choice" && (row.focused || row.touching)
+        visible: row.kind === "choice" && (row.focused || row.parted)
         text: "‹"
         s: row.vst
         unit: row.unit
@@ -121,8 +125,9 @@ Item {
       }
       Label {
         id: rightArrow
+        objectName: "rightArrow"
         anchors.verticalCenter: parent.verticalCenter
-        visible: row.kind === "opens" || (row.kind === "choice" && (row.focused || row.touching))
+        visible: row.kind === "opens" || (row.kind === "choice" && (row.focused || row.parted))
         text: "›"
         s: row.vst
         unit: row.unit
@@ -132,6 +137,7 @@ Item {
       // the switch
       Box {
         id: toggle
+        objectName: "toggle"
         anchors.verticalCenter: parent.verticalCenter
         visible: row.kind === "switch"
         width: Math.round(Look.px(row.sw.width, row.unit))

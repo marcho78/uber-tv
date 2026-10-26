@@ -28,7 +28,7 @@ FocusScope {
   readonly property color current: Qt.hsva(hue, sat, val, allowAlpha ? alpha : 1)
 
   signal changed(color value)
-  signal keyed()          // a key was pressed in it (tablet mode notes the keyboard)
+  signal keyed(var event) // a key in it, first (Guide.qml keyFirst: the keyboard, the ⋯ panel); accepted: used up
   signal done(bool keep)
 
   implicitWidth: unit * 22
@@ -72,7 +72,8 @@ FocusScope {
     id: keyCatcher
     focus: true
     Keys.onPressed: function(event) {
-      picker.keyed()
+      picker.keyed(event)
+      if (event.accepted) return
       var big = event.modifiers & Qt.ShiftModifier
       var k = event.key
       if (k === Qt.Key_Left) picker.nudge(-1, 0, big)
@@ -260,9 +261,11 @@ FocusScope {
               picker.changed(picker.current)
             }
           }
+          function enterKey() { picker.done(true) }   // (and tablet mode's keyboard's Done)
           Keys.onPressed: function(event) {
-            picker.keyed()
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { picker.done(true); event.accepted = true }
+            picker.keyed(event)
+            if (event.accepted) return
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { enterKey(); event.accepted = true }
             else if (event.key === Qt.Key_Escape) { picker.done(false); event.accepted = true }
             else if (event.key === Qt.Key_Tab) { keyCatcher.forceActiveFocus(); event.accepted = true }
           }

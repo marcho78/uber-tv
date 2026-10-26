@@ -2425,6 +2425,18 @@ Item {
   // What was used last: every key handler, the watchers and the phone say so
   function noteInput(kind) { if (root.lastInput !== kind) root.lastInput = kind }
 
+  // Every key, wherever it lands first (the router, a text field, the mini
+  // player, the screen saver), runs this: it's the keyboard, and tablet
+  // mode's ⋯ panel goes; an Esc that closed it does nothing else (true: the
+  // key is used up)
+  function keyFirst(event) {
+    root.noteInput("keyboard")
+    if (!root.touchMore) return false
+    root.touchMore = null
+    if (event && event.key === Qt.Key_Escape) { event.accepted = true; return true }
+    return false
+  }
+
   // A touch button (ui/KeyHints.qml, ui/TouchMore.qml): its hint's own touch,
   // a text field's own action (run), or a key, which does what that key does
   // there (GuideKeys.press). Only keys Touch.pressable allows: never the
@@ -2440,6 +2452,8 @@ Item {
 
   // Tablet mode's ⋯ panel: the buttons that didn't fit in a row
   property var touchMore: null
+  // how much of the screen tablet mode's keyboard takes (boxes go above it)
+  readonly property real touchKeyboardHeight: touchKeyboard.up ? touchKeyboard.height : 0
   function openTouchMore(list) { root.touchMore = Array.isArray(list) && list.length ? list : null }
   function closeTouchMore() { root.touchMore = null }
 
@@ -6012,6 +6026,7 @@ Item {
         { key: "barIcon", label: "Show in the top bar", kind: "switch" },
         { key: "rail", label: "Nav rail", kind: "opens" },
         { key: "keyHints", label: "Key hints", kind: "switch" },
+        { key: "touch", label: "Tablet mode", kind: "choice" },
         { key: "splash", label: "Splash screen", kind: "switch" },
         { key: "remote", label: "Phone remote", kind: "opens" },
         { key: "phones", label: "Paired phones", kind: "opens" },
@@ -6383,6 +6398,7 @@ Item {
     if (key === "phones") return !root.remoteEnabled ? "Phone remote is off" : !root.remoteDevices.length ? "None" : plural(root.remoteDevices.length, "phone", "phones")
     if (key === "remote") return root.remoteEnabled ? "On" + (root.remoteDevices.length ? " · " + plural(root.remoteDevices.length, "phone", "phones") : "") : "Off"
     if (key === "remoteTemplate") return remoteTemplatesItem.nameOf(remoteTemplatesItem.defaultId) || "Classic"
+    if (key === "touch") return root.touchSetting === "on" ? "On" : root.touchSetting === "off" ? "Off" : "Auto"
     if (key === "refresh") return root.fetchedAt ? "Listings " + Math.max(0, Math.round((root.now - root.fetchedAt) / 60)) + " min old" : ""
     if (key === "libraryInfo") return plural(library.items.length, "movie", "movies") + " · " + plural(library.genres.length, "genre", "genres")
     if (key === "source") return root.settingsArmed === "source:" + (row || {}).source ? "Enter again to remove" : (row ? row.count : 0) + " · Remove"
@@ -6423,6 +6439,7 @@ Item {
     var key = (settingsRows[settingsCursor] || {}).key
     if (key === "logos") return "Each channel's logo in the guide. They're fetched a few at a time and kept, so the guide stays fast."
     if (key === "keyHints") return "The keys along the bottom of the guide. K turns them on or off anywhere in the guide."
+    if (key === "touch") return "Auto turns it on when you touch the screen."
     if (key === "splash") return "An old TV warming up, with the Uber TV logo, each time Uber TV turns on. About 9 seconds; any key skips it."
     if (key === "home") return "On: the guide opens on Home (continue watching, what's on, your library), and Esc in the guide goes back to it. C on Home customizes it. Off: the guide opens on the program guide, as before."
     if (key === "shortcut") return "Opens or closes the guide from anywhere. It's registered with Hyprland while the guide runs (your Hyprland config isn't changed) and taken out when the guide is turned off. Enter picks the next one; None for no shortcut."
@@ -6626,6 +6643,7 @@ Item {
     else if (row.key === "home") { root.homeEnabled = !root.homeEnabled; root.saveSettings() }
     else if (row.key === "display") root.toggleDisplay()
     else if (row.key === "awake") { if (!you) return "only the user, at the screen"; root.awake = AwakeRules.next(root.awake); root.saveSettings() }
+    else if (row.key === "touch") root.setTouch(root.cycle(Touch.SETTINGS, root.touchSetting, d))
     else if (row.key === "remoteTemplate") {
       var tl = remoteTemplatesItem.list
       if (!tl.length) return
@@ -9692,6 +9710,17 @@ Item {
         }
       }
 
+      // Tablet mode's keyboard, up from the bottom while a field has the keys
+      TouchKeyboard {
+        id: touchKeyboard
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        z: 890000
+        guide: root
+        screen: screenItem
+      }
+
       // Tablet mode's ⋯ panel, over everything
       TouchMore {
         anchors.fill: parent
@@ -9703,7 +9732,7 @@ Item {
       TouchWatch {
         anchors.fill: parent
         z: 1000000
-        onTouched: root.touchReleased()
+        onTouched: function(at) { root.touchReleased(); touchKeyboard.tappedAt(at) }
         onPointed: root.noteInput("pointer")
       }
     }

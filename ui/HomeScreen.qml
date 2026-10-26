@@ -590,8 +590,8 @@ Item {
         maximumLength: 40
         clip: true
         onAccepted: guide.renameHomeSection(text)
-        Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-        Keys.onEscapePressed: { guide.noteInput("keyboard"); guide.closeHomePanel() }
+        Keys.onPressed: function(event) { guide.keyFirst(event) }
+        Keys.onEscapePressed: { if (guide.keyFirst(event)) return; guide.closeHomePanel() }
       }
       onVisibleChanged: if (visible) { renameField.text = guide.homeRenameStart; renameField.selectAll(); renameField.forceActiveFocus() }
     }
@@ -670,6 +670,7 @@ Item {
           more: prow.type === "section" && !!prow.sec && prow.sec.type !== "doors"
           danger: prow.type === "homeReset" || prow.type === "optRemove"
           onActivated: { guide.homeCursor = prow.index; guide.homePanelAct(1) }
+          touchParts: true
           onStepped: function(dir) { guide.homeCursor = prow.index; guide.homePanelAct(dir) }
           onToggled: { guide.homeCursor = prow.index; guide.homePanelToggle() }
         }

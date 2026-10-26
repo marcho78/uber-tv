@@ -11,6 +11,7 @@ Item {
   property string icon: ""
   property bool primary: false        // the screen's main action (Watch)
   property bool lit: false            // ⋯ while its panel is open
+  property string accessibleName: label   // what a screen reader says (⋯: More)
   signal tapped()
 
   readonly property real h: guide.fingerPx
@@ -20,8 +21,10 @@ Item {
   implicitHeight: h
   implicitWidth: Math.max(h, content.implicitWidth + h * (label !== "" ? 0.6 : 0.3))
 
+  // a screen reader finds it by its name and presses it as a tap does
   Accessible.role: Accessible.Button
-  Accessible.name: label
+  Accessible.name: accessibleName
+  Accessible.onPressAction: btn.tapped()
 
   Rectangle {
     anchors.fill: parent

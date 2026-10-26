@@ -43,11 +43,13 @@ Box {
   Box {
     id: frame
     anchors.centerIn: parent
+    // above tablet mode's keyboard while it's up
+    anchors.verticalCenterOffset: -(guide.touchKeyboardHeight || 0) / 2
     width: Math.min(parent.width - dialogBox.u * 4,
                     dialogBox.u * (guide.dialog === "help" ? 100 : guide.dialog === "pick" || guide.dialog === "notes" ? 76 : guide.dialog === "remote" || guide.dialog === "contributors" || dialogBox.appBox ? 68 : 60))
     height: box.implicitHeight + frame.padding * 2
     // a box taller than the screen shrinks to fit
-    scale: Math.min(1, (dialogBox.height - dialogBox.u * 2) / Math.max(1, height))
+    scale: Math.min(1, (dialogBox.height - (guide.touchKeyboardHeight || 0) - dialogBox.u * 2) / Math.max(1, height))
     s: guide.look.box
     unit: dialogBox.u
     image: guide.areaImages.box
@@ -854,8 +856,8 @@ Box {
           clip: true
           maximumLength: 60
           onAccepted: guide.renameChannel(guide.row, text)
-          Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-          Keys.onEscapePressed: { guide.noteInput("keyboard"); guide.closeDialog() }
+          Keys.onPressed: function(event) { guide.keyFirst(event) }
+          Keys.onEscapePressed: { if (guide.keyFirst(event)) return; guide.closeDialog() }
         }
       }
 
@@ -887,13 +889,14 @@ Box {
               guide.catQuery = text
               guide.catCursor = 0
             }
+            // Enter, here and as tablet mode's keyboard's Done
+            function enterKey() { if (guide.catOptions[guide.catCursor]) guide.setCategory(guide.targets(), guide.catOptions[guide.catCursor].value) }
             Keys.onPressed: function(event) {
-              guide.noteInput("keyboard")
+              if (guide.keyFirst(event)) return
               if (event.key === Qt.Key_Escape) guide.closeDialog()
               else if (event.key === Qt.Key_Up) guide.moveCat(-1)
               else if (event.key === Qt.Key_Down) guide.moveCat(1)
-              else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && guide.catOptions[guide.catCursor])
-                guide.setCategory(guide.targets(), guide.catOptions[guide.catCursor].value)
+              else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && guide.catOptions[guide.catCursor]) catField.enterKey()
               else return
               event.accepted = true
             }
@@ -943,19 +946,20 @@ Box {
             font.family: guide.fonts.body
             font.pixelSize: dialogBox.fieldText
             clip: true
+            function enterKey() { guide.choosePick(guide.byUser) }   // (and the keyboard's Done)
             onTextChanged: {
               guide.pickQuery = text
               guide.pickCursor = 0
               pickList.positionViewAtBeginning()
             }
             Keys.onPressed: function(event) {
-              guide.noteInput("keyboard")
+              if (guide.keyFirst(event)) return
               if (event.key === Qt.Key_Escape) guide.pickEscape()
               else if (event.key === Qt.Key_Up) guide.movePick(-1)
               else if (event.key === Qt.Key_Down) guide.movePick(1)
               else if (event.key === Qt.Key_PageUp) guide.movePick(-6)
               else if (event.key === Qt.Key_PageDown) guide.movePick(6)
-              else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) guide.choosePick(guide.byUser)
+              else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) pickField.enterKey()
               else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) guide.pickToggleBrowse()
               else if (event.key === Qt.Key_Backspace && guide.pickBrowse && pickField.text === "") guide.browseUp()
               else return
@@ -1181,6 +1185,7 @@ Box {
             if (modelData.type === "source") guide.cycleSource(1)
             else guide.toggleFilter(index - guide.sourceRow)
           }
+          touchParts: true
           onStepped: function(dir) { guide.filterCursor = index; guide.cycleSource(dir) }
         }
       }
@@ -1264,8 +1269,8 @@ Box {
           clip: true
           maximumLength: 2000
           onAccepted: guide.addListingsFrom(text)
-          Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-          Keys.onEscapePressed: { guide.noteInput("keyboard"); guide.listingsBack() }
+          Keys.onPressed: function(event) { guide.keyFirst(event) }
+          Keys.onEscapePressed: { if (guide.keyFirst(event)) return; guide.listingsBack() }
         }
         Text {
           textFormat: Text.PlainText
@@ -1416,8 +1421,9 @@ Box {
             selectByMouse: true
             readOnly: guide.jobTotal > 0
             onCursorRectangleChanged: addScroll.follow(cursorRectangle)
+            function enterKey() { guide.addChannel(text) }   // (and the keyboard's Done)
             Keys.onPressed: function(event) {
-              guide.noteInput("keyboard")
+              if (guide.keyFirst(event)) return
               if (event.key === Qt.Key_Escape) {
                 guide.closeDialog()
                 event.accepted = true
@@ -1425,7 +1431,7 @@ Box {
                 guide.openPicker()
                 event.accepted = true
               } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) {
-                guide.addChannel(text)
+                addField.enterKey()
                 event.accepted = true
               }
             }

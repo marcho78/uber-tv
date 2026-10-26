@@ -7,11 +7,12 @@ import QtQuick
 Item {
   id: watch
 
-  signal touched()      // a finger let go of the screen
+  signal touched(point at)   // a finger let go of the screen, there (in the scene)
   signal pointed()      // a real mouse or touchpad moved over it
 
   property real touchAt: 0                    // when a finger was last on the screen
   property point lastPos: Qt.point(-1, -1)    // where the mouse was last seen
+  property point fingerAt: Qt.point(-1, -1)   // where the finger last was
 
   PointHandler {
     id: finger
@@ -21,9 +22,13 @@ Item {
     acceptedButtons: Qt.NoButton
     onActiveChanged: {
       watch.touchAt = Date.now()
-      if (!active) watch.touched()
+      if (active) watch.fingerAt = point.scenePosition
+      else watch.touched(watch.fingerAt)
     }
-    onPointChanged: watch.touchAt = Date.now()
+    onPointChanged: {
+      watch.touchAt = Date.now()
+      if (active) watch.fingerAt = point.scenePosition
+    }
   }
 
   HoverHandler {

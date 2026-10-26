@@ -1075,10 +1075,14 @@ Item {
           danger: modelData.type === "clear"
           value: modelData.type === "clear" && view.armed === modelData.key ? "Enter again to clear"
                  : modelData.type === "switch" ? "" : String(modelData.value)
+          // a click picks first; a finger acts at once (a clearing still asks twice)
           onActivated: {
-            if (view.settingsCursor !== index) view.settingsCursor = index
-            else view.settingsAct(0, guide.byUser)
+            if (view.settingsCursor !== index) { view.settingsCursor = index; if (!guide.touchMode) return }
+            view.settingsAct(0, guide.byUser)
           }
+          // tablet mode: ‹ › as ← → (the keys' own steps)
+          touchParts: true
+          onStepped: function(dir) { view.settingsCursor = index; view.settingsAct(dir, guide.byUser) }
         }
       }
       Label {
@@ -1196,11 +1200,12 @@ Item {
               maximumLength: 256
               clip: true
               KeyNavigation.tab: passField
-              Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-              Keys.onDownPressed: { guide.noteInput("keyboard"); passField.forceActiveFocus() }
-              Keys.onReturnPressed: { guide.noteInput("keyboard"); signInBox.send() }
-              Keys.onEnterPressed: { guide.noteInput("keyboard"); signInBox.send() }
-              Keys.onEscapePressed: { guide.noteInput("keyboard"); view.back() }
+              Keys.onPressed: function(event) { guide.keyFirst(event) }
+              Keys.onDownPressed: { if (guide.keyFirst(event)) return; passField.forceActiveFocus() }
+              Keys.onReturnPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEnterPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.back() }
+              function enterKey() { signInBox.send() }   // tablet mode's keyboard's Done
             }
           }
         }
@@ -1232,11 +1237,12 @@ Item {
               maximumLength: 1024
               clip: true
               KeyNavigation.backtab: userField
-              Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-              Keys.onUpPressed: { guide.noteInput("keyboard"); userField.forceActiveFocus() }
-              Keys.onReturnPressed: { guide.noteInput("keyboard"); signInBox.send() }
-              Keys.onEnterPressed: { guide.noteInput("keyboard"); signInBox.send() }
-              Keys.onEscapePressed: { guide.noteInput("keyboard"); view.back() }
+              Keys.onPressed: function(event) { guide.keyFirst(event) }
+              Keys.onUpPressed: { if (guide.keyFirst(event)) return; userField.forceActiveFocus() }
+              function enterKey() { signInBox.send() }   // tablet mode's keyboard's Done
+              Keys.onReturnPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEnterPressed: { if (guide.keyFirst(event)) return; signInBox.send() }
+              Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.back() }
             }
           }
         }
@@ -1292,10 +1298,11 @@ Item {
             font.pixelSize: Math.round(page.u * 1.3)
             maximumLength: 500
             clip: true
-            Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-            Keys.onReturnPressed: { guide.noteInput("keyboard"); view.typedAddress(text, guide.byUser) }
-            Keys.onEnterPressed: { guide.noteInput("keyboard"); view.typedAddress(text, guide.byUser) }
-            Keys.onEscapePressed: { guide.noteInput("keyboard"); view.signInBack() }
+            Keys.onPressed: function(event) { guide.keyFirst(event) }
+            function enterKey() { view.typedAddress(text, guide.byUser) }   // tablet mode's keyboard's Done
+            Keys.onReturnPressed: { if (guide.keyFirst(event)) return; view.typedAddress(text, guide.byUser) }
+            Keys.onEnterPressed: { if (guide.keyFirst(event)) return; view.typedAddress(text, guide.byUser) }
+            Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.signInBack() }
           }
         }
         Label {
@@ -1407,10 +1414,11 @@ Item {
           echoMode: view.editing && view.editing.type === "secret" ? TextInput.Password : TextInput.Normal
           maximumLength: view.editing && view.editing.type === "secret" ? 4096 : 500
           clip: true
-          Keys.onPressed: function(event) { guide.noteInput("keyboard") }
-          Keys.onReturnPressed: { guide.noteInput("keyboard"); view.editDone(text, guide.byUser) }
-          Keys.onEnterPressed: { guide.noteInput("keyboard"); view.editDone(text, guide.byUser) }
-          Keys.onEscapePressed: { guide.noteInput("keyboard"); view.back() }
+          Keys.onPressed: function(event) { guide.keyFirst(event) }
+          function enterKey() { view.editDone(text, guide.byUser) }   // tablet mode's keyboard's Done
+          Keys.onReturnPressed: { if (guide.keyFirst(event)) return; view.editDone(text, guide.byUser) }
+          Keys.onEnterPressed: { if (guide.keyFirst(event)) return; view.editDone(text, guide.byUser) }
+          Keys.onEscapePressed: { if (guide.keyFirst(event)) return; view.back() }
         }
       }
       Label {

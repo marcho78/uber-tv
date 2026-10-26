@@ -123,7 +123,7 @@ const touchReleased = (root) => new Function("root", block(guideSrc, "function t
   assert.equal(m.touchLatched, false, "the mini player closed: Auto starts over")
 }
 // the watcher over everything, its finger to the latch
-assert.match(guideSrc, /TouchWatch \{\n\s+anchors\.fill: parent\n\s+z: 1000000\n\s+onTouched: root\.touchReleased\(\)\n\s+onPointed: root\.noteInput\("pointer"\)\n\s+\}/)
+assert.match(guideSrc, /TouchWatch \{\n\s+anchors\.fill: parent\n\s+z: 1000000\n\s+onTouched: function\(at\) \{ root\.touchReleased\(\); touchKeyboard\.tappedAt\(at\) \}\n\s+onPointed: root\.noteInput\("pointer"\)\n\s+\}/, "a finger: the latch, and the keyboard back on its field")
 assert.ok(guideSrc.indexOf("TouchWatch {") > guideSrc.indexOf("id: appSplash"), "on top of everything in the screen")
 assert.match(read("ui/TouchWatch.qml"), /acceptedDevices: PointerDevice\.TouchScreen\n(\s+\/\/.*\n)+\s+acceptedButtons: Qt\.NoButton\n/, "no buttons: Qt's mouse from a finger can't end it early")
 // the mini player is its own window: its own watcher, a finger there latches too
@@ -146,8 +146,7 @@ assert.match(block(guideSrc, "function applySettings(settingsText) {"), /root\.t
   r.noteInput("keyboard"); assert.equal(r.lastInput, "keyboard", "the same again changes nothing")
 }
 const pressed = block(keysSrc, "Keys.onPressed: function(event) {")
-assert.match(pressed, /^\n\s+guide\.noteInput\("keyboard"\)\n/, "a real key notes the keyboard first")
-assert.match(pressed, /keys\.press\(event\)\s*$/, "then runs the router")
+assert.match(pressed, /^\n\s+if \(guide\.keyFirst\(event\)\) return\s+\/\/.*\n\s+keys\.press\(event\)\s*$/, "a real key: keyFirst (the keyboard, the ⋯ panel), then the router")
 assert.ok(!/noteInput/.test(block(keysSrc, "function press(event) {")), "the router itself never notes (a touch button runs it too)")
 const remote = block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {")
 assert.match(remote, /if \(by === root\.byUser\) \{\n\s+root\.noteInput\("remote"\)/, "a press on the phone (not an agent)")
@@ -155,9 +154,9 @@ assert.match(remote, /if \(by === root\.byUser\) \{\n\s+root\.noteInput\("remote
 {
   const body = block(miniSrc, "Keys.onPressed: function(event) {")
   const noted = []
-  const guide = { noteInput: (k) => noted.push(k), streamAsk: false, pipSurf() {}, closePip() {}, expandPip() {}, guidePip() {}, showPipBanner() {}, muted: false }
+  const guide = { keyFirst: (e) => { noted.push("keyboard"); return false }, streamAsk: false, pipSurf() {}, closePip() {}, expandPip() {}, guidePip() {}, showPipBanner() {}, muted: false }
   new Function("guide", "Qt", "event", body)(guide, { Key_Up: 1, Key_PageUp: 2, Key_Down: 3, Key_PageDown: 4, Key_Return: 5, Key_Enter: 6, Key_Y: 7, Key_Escape: 8, Key_Backspace: 9, Key_N: 10, Key_M: 11, Key_G: 12, Key_F: 13, Key_I: 14, Key_Space: 15 }, { key: 1, accepted: false })
-  assert.deepEqual(noted, ["keyboard"], "the mini player's ↑ notes the keyboard")
+  assert.deepEqual(noted, ["keyboard"], "the mini player's ↑ goes through keyFirst")
 }
 // Every key handler in the guide notes the keyboard, and every text field has
 // one that does (typing goes through it): nothing typed is missed
@@ -179,20 +178,33 @@ assert.match(remote, /if \(by === root\.byUser\) \{\n\s+root\.noteInput\("remote
     for (const m of src.matchAll(/Keys\.on(\w*)Pressed: (function\(event\) \{|\{)?/g)) {
       handlers++
       const body = m[2] ? braced(src, m.index + m[0].length - 1) : src.slice(m.index, src.indexOf("\n", m.index))
-      assert.ok(/guide\.noteInput\("keyboard"\)|picker\.keyed\(\)/.test(body), f + ": Keys.on" + m[1] + "Pressed doesn't note the keyboard")
+      assert.ok(/guide\.keyFirst\(event\)|picker\.keyed\(event\)/.test(body), f + ": Keys.on" + m[1] + "Pressed doesn't go through keyFirst")
     }
     for (const m of src.matchAll(/\n[ \t]*(TextInput|TextEdit) \{\n/g)) {
       fields++
       const field = braced(src, m.index + m[0].length - 2)
-      assert.match(field, /\n[ \t]*Keys\.onPressed: function\(event\) \{/, f + ": a " + m[1] + " with no Keys.onPressed")
+      assert.match(field, /\n[ \t]*Keys\.onPressed: function\(event\) \{[^\n]*\n?[^\n]*guide\.keyFirst\(event\)|\n[ \t]*Keys\.onPressed: function\(event\) \{\n[ \t]*picker\.keyed\(event\)/, f + ": a " + m[1] + " whose typed keys miss keyFirst")
       assert.ok(field.length < 4000, f + ": a " + m[1] + " that runs on: " + field.length)
     }
   }
   assert.ok(handlers >= 30 && fields >= 11, "found them: " + handlers + " handlers, " + fields + " fields")
 }
-assert.match(read("ui/ColorPicker.qml"), /signal keyed\(\)/)
-assert.match(read("ui/StylePanel.qml"), /onKeyed: guide\.noteInput\("keyboard"\)/)
-assert.match(read("ui/Multiview.qml"), /onKeyed: guide\.noteInput\("keyboard"\)/)
+assert.match(read("ui/ColorPicker.qml"), /signal keyed\(var event\)/)
+assert.equal((read("ui/ColorPicker.qml").match(/picker\.keyed\(event\)\n\s+if \(event\.accepted\) return/g) || []).length, 2, "an Esc used up stops the picker's own")
+assert.match(read("ui/StylePanel.qml"), /onKeyed: function\(event\) \{ guide\.keyFirst\(event\) \}/)
+assert.match(read("ui/Multiview.qml"), /onKeyed: function\(event\) \{ guide\.keyFirst\(event\) \}/)
+// keyFirst: the keyboard; the ⋯ panel goes; an Esc that closed it is used up
+{
+  const body = block(guideSrc, "function keyFirst(event) {")
+  const run = (open, key) => {
+    const r = stand({ lastInput: "touch", touchMore: open ? [{}] : null }), ev = { key, accepted: false }
+    const used = new Function("root", "Qt", "event", body)(r, { Key_Escape: 0x01000000 }, ev)
+    return { used, accepted: ev.accepted, more: r.touchMore, input: r.lastInput }
+  }
+  assert.deepEqual(run(true, 0x01000000), { used: true, accepted: true, more: null, input: "keyboard" }, "Esc with ⋯ open: only closes it")
+  assert.deepEqual(run(true, 0x41), { used: false, accepted: false, more: null, input: "keyboard" }, "a letter with ⋯ open: closes it and goes on to the field")
+  assert.deepEqual(run(false, 0x01000000), { used: false, accepted: false, more: null, input: "keyboard" }, "nothing open: Esc goes on")
+}
 
 // ---- agents: touchControls and state ----
 assert.ok(cmdSrc.includes('import "Touch.js" as Touch'))
@@ -305,8 +317,40 @@ assert.match(cmdSrc, /keyHints: guide\.showKeyHints, touch: commands\.touchInfo\
     if (/"ESC"/.test(m[1])) assert.match(braced(styleHints, m.index), /back: true/, "the style panel: Esc is Back")
   }
 }
+// Every MenuRow: ‹ › and the switch are their own targets only where its user
+// handles them (touchParts); a choice row's user always does, and a row that
+// opens and switches handles the switch. Elsewhere a tap is the whole row.
+{
+  const files = ["ChannelLock.qml"].concat(readdirSync(new URL("../ui/", import.meta.url)).filter((f) => f.endsWith(".qml")).map((f) => "ui/" + f))
+  const braced = (text, open) => {
+    let depth = 0
+    for (let i = open; i < text.length; i++) {
+      if (text[i] === "{") depth++
+      else if (text[i] === "}" && --depth === 0) return text.slice(open, i + 1)
+    }
+    assert.fail("unclosed")
+  }
+  let rows = 0, parted = 0
+  for (const f of files) {
+    const src = read(f)
+    for (const m of src.matchAll(/MenuRow \{/g)) {
+      rows++
+      const row = braced(src, m.index + m[0].length - 1)
+      const where = f + " line " + (src.slice(0, m.index).split("\n").length)
+      const parts = /\n\s+touchParts: true\n/.test(row)
+      if (/"choice"/.test(row)) assert.ok(parts && /\n\s+onStepped: /.test(row), where + ": a choice row whose ‹ › aren't handled")
+      if (parts) {
+        parted++
+        assert.ok(/\n\s+onStepped: /.test(row), where + ": touchParts without onStepped")
+        if (/\n\s+more: /.test(row)) assert.ok(/\n\s+onToggled: /.test(row), where + ": a switch that opens, its switch not handled")
+      }
+    }
+  }
+  assert.ok(rows >= 25 && parted >= 6, "found them: " + rows + " rows, " + parted + " with parts")
+  assert.match(read("ui/MenuRow.qml"), /readonly property bool parted: touching && touchParts/)
+}
 assert.match(guideSrc, /property var touchMore: null/)
 assert.match(guideSrc, /TouchMore \{\n\s+anchors\.fill: parent\n\s+z: 900000\n\s+guide: root\n\s+\}/, "the ⋯ panel over everything but the watcher")
-assert.match(pressed, /if \(guide\.touchMore\) \{\n\s+guide\.closeTouchMore\(\)\n\s+if \(event\.key === Qt\.Key_Escape\) \{ event\.accepted = true; return \}\n\s+\}/, "a real key closes the ⋯ panel (Esc only closes it)")
+
 
 console.log("touchmode: ok")
