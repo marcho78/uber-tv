@@ -461,13 +461,15 @@ Item {
     if (keyOf[cmd] !== undefined) lock.key({ key: keyOf[cmd], text: "" })
   }
 
+  // (tablet mode: buttons in the lock's box, ui/LockBox.qml, with its pad
+  // for the digits; rows are tapped)
   readonly property var hints: lock.guide.dialog === "lockCode"
     ? (lock.typing ? [{ keys: ["0", "–", "9"], label: "Type" }, { keys: ["⌫"], label: "Erase" }, { keys: ["ENTER"], label: "OK" }]
-                     .concat(lock.step === "unlock" || lock.step === "enter" || lock.step === "current" ? [{ keys: ["F"], label: "Forgot it" }] : [])
-                     .concat([{ keys: ["ESC"], label: "Cancel" }])
-       : lock.step === "reset" ? [{ keys: ["ENTER"], label: "Reset (asks for the computer's password)" }, { keys: ["ESC"], label: "Cancel" }]
-       : [{ keys: ["ENTER", "/", "ESC"], label: "Close" }])
+                     .concat(lock.step === "unlock" || lock.step === "enter" || lock.step === "current" ? [{ keys: ["F"], label: "Forgot it", touch: { key: Qt.Key_F } }] : [])
+                     .concat([{ keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
+       : lock.step === "reset" ? [{ keys: ["ENTER"], label: "Reset (asks for the computer's password)", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
+       : [{ keys: ["ENTER", "/", "ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
     : lock.guide.dialog === "lockChannels"
-    ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Lock or unlock" }, { keys: ["TYPE"], label: "Search" }, { keys: ["ESC"], label: "Back" }]
-    : [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Change" }, { keys: ["ESC"], label: "Close" }]
+    ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Lock or unlock" }, { keys: ["TYPE"], label: "Search" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+    : [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Change" }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
 }

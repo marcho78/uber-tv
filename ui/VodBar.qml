@@ -5,7 +5,8 @@ import "../Look.js" as Look
 // where you are along it, and the keys. Shown for a moment after a key,
 // and all the while it's paused or the pointer is on it. Click or drag
 // along it to go there: the time follows the drag, the picture jumps when
-// you let go.
+// you let go. Tablet mode: the keys are buttons (Back, Play or Pause,
+// Start, Mini player), the bar takes a finger along it, its mark shown.
 Box {
   id: bar
 
@@ -105,10 +106,10 @@ Box {
           color: bar.progressStyle.fill && typeof bar.progressStyle.fill === "object" ? bar.progressStyle.fill.from : (bar.progressStyle.fill || "transparent")
         }
       }
-      // the mark you drag, while the pointer's on the bar
+      // the mark you drag, while the pointer's on the bar (tablet mode: always)
       Rectangle {
-        visible: bar.held && bar.duration > 0
-        width: guide.u * 1.1
+        visible: (bar.held || guide.touchMode) && bar.duration > 0
+        width: Math.max(guide.u * 1.1, guide.touchMode ? guide.fingerPx * 0.5 : 0)
         height: width
         radius: width / 2
         x: track.width * Math.min(1, bar.shownAt / Math.max(1, bar.duration)) - width / 2
@@ -118,8 +119,8 @@ Box {
       MouseArea {
         id: scrub
         anchors.fill: parent
-        anchors.topMargin: -guide.u * 0.6
-        anchors.bottomMargin: -guide.u * 0.6
+        anchors.topMargin: -Math.max(guide.u * 0.6, guide.touchMode ? (guide.fingerPx - parent.height) / 2 : 0)
+        anchors.bottomMargin: -Math.max(guide.u * 0.6, guide.touchMode ? (guide.fingerPx - parent.height) / 2 : 0)
         enabled: bar.duration > 0
         hoverEnabled: true
         preventStealing: true
@@ -146,9 +147,12 @@ Box {
         id: hints
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        model: [{ keys: ["SPACE"], label: guide.vodPaused ? "Play" : "Pause" }, { keys: ["←", "→"], label: "10 s" },
-                { keys: ["SHIFT", "+", "←", "→"], label: "1 min" }, { keys: ["HOME"], label: "Start" },
-                { keys: ["P"], label: "Mini player" }, { keys: ["ESC"], label: "Back" }]
+        touchGuide: bar.guide
+        touchWidth: parent.width - guide.u * 16   // (the times either side)
+        model: [{ keys: ["SPACE"], label: guide.vodPaused ? "Play" : "Pause", touch: { key: Qt.Key_Space, primary: true, icon: guide.vodPaused ? "playsolid" : "pausebars" } },
+                { keys: ["←", "→"], label: "10 s" }, { keys: ["SHIFT", "+", "←", "→"], label: "1 min" },
+                { keys: ["HOME"], label: "Start", touch: { key: Qt.Key_Home } },
+                { keys: ["P"], label: "Mini player", touch: { key: Qt.Key_P, icon: "mini" } }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
         size: guide.u * 1.3
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel

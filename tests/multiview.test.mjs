@@ -279,7 +279,7 @@ const block = (text, opener) => {
   const open = new Function("root", "bannerTimer", "dvr", block(guideSrc, "function openBannerOptions() {")), hide = fn("function hideBanner() {", "_")
   const move = fn("function moveBannerAct(d) {", "d"), pick = fn("function pickBannerAct(i) {", "i")
   const bannerTimer = { restart() {}, stop() {} }
-  assert.match(block(guideSrc, "readonly property var bannerActions: {"), /return \[\{ key: "multiview", label: "Multiview", icon: "apps" \}\]\.concat\(rec\)\.concat\(\[\{ key: "mini",[^\n]*\n\s*\{ key: "guide",[^\n]*\{ key: "mute"/, "the choices, Multiview first (then a recording's); pause and rewind's are the player controls now (▲ again)")
+  assert.match(block(guideSrc, "readonly property var bannerActions: {"), /return \[\{ key: "multiview", label: "Multiview", icon: "apps" \}\]\.concat\(rec\)\.concat\(\[\{ key: "mini",[^\n]*\n\s*\.concat\(touchControls \? \[\] : \[\{ key: "guide",[^\n]*\{ key: "mute"/, "the choices, Multiview first (then a recording's); pause and rewind's are the player controls now (▲ again); Guide but with tablet mode's controls (Guide of their own, top left)")
   const you = {}, seen = []
   const root = { byUser: you, splash: null, reception: "playing", authBusy: false, dialog: "", appOpening: false, appUp: false,
                  multiview: { active: false }, pip: false, vod: null, opened: true, watching: true, screen: "guide",

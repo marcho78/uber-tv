@@ -4,10 +4,12 @@ import "../../ui"
 
 // The splash as Uber TV turns on (ui/SplashScreen.qml): it plays for its 9
 // seconds, a skip ends it at once and says so, and it shows only while it
-// plays.
+// plays. A tap skips it, and is its own: nothing under it gets that tap.
 Item {
   width: 480; height: 270
 
+  property int under: 0
+  MouseArea { anchors.fill: parent; onPressed: parent.under++; onClicked: parent.under++ }
   SplashScreen { id: splash; anchors.fill: parent }
 
   SignalSpy { id: ended; target: splash; signalName: "finished" }
@@ -27,6 +29,17 @@ Item {
       splash.skip()
       verify(!splash.running && !splash.visible, "a skip ends it")
       compare(ended.count, 1, "and says it's done")
+    }
+
+    function test_a_tap_skips_it_and_is_its_own() {
+      splash.start()
+      verify(splash.running)
+      var t = touchEvent(splash)
+      t.press(0, splash, 100, 100).commit()
+      t.release(0, splash, 100, 100).commit()
+      verify(!splash.running, "a tap skips it")
+      compare(ended.count, 1)
+      compare(parent.under, 0, "nothing under it got the tap")
     }
 
     function test_a_skip_when_not_playing_does_nothing() {

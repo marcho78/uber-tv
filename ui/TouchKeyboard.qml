@@ -1,7 +1,8 @@
 import QtQuick
 
 // Tablet mode's keyboard (Guide.qml): up from the bottom while a text field
-// has the keys, or Search takes what's typed, in the theme's key colors.
+// has the keys, or Search takes what's typed (or the lock's list of
+// channels, finding one: its own keys), in the theme's key colors.
 // Letters, then numbers and the signs of web addresses (?123, ABC), Shift for
 // one capital, Paste, ⌫, Hide, and Search (in Search) or Done: what Enter does
 // in that field (its enterKey(), or its accepted). Plain ASCII; nothing typed
@@ -18,7 +19,8 @@ Item {
     return f && typeof f.insert === "function" && typeof f.remove === "function" && f.visible ? f : null
   }
   readonly property bool searching: guide.screen === "search" && !guide.searchInResults && !guide.watching && guide.dialog === ""
-  readonly property bool wanted: guide.touchMode && (field !== null || searching)
+  readonly property bool lockSearching: !!guide.channelLock && guide.channelLock.boxUp && guide.dialog === "lockChannels"
+  readonly property bool wanted: guide.touchMode && (field !== null || searching || lockSearching)
   property bool hidden: false         // Hide: until another field, or the same one tapped again
   property bool numbers: false        // ?123
   property bool shift: false
@@ -33,6 +35,7 @@ Item {
     if (p.x >= 0 && p.y >= 0 && p.x <= field.width && p.y <= field.height) hidden = false
   }
   onSearchingChanged: if (searching) hidden = false
+  onLockSearchingChanged: if (lockSearching) hidden = false
 
   // The field kept above the keyboard: the surface it's on (the screen's
   // child holding it: a box, a panel, a screen) moves up by what the keyboard
@@ -91,6 +94,7 @@ Item {
       field.insert(field.cursorPosition, c)
       edited()
     } else if (searching) guide.searchType(c)
+    else if (lockSearching) guide.channelLock.key({ key: 0, text: c })
   }
   // what the field does when you type in it (its textEdited) runs as for keys
   function edited() { if (field && typeof field.textEdited === "function") field.textEdited() }
@@ -101,17 +105,18 @@ Item {
       else if (field.cursorPosition > 0) field.remove(field.cursorPosition - 1, field.cursorPosition)
       edited()
     } else if (searching) guide.searchBackspace()
+    else if (lockSearching) guide.channelLock.key({ key: Qt.Key_Backspace, text: "" })
   }
   function paste() {
     if (field) { if (!field.readOnly) { field.paste(); edited() } return }
-    if (!searching) return
+    if (!searching && !lockSearching) return
     sink.text = ""
     sink.paste()
     var t = sink.text
     sink.text = ""
     for (var i = 0; i < t.length && i < 200; i++) {
       var ch = t.charAt(i)
-      if (ch >= " " && ch !== "\u007f") guide.searchType(ch)
+      if (ch >= " " && ch !== "\u007f") { if (searching) guide.searchType(ch); else guide.channelLock.key({ key: 0, text: ch }) }
     }
   }
   function enter() {
@@ -120,9 +125,11 @@ Item {
       else if (typeof field.accepted === "function") field.accepted()
       else kb.hidden = true
     } else if (searching) guide.searchEnter()
+    else kb.hidden = true   // (the lock's list: Enter there locks a channel; Done only hides)
   }
 
-  // Paste in Search goes through this unseen field (Qt reads the clipboard here)
+  // Paste in Search (and the lock's list) goes through this unseen field (Qt
+  // reads the clipboard here)
   TextInput { id: sink; visible: false }
 
   // the layouts, fixed: a key is [shown, what it does, width in keys]; Enter's

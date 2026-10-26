@@ -5,7 +5,9 @@ import "../Look.js" as Look
 // the digits), the lock's settings, and the list of channels to lock. TV
 // style, like the other boxes: big type, menu rows, the focused one lit. It
 // shows over a playing picture too, for a locked channel asked for while
-// watching.
+// watching. Tablet mode: a pad under the dots (the digits, ⌫, OK, each as
+// its key does), and the lock's buttons along the box's foot (its shade
+// covers the guide's).
 Box {
   id: lockBox
 
@@ -29,9 +31,11 @@ Box {
   Box {
     id: frame
     anchors.centerIn: parent
+    // above tablet mode's keyboard while it's up (finding a channel to lock)
+    anchors.verticalCenterOffset: -(guide.touchKeyboardHeight || 0) / 2
     width: Math.min(parent.width - lockBox.u * 4, lockBox.u * (lockBox.view === "lockChannels" ? 66 : 58))
     height: col.implicitHeight + frame.padding * 2
-    scale: Math.min(1, (lockBox.height - lockBox.u * 2) / Math.max(1, height))
+    scale: Math.min(1, (lockBox.height - (guide.touchKeyboardHeight || 0) - lockBox.u * 2) / Math.max(1, height))
     s: guide.look.box
     unit: lockBox.u
     image: guide.areaImages.box
@@ -83,6 +87,27 @@ Box {
             border.color: guide.look.boxText.text.color
             border.width: Math.max(2, lockBox.u * 0.18)
             opacity: index < lockBox.lock.code.length ? 1 : 0.55
+          }
+        }
+      }
+
+      // tablet mode: the digits by finger
+      Grid {
+        visible: lockBox.view === "lockCode" && lockBox.lock.typing && guide.touchMode
+        anchors.horizontalCenter: parent.horizontalCenter
+        columns: 3
+        spacing: Math.round(guide.fingerPx * 0.2)
+        Repeater {
+          model: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "back", "0", "ok"]
+          delegate: TouchButton {
+            required property string modelData
+            guide: lockBox.guide
+            width: Math.round(guide.fingerPx * 1.7)
+            label: modelData === "back" ? "⌫" : modelData === "ok" ? "OK" : modelData
+            accessibleName: modelData === "back" ? "Backspace" : label
+            primary: modelData === "ok"
+            onTapped: lockBox.lock.key(modelData === "back" ? { key: Qt.Key_Backspace, text: "" }
+                                       : modelData === "ok" ? { key: Qt.Key_Return, text: "" } : { key: 0, text: modelData })
           }
         }
       }
@@ -155,6 +180,8 @@ Box {
           font.pixelSize: lockBox.u * 1.4
           elide: Text.ElideRight
         }
+        // tablet mode: a tap brings back the keyboard it was hidden from
+        MouseArea { anchors.fill: parent; onClicked: guide.showTouchKeyboard() }
       }
       ListView {
         id: list
@@ -187,6 +214,17 @@ Box {
         s: guide.look.boxText
         unit: lockBox.u
         sizeFactor: 1.05
+      }
+
+      // tablet mode: the lock's buttons (Cancel, Forgot it, Close…)
+      KeyHints {
+        visible: guide.touchMode
+        touchGuide: lockBox.guide
+        touchWidth: parent.width
+        model: lockBox.lock.hints
+        size: lockBox.u * 1.4
+        capStyle: guide.look.keycap
+        labelStyle: guide.look.keyLabel
       }
     }
   }

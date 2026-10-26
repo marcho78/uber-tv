@@ -13,6 +13,8 @@ Rectangle {
   // The mouse, as on a TV player: moving it shows the banner (or the player
   // bar), a click pauses (or shows the banner), a double-click goes back.
   // Nothing stays on the picture: still for a moment, the pointer hides too.
+  // Tablet mode: a finger's tap brings up the controls (a movie's bar), a
+  // tap again takes them away; no double tap. A mouse's clicks as before.
   property bool pointerIdle: false
   property real bannerAt: 0
 
@@ -28,8 +30,11 @@ Rectangle {
         guide.vod ? guide.showVodBar() : guide.showBanner()
       }
     }
-    onClicked: guide.vod ? guide.togglePause() : guide.showBanner()
-    onDoubleClicked: guide.vod ? guide.stopVod() : guide.showGuide()
+    onClicked: function(mouse) {
+      if (guide.isFinger(mouse)) guide.vod ? guide.toggleVodBar() : guide.toggleTouchControls()
+      else guide.vod ? guide.togglePause() : guide.showBanner()
+    }
+    onDoubleClicked: function(mouse) { if (!guide.isFinger(mouse)) guide.vod ? guide.stopVod() : guide.showGuide() }
   }
 
   Timer {
@@ -73,7 +78,8 @@ Rectangle {
     note: guide.recNote
     optionFocus: guide.bannerAct
     onOptionPicked: function(i) { guide.bannerAct = i; guide.pickBannerAct(i) }
-    controls: guide.playerControls && guide.vod === null
+    controls: (guide.playerControls || guide.touchControls && guide.pauser.active) && guide.vod === null
+    touchPx: guide.touchMode ? guide.fingerPx : 0
     controlsAt: guide.controlsAt
     controlsMark: guide.scrub && !guide.scrub.movie ? guide.scrubFrac : -1
     controlsChip: guide.controlsChip
@@ -107,10 +113,38 @@ Rectangle {
     }
   }
 
-  // Choosing on the banner: its keys, top left
+  // Tablet mode's controls, with the banner's: Guide top left (back to the
+  // guide, the picture going on in its preview), CH up and down and 123 at
+  // the right
+  Loader {
+    z: 3
+    anchors.fill: parent
+    active: guide.touchMode && guide.touchControls && guide.vod === null
+    sourceComponent: Item {
+      TouchButton {
+        x: guide.u * 1.5
+        y: guide.u * 1.5
+        guide: tvScreen.guide
+        label: "Guide"
+        icon: "back"
+        onTapped: { tvScreen.guide.hideBanner(); tvScreen.guide.showGuide() }
+      }
+      Column {
+        anchors.right: parent.right
+        anchors.rightMargin: guide.u * 1.5
+        y: guide.u * 1.5
+        spacing: Math.round(guide.fingerPx * 0.25)
+        TouchButton { guide: tvScreen.guide; label: "CH"; icon: "caretUp"; accessibleName: "Channel up"; onTapped: tvScreen.guide.surf(1) }
+        TouchButton { guide: tvScreen.guide; label: "CH"; icon: "caretDown"; accessibleName: "Channel down"; onTapped: tvScreen.guide.surf(-1) }
+        TouchButton { guide: tvScreen.guide; label: "123"; accessibleName: "Channel number"; onTapped: tvScreen.guide.openNumberPad() }
+      }
+    }
+  }
+
+  // Choosing on the banner: its keys, top left (tablet mode: its buttons)
   KeyHints {
     z: 2
-    visible: guide.bannerOptions && guide.bannerShown && guide.vod === null
+    visible: guide.bannerOptions && guide.bannerShown && guide.vod === null && !guide.touchMode
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.margins: guide.u * 1.5
@@ -123,7 +157,7 @@ Rectangle {
   // The player controls: their keys, top left
   KeyHints {
     z: 2
-    visible: guide.playerControls && guide.vod === null
+    visible: guide.playerControls && guide.vod === null && !guide.touchMode
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.margins: guide.u * 1.5

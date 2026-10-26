@@ -48,6 +48,11 @@ Item {
   signal controlsMoved(real frac)
   signal controlsReleased()
   signal controlsCanceled()
+  // tablet mode: a finger, in px (0: the keys' sizes). The choices and the
+  // controls' buttons are at least that big (the buttons a thumb's), the
+  // bar takes a finger along it, and the choices go above the controls,
+  // both up at once
+  property real touchPx: 0
 
   readonly property var s: look.lowerThird || ({})
   readonly property real margin: Look.px(s.margin !== undefined ? s.margin : 2, unit)
@@ -185,7 +190,7 @@ Item {
     unit: lt.unit
     x: banner.x
     width: banner.width
-    height: lt.unit * 7.4
+    height: lt.touchPx > 0 ? Math.round(lt.unit * 4.9 + lt.touchPx * 1.25) : lt.unit * 7.4
     y: banner.y - height - lt.unit * 0.8
     readonly property real at: lt.controlsMark >= 0 ? lt.controlsMark : Math.max(0, Math.min(1, lt.controlsAt))
     readonly property var chipStyle: lt.look["liveChip:behind"] || lt.look.liveChip || ({})
@@ -219,7 +224,7 @@ Item {
       }
       // where you are (or the scrub's mark)
       Rectangle {
-        width: lt.unit * 1.3
+        width: Math.max(lt.unit * 1.3, lt.touchPx * 0.5)
         height: width
         radius: width / 2
         x: ctrack.x + ctrack.width * controlsBox.at - width / 2
@@ -255,8 +260,8 @@ Item {
       }
       MouseArea {
         anchors.fill: ctrack
-        anchors.topMargin: -lt.unit * 0.9
-        anchors.bottomMargin: -lt.unit * 0.9
+        anchors.topMargin: -Math.max(lt.unit * 0.9, (lt.touchPx - ctrack.height) / 2)
+        anchors.bottomMargin: -Math.max(lt.unit * 0.9, (lt.touchPx - ctrack.height) / 2)
         preventStealing: true
         cursorShape: Qt.PointingHandCursor
         function frac(x) { return Math.max(0, Math.min(1, x / Math.max(1, ctrack.width))) }
@@ -275,9 +280,22 @@ Item {
       Repeater {
         model: [{ what: "back", icon: "rewind30" }, { what: "pause", icon: lt.controlsPaused ? "playsolid" : "pausebars" }, { what: "forward", icon: "forward30" }]
         Item {
+          id: ctrlButton
           required property var modelData
-          width: lt.unit * 2.4
+          width: Math.max(lt.unit * 2.4, lt.touchPx * 1.25)
           height: width
+          Accessible.role: Accessible.Button
+          Accessible.name: modelData.what === "back" ? "Back 30 seconds" : modelData.what === "forward" ? "Forward 30 seconds" : lt.controlsPaused ? "Play" : "Pause"
+          Accessible.onPressAction: lt.controlsPicked(modelData.what)
+          // tablet mode: a round button under it
+          Rectangle {
+            visible: lt.touchPx > 0
+            anchors.fill: parent
+            radius: width / 2
+            color: Qt.rgba(0, 0, 0, 0.35)
+            border.width: Math.max(1, Math.round(lt.unit * 0.08))
+            border.color: Qt.rgba(controlsBox.ink.r, controlsBox.ink.g, controlsBox.ink.b, 0.35)
+          }
           Icon { anchors.centerIn: parent; name: parent.modelData.icon; size: lt.unit * 2.1; stroke: 1.9; color: controlsBox.ink }
           Label {
             visible: parent.modelData.what !== "pause"
@@ -314,14 +332,14 @@ Item {
     id: choices
     visible: lt.options.length > 0
     x: banner.x
-    y: banner.y - height - lt.unit * 0.8
+    y: (controlsBox.visible ? controlsBox.y : banner.y) - height - lt.unit * 0.8
     // as tall as the tallest choice (a note on two lines), all the same
     readonly property real tallest: {
       var h = 0
       for (var i = 0; i < choiceList.count; i++) { var it = choiceList.itemAt(i); if (it) h = Math.max(h, it.inside) }
       return h
     }
-    height: Math.max(lt.unit * (lt.anyNote ? 4 : 2.8), tallest + lt.unit * 1.2)
+    height: Math.max(lt.unit * (lt.anyNote ? 4 : 2.8), tallest + lt.unit * 1.2, lt.touchPx)
     spacing: lt.unit * 0.6
     Repeater {
       id: choiceList
@@ -333,7 +351,7 @@ Item {
         readonly property string el: option.modelData.rec ? "recordChoice" : "menuRow"
         readonly property var st: index === lt.optionFocus ? (lt.look[el + ":focused"] || ({})) : (lt.look[el] || ({}))
         readonly property real inside: optionCol.implicitHeight
-        width: Math.max(optionRow.implicitWidth, noteLabel.visible ? noteLabel.width : 0) + lt.unit * 2.2
+        width: Math.max(Math.max(optionRow.implicitWidth, noteLabel.visible ? noteLabel.width : 0) + lt.unit * 2.2, lt.touchPx)
         height: parent.height
         s: st
         unit: lt.unit * 0.8

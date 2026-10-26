@@ -575,6 +575,125 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   assert.match(app, /height: page\.geo\.actionH   /)
   assert.match(read("AppView.qml"), /touch: guide\.touchMode \? guide\.fingerPx : 0,/)
 }
+// ---- watching (milestone 4) ----
+// A channel full screen: a finger's tap brings up its controls at once (the
+// banner's choices, the player controls under them while pause and rewind
+// runs, Guide, CH and 123); a tap again, the banner's time, or leaving full
+// screen takes them away. A mouse's click shows the banner, its double click
+// the guide, as before; a finger's double tap does nothing.
+{
+  const toggle = new Function("root", block(guideSrc, "function toggleTouchControls() {"))
+  const make = (over) => Object.assign({ touchControls: false, bannerOptions: false, playerControls: false, did: [],
+                                         hideBanner() { this.did.push("hide"); this.touchControls = false; this.bannerOptions = false },
+                                         openBannerOptions() { this.did.push("options"); this.bannerOptions = true } }, over)
+  let r = make(); toggle(r)
+  assert.deepEqual([r.did, r.touchControls], [["options"], true], "a tap: the choices, as the controls")
+  toggle(r)
+  assert.deepEqual([r.did, r.touchControls], [["options", "hide"], false], "a tap again: gone")
+  r = make({ playerControls: true }); toggle(r)
+  assert.deepEqual(r.did, ["hide"], "the keys' player controls up: a tap takes them away")
+  assert.match(block(guideSrc, "function hideBanner() {"), /root\.touchControls = false/)
+  assert.match(guideSrc, /root\.playerControls = false; root\.tsOffMenu = false; root\.tsCantMenu = false; root\.tsMenuFromChoices = false\n\s+root\.touchControls = false/, "the banner's time takes them too")
+  assert.match(guideSrc, /if \(!watching\) \{ root\.playerControls = false; root\.touchControls = false; root\.keyHold = null \}/, "leaving full screen too")
+  assert.match(guideSrc, /onTouchModeChanged: if \(!touchMode\) touchControls = false/)
+  // the player controls' buttons and the bar work with them up
+  assert.match(block(guideSrc, "function controlsAct(what) {"), /if \(!root\.playerControls && !root\.touchControls\) return/)
+  assert.match(block(guideSrc, "function scrubStart(dir, byKey, at) {"), /if \(!root\.playerControls && !root\.touchControls\) root\.openPlayerControls\(false\)/, "a finger on the bar keeps the choices up")
+  // the choices: Guide has its own button with the controls
+  const acts = new Function("scope", "with (scope) { " + block(guideSrc, "readonly property var bannerActions: {") + " }")
+  const scope = (touchControls) => ({ tsOffMenu: false, tsCantMenu: false, streamAsk: null, recStopMenu: false, recOnTuned: null, recOffer: null,
+                                      dvr: { stopping: {} }, DvrRules: {}, onAir: null, now: 0, muted: false, touchControls, root: { muted: false, clock: String } })
+  assert.deepEqual(acts(scope(false)).map((a) => a.label), ["Multiview", "Mini player", "Guide", "Mute"])
+  assert.deepEqual(acts(scope(true)).map((a) => a.label), ["Multiview", "Mini player", "Mute"], "with tablet mode's controls: no second Guide")
+  // the picture
+  const tv = read("ui/TvScreen.qml")
+  const click = new Function("guide", "mouse", block(tv, "onClicked: function(mouse) {"))
+  const dbl = new Function("guide", "mouse", tv.match(/onDoubleClicked: function\(mouse\) \{ (.*) \}\n/)[1])
+  const g = (touchMode, vod) => ({ touchMode, vod, did: [], isFinger(m) { return this.touchMode && T.byFinger(m) },
+                                   toggleTouchControls() { this.did.push("controls") }, toggleVodBar() { this.did.push("bar") },
+                                   togglePause() { this.did.push("pause") }, showBanner() { this.did.push("banner") },
+                                   stopVod() { this.did.push("stop") }, showGuide() { this.did.push("guide") } })
+  const cases = [[true, null, FINGER, "controls", "nothing"], [true, null, MOUSE, "banner", "guide"], [false, null, FINGER, "banner", "guide"],
+                 [true, {}, FINGER, "bar", "nothing"], [true, {}, MOUSE, "pause", "stop"], [false, {}, FINGER, "pause", "stop"]]
+  for (const [touchMode, vod, mouse, tap, twice] of cases) {
+    const x = g(touchMode, vod); click(x, mouse)
+    assert.deepEqual(x.did, [tap], "a " + (mouse === FINGER ? "finger" : "mouse") + ", tablet mode " + touchMode + ", " + (vod ? "a movie" : "a channel"))
+    const y = g(touchMode, vod); dbl(y, mouse)
+    assert.deepEqual(y.did, twice === "nothing" ? [] : [twice], "twice: " + twice)
+  }
+  // its controls: Guide top left (back to the guide), CH up and down and 123
+  assert.match(tv, /active: guide\.touchMode && guide\.touchControls && guide\.vod === null/)
+  assert.match(tv, /label: "Guide"\n\s+icon: "back"\n\s+onTapped: \{ tvScreen\.guide\.hideBanner\(\); tvScreen\.guide\.showGuide\(\) \}/)
+  assert.ok(tv.includes(`label: "CH"; icon: "caretUp"; accessibleName: "Channel up"; onTapped: tvScreen.guide.surf(1)`))
+  assert.ok(tv.includes(`label: "CH"; icon: "caretDown"; accessibleName: "Channel down"; onTapped: tvScreen.guide.surf(-1)`))
+  assert.ok(tv.includes(`label: "123"; accessibleName: "Channel number"; onTapped: tvScreen.guide.openNumberPad()`))
+  assert.match(tv, /controls: \(guide\.playerControls \|\| guide\.touchControls && guide\.pauser\.active\) && guide\.vod === null\n\s+touchPx: guide\.touchMode \? guide\.fingerPx : 0/, "the player controls with them, while pause and rewind runs")
+  assert.equal((tv.match(/&& !guide\.touchMode\n/g) || []).length, 2, "the keys' hints aren't shown over them")
+  // the banner: finger-sized choices above the controls, thumb-sized buttons, the bar a finger along
+  const lt = read("ui/LowerThird.qml")
+  assert.match(lt, /y: \(controlsBox\.visible \? controlsBox\.y : banner\.y\) - height - lt\.unit \* 0\.8/, "the choices above the controls")
+  assert.match(lt, /height: Math\.max\(lt\.unit \* \(lt\.anyNote \? 4 : 2\.8\), tallest \+ lt\.unit \* 1\.2, lt\.touchPx\)/)
+  assert.match(lt, /width: Math\.max\(lt\.unit \* 2\.4, lt\.touchPx \* 1\.25\)/, "a thumb's")
+  assert.match(lt, /Accessible\.name: modelData\.what === "back" \? "Back 30 seconds" : modelData\.what === "forward" \? "Forward 30 seconds" : lt\.controlsPaused \? "Play" : "Pause"/)
+  assert.equal((lt.match(/-Math\.max\(lt\.unit \* 0\.9, \(lt\.touchPx - ctrack\.height\) \/ 2\)/g) || []).length, 2, "the bar takes a finger")
+  // a movie: a tap shows its bar, a tap again hides it
+  const vbar = new Function("root", "vodBarTimer", block(guideSrc, "function toggleVodBar() {"))
+  const m = { vodBarShown: false, showVodBar() { this.vodBarShown = true } }, timer = { stopped: 0, stop() { this.stopped++ } }
+  vbar(m, timer); assert.equal(m.vodBarShown, true)
+  vbar(m, timer); assert.deepEqual([m.vodBarShown, timer.stopped], [false, 1])
+}
+// Movies, app videos, the mini player, Multiview, the lock's pad
+{
+  const vod = read("ui/VodBar.qml")
+  assert.match(vod, /touchGuide: bar\.guide/)
+  assert.match(vod, /visible: \(bar\.held \|\| guide\.touchMode\) && bar\.duration > 0/, "a movie's mark shown in tablet mode")
+  // an app's video: a finger's tap shows or hides the bar (a click pauses); a finger along it goes there, on that video only
+  const ap = read("ui/AppPlayer.qml")
+  const apClick = new Function("guide", "screen", "barTimer", "mouse", block(ap, "onClicked: function(mouse) {"))
+  const sc = (paused, shown) => ({ barShown: shown, pb: { paused, toggled: 0, togglePause() { this.toggled++ } }, poked: 0, poke() { this.poked++; this.barShown = true } })
+  const fg = { touchMode: true, isFinger(x) { return this.touchMode && T.byFinger(x) } }
+  let s1 = sc(false, true); apClick(fg, s1, { stop() {} }, FINGER)
+  assert.deepEqual([s1.barShown, s1.pb.toggled], [false, 0], "a tap: the bar away, no pause")
+  s1 = sc(false, false); apClick(fg, s1, { stop() {} }, FINGER)
+  assert.deepEqual([s1.barShown, s1.pb.toggled], [true, 0], "a tap again: the bar")
+  s1 = sc(false, true); apClick(fg, s1, { stop() {} }, MOUSE)
+  assert.equal(s1.pb.toggled, 1, "a click pauses, as before")
+  assert.match(ap, /enabled: guide\.touchMode && screen\.pb\.duration > 0/, "the bar takes a finger in tablet mode only")
+  assert.match(ap, /onReleased: function\(mouse\) \{ var to = at\(mouse\.x\), was = screen\.dragFor; screen\.dragAt = -1; screen\.dragFor = null; if \(was && screen\.s === was\) screen\.pb\.seekTo\(to\) \}/)
+  // the mini player: a finger's tap shows its bar (not after a drag), a cancelled drag goes back
+  const mini = read("ui/MiniPlayer.qml")
+  const miniClick = new Function("guide", "moved", "mouse", block(mini, "onClicked: function(mouse) {"))
+  const pg = () => ({ touchMode: true, pipBannerShown: false, shown: 0, isFinger(x) { return this.touchMode && T.byFinger(x) }, showPipBanner() { this.shown++; this.pipBannerShown = true } })
+  let p1 = pg(); miniClick(p1, false, FINGER); assert.equal(p1.pipBannerShown, true, "a tap: its bar")
+  miniClick(p1, false, FINGER); assert.equal(p1.pipBannerShown, false, "a tap again: away")
+  p1 = pg(); miniClick(p1, true, FINGER); assert.equal(p1.shown, 0, "a drag let go isn't a tap")
+  p1 = pg(); miniClick(p1, false, MOUSE); assert.equal(p1.shown, 0, "a mouse's click: as before")
+  assert.match(mini, /onCanceled: \{ guide\.pipRight = startRight; guide\.pipBottom = startBottom \}/, "a cancelled move: back where it was")
+  assert.match(mini, /onCanceled: \{ guide\.pipW = startW; pipWindow\.clampPlace\(\) \}/, "a cancelled resize: the size it was")
+  assert.match(mini, /onDoubleClicked: function\(mouse\) \{ if \(!guide\.isFinger\(mouse\)\) guide\.expandPip\(\) \}/)
+  // Multiview: a tap gives a tile the sound, a tap on the one with it shows it full screen; on a full-screen tile a tap shows its choices
+  const mvSrc = read("ui/Multiview.qml")
+  const at = mvSrc.indexOf("var finger = mv.guide.isFinger(mouse)")
+  const mvClick = new Function("mv", "cell", "bannerTimer", "mouse", mvSrc.slice(at, mvSrc.indexOf("\n        }\n", at)))
+  const mvx = (mode, sel) => ({ mode, sel, bannerUp: false, bannerAct: 3, entered: 0, selected: [], guide: fg,
+                                enter() { this.entered++ }, select(i) { this.selected.push(i); this.sel = i } })
+  let v1 = mvx("tiles", 0); mvClick(v1, { index: 1 }, { restart() {} }, FINGER)
+  assert.deepEqual([v1.selected, v1.entered], [[1], 0], "a tap: the sound")
+  v1 = mvx("tiles", 1); mvClick(v1, { index: 1 }, { restart() {} }, FINGER)
+  assert.equal(v1.entered, 1, "a tap on the one with the sound: full screen")
+  v1 = mvx("tiles", 1); mvClick(v1, { index: 1 }, { restart() {} }, MOUSE)
+  assert.equal(v1.entered, 0, "a click: the sound only (a double click: full screen)")
+  v1 = mvx("full", 1); mvClick(v1, { index: 1 }, { restart() {} }, FINGER)
+  assert.deepEqual([v1.bannerUp, v1.bannerAct], [true, 0], "full screen, a tap: its choices")
+  assert.match(mvSrc, /readonly property real footH: guide\.touchMode \? Math\.max\(u \* 5\.2, guide\.fingerPx \+ u \* 1\.6\)/, "room for its buttons")
+  // the lock: a pad for the digits, its buttons in its box; the list of channels typed by the keyboard
+  const lockBox = read("ui/LockBox.qml")
+  assert.match(lockBox, /visible: lockBox\.view === "lockCode" && lockBox\.lock\.typing && guide\.touchMode/)
+  assert.match(lockBox, /KeyHints \{\n\s+visible: guide\.touchMode\n\s+touchGuide: lockBox\.guide\n\s+touchWidth: parent\.width\n\s+model: lockBox\.lock\.hints/)
+  const kbSrc = read("ui/TouchKeyboard.qml")
+  assert.match(kbSrc, /readonly property bool lockSearching: !!guide\.channelLock && guide\.channelLock\.boxUp && guide\.dialog === "lockChannels"/)
+  assert.match(kbSrc, /else if \(lockSearching\) guide\.channelLock\.key\(\{ key: 0, text: c \}\)/)
+}
 // A compact screen's layout (the mockup's portrait): the rail tucked away
 // with ☰ on the masthead, the preview no wider than half beside the words,
 // an hour across, the table across (the TV in the info area), Settings'

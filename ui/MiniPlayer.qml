@@ -6,7 +6,9 @@ import QtMultimedia
 // The mini player: on top of everything. It holds the keyboard only while
 // the pointer is over it, so ↑↓ change channel there and typing elsewhere
 // is left alone. Drag to move, scroll or drag the top-left corner to
-// resize, double-click for full screen.
+// resize, double-click for full screen. Tablet mode: a finger's tap shows
+// its bar (a tap again hides it), its buttons and corner a finger big; a
+// drag that's cancelled puts it back and saves nothing.
 PanelWindow {
   id: pipWindow
 
@@ -90,20 +92,34 @@ PanelWindow {
     anchors.fill: parent
     property real fromX: 0
     property real fromY: 0
+    property real startRight: 0
+    property real startBottom: 0
+    property bool moved: false          // past a drag's start: letting go isn't a tap
     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     onPressed: function(mouse) {
       fromX = mouse.x
       fromY = mouse.y
+      startRight = guide.pipRight
+      startBottom = guide.pipBottom
+      moved = false
       pipKeys.forceActiveFocus()
     }
     onPositionChanged: function(mouse) {
       if (!pressed) return
+      if (Math.abs(mouse.x - fromX) + Math.abs(mouse.y - fromY) > Qt.styleHints.startDragDistance) moved = true
       guide.pipRight -= mouse.x - fromX
       guide.pipBottom -= mouse.y - fromY
       pipWindow.clampPlace()
     }
     onReleased: guide.saveSettings()
-    onDoubleClicked: guide.expandPip()
+    // cancelled (the window or a gesture took it): back where it was, nothing saved
+    onCanceled: { guide.pipRight = startRight; guide.pipBottom = startBottom }
+    onClicked: function(mouse) {
+      if (moved || !guide.isFinger(mouse)) return
+      if (guide.pipBannerShown) guide.pipBannerShown = false
+      else guide.showPipBanner()
+    }
+    onDoubleClicked: function(mouse) { if (!guide.isFinger(mouse)) guide.expandPip() }
     onWheel: function(wheel) {
       guide.pipW = Math.max(240, Math.min(pipWindow.screenW * 0.6, pipWindow.w + (wheel.angleDelta.y > 0 ? 48 : -48)))
       pipWindow.clampPlace()
@@ -118,7 +134,7 @@ PanelWindow {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.top: parent.top
-    height: pipWindow.k * 2.6
+    height: Math.max(pipWindow.k * 2.6, guide.touchMode ? guide.fingerPx + pipWindow.k * 0.6 : 0)
     gradient: Gradient {
       GradientStop { position: 0; color: guide.miniBarColor }
       GradientStop { position: 1; color: Qt.rgba(guide.miniBarColor.r, guide.miniBarColor.g, guide.miniBarColor.b, guide.miniBarColor.a * 0.6) }
@@ -167,8 +183,8 @@ PanelWindow {
         ]
         delegate: Rectangle {
           required property var modelData
-          width: pipLabel.implicitWidth + pipWindow.k * 0.8
-          height: pipWindow.k * 1.6
+          width: Math.max(pipLabel.implicitWidth + pipWindow.k * 0.8, guide.touchMode ? guide.fingerPx : 0)
+          height: Math.max(pipWindow.k * 1.6, guide.touchMode ? guide.fingerPx : 0)
           color: buttonMouse.containsMouse ? guide.cellEdge : Qt.rgba(0, 0, 0, 0.35)
           border.color: modelData.act === "mute" && guide.muted ? guide.marquee : guide.cellEdge
           border.width: 1
@@ -231,15 +247,18 @@ PanelWindow {
     font.bold: true
   }
 
-  // The resize grip: the corner away from where it's pinned
+  // The resize grip: the corner away from where it's pinned (tablet mode: a
+  // finger big; cancelled, the size it was)
   MouseArea {
     anchors.left: parent.left
     anchors.top: parent.top
-    width: pipWindow.k * 1.2
+    width: Math.max(pipWindow.k * 1.2, guide.touchMode ? guide.fingerPx : 0)
     height: width
     cursorShape: Qt.SizeFDiagCursor
     property real fromX: 0
-    onPressed: function(mouse) { fromX = mouse.x }
+    property real startW: 0
+    onPressed: function(mouse) { fromX = mouse.x; startW = guide.pipW }
+    onCanceled: { guide.pipW = startW; pipWindow.clampPlace() }
     onPositionChanged: function(mouse) {
       if (!pressed) return
       guide.pipW = Math.max(240, Math.min(pipWindow.screenW * 0.6, pipWindow.w - (mouse.x - fromX)))

@@ -34,6 +34,12 @@ Item {
     function searchType(c) { searched = searched.concat([c]) }
     function searchBackspace() { searched = searched.concat(["⌫"]) }
     function searchEnter() { searched = searched.concat(["enter"]) }
+    // the lock's list of channels (ChannelLock.qml): its own keys find one
+    readonly property QtObject channelLock: QtObject {
+      property bool boxUp: false
+      property var keys: []
+      function key(event) { keys = keys.concat([event.text || ("key " + event.key)]) }
+    }
   }
 
   property int entered: 0
@@ -64,7 +70,7 @@ Item {
     when: windowShown
 
     function init() {
-      guide.touchMode = true; guide.screen = "guide"; guide.searched = []
+      guide.touchMode = true; guide.screen = "guide"; guide.searched = []; guide.dialog = ""; guide.channelLock.boxUp = false; guide.channelLock.keys = []
       top.entered = 0; top.accepted = 0; top.edits = 0
       named.text = ""; plainField.text = ""
       nowhere.forceActiveFocus()
@@ -136,6 +142,20 @@ Item {
       guide.searchInResults = true
       verify(!kb.up, "in the results: down")
       guide.searchInResults = false
+    }
+
+    function test_the_locks_list_takes_the_letters() {
+      guide.channelLock.boxUp = true
+      guide.dialog = "lockChannels"
+      verify(kb.up, "the lock's list of channels, nothing focused: up")
+      compare(findChild(kb, "key:enter").shown, "Done")
+      tap("w"); tap("x"); tap("back")
+      compare(guide.channelLock.keys, ["w", "x", "key " + Qt.Key_Backspace], "its own keys, as typed")
+      tap("enter")
+      verify(kb.hidden, "Done only hides (Enter there locks a channel)")
+      compare(guide.channelLock.keys.length, 3)
+      guide.dialog = "lockSettings"
+      verify(!kb.up, "its settings: down")
     }
 
     function test_changing_layouts_remakes_no_key() {

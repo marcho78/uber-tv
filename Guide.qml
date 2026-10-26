@@ -6898,6 +6898,17 @@ Item {
   // ▲ again, with pause and rewind running: the player controls (the bar of
   // what's kept, back 30 s, pause / play, forward 30 s)
   property bool playerControls: false
+  // Tablet mode: a tap on the picture brings up its controls at once (the
+  // banner's choices, with the player controls under them while pause and
+  // rewind runs; Guide; CH and 123); a tap again, or the banner's time, and
+  // they go (ui/TvScreen.qml)
+  property bool touchControls: false
+  onTouchModeChanged: if (!touchMode) touchControls = false
+  function toggleTouchControls() {
+    if (root.touchControls || root.bannerOptions || root.playerControls) { root.hideBanner(); return }
+    root.openBannerOptions()
+    root.touchControls = true
+  }
   readonly property var bannerActions: {
     if (tsOffMenu) return [{ key: "tsOn", label: "Turn on", icon: "", note: "Pause and rewind is off" }]
     if (tsCantMenu) return [{ key: "tsPause", label: "Pause", icon: "", unavailable: true, note: timeshift.cantPauseText || "Can't pause right now" }]
@@ -6910,8 +6921,9 @@ Item {
                             { key: "recUntil", label: "Until " + root.clock(recOnTuned.end) + "  ›", icon: "", rec: true }]
             : recOffer ? [{ key: "record", label: dvr.busy ? "Starting…" : recOffer.label, icon: "record", rec: true, note: dvr.said || recOffer.note, unavailable: recOffer.unavailable }]
             : []
-    return [{ key: "multiview", label: "Multiview", icon: "apps" }].concat(rec).concat([{ key: "mini", label: "Mini player", icon: "window" },
-            { key: "guide", label: "Guide", icon: "tv" }, { key: "mute", label: root.muted ? "Sound on" : "Mute", icon: "" }])
+    // (tablet mode's controls have Guide of their own, top left)
+    return [{ key: "multiview", label: "Multiview", icon: "apps" }].concat(rec).concat([{ key: "mini", label: "Mini player", icon: "window" }])
+            .concat(touchControls ? [] : [{ key: "guide", label: "Guide", icon: "tv" }]).concat([{ key: "mute", label: root.muted ? "Sound on" : "Mute", icon: "" }])
   }
   // The REC badge on the banner: only on the channel that's recording, until
   // when (another channel's banner says nothing of it: the guide's top line
@@ -6947,6 +6959,7 @@ Item {
     root.tsCantMenu = false
     root.tsMenuFromChoices = false
     root.playerControls = false
+    root.touchControls = false
     root.cancelScrub()
     bannerTimer.stop()
   }
@@ -7049,9 +7062,10 @@ Item {
     root.bannerShown = true
     bannerTimer.restart()
   }
-  // the player controls' buttons (a click, or the phone's arrows and OK)
+  // the player controls' buttons (a click, or the phone's arrows and OK;
+  // a finger, with tablet mode's controls up)
   function controlsAct(what) {
-    if (!root.playerControls) return
+    if (!root.playerControls && !root.touchControls) return
     if (what === "pause") timeshift.togglePause()
     else if (what === "back") timeshift.back()
     else if (what === "forward") timeshift.forward()
@@ -7094,7 +7108,7 @@ Item {
     } else {
       if (!timeshift.active) return false
       root.scrub = { at: at !== undefined ? at : timeshift.point, dir: dir, since: Date.now(), for: root.playSig, movie: false }
-      if (!root.playerControls) root.openPlayerControls(false)
+      if (!root.playerControls && !root.touchControls) root.openPlayerControls(false)
       bannerTimer.stop()
     }
     if (byKey) scrubClock.start()
@@ -7139,7 +7153,7 @@ Item {
     if (!root.scrub) return
     root.scrub = null
     scrubClock.stop()
-    if (root.playerControls) bannerTimer.restart()
+    if (root.playerControls || root.touchControls) bannerTimer.restart()
   }
   Timer { id: scrubClock; interval: 250; repeat: true; onTriggered: root.scrubStep() }
 
@@ -7408,6 +7422,12 @@ Item {
   function showVodBar() {
     root.vodBarShown = true
     vodBarTimer.restart()
+  }
+  // tablet mode: a tap on a movie shows its bar, a tap again hides it (it
+  // stays while paused)
+  function toggleVodBar() {
+    if (root.vodBarShown) { root.vodBarShown = false; vodBarTimer.stop() }
+    else root.showVodBar()
   }
 
   // A movie's poster, or a YouTube video's picture, through the streamer's cache
@@ -8202,7 +8222,7 @@ Item {
   onWatchingChanged: {
     remoteStateTimer.restart()
     root.cancelScrub()
-    if (!watching) { root.playerControls = false; root.keyHold = null }
+    if (!watching) { root.playerControls = false; root.touchControls = false; root.keyHold = null }
     // a channel from the guide's preview (on, or still tuning), now full screen: through pause and rewind's buffer
     if (watching && timeshift.turnedOn && !timeshift.busy && !vod && (reception === "on" || reception === "tuning") && tunedRow >= 0 && timeshift.takes(onAir)) root.tune(tunedRow)
   }
@@ -8603,6 +8623,7 @@ Item {
       if (root.scrub) return   // up through a scrub: its ten seconds start when it ends
       root.bannerShown = false; root.bannerOptions = false; root.recStopMenu = false; root.streamAsk = null
       root.playerControls = false; root.tsOffMenu = false; root.tsCantMenu = false; root.tsMenuFromChoices = false
+      root.touchControls = false
     }
   }
 
