@@ -15,7 +15,7 @@ const guideSrc = read("Guide.qml")
 const keysSrc = read("GuideKeys.qml")
 const cmdSrc = read("Commands.qml")
 const T = new Function(read("Touch.js").replace(/^\.pragma library\s*/, "") +
-  "; return { SETTINGS, INPUTS, FINGER_MM, MIN_PX, MAX_PX, KEY, SHIFT, setting, on, fingerPx, fit, pressable, split, fitCount }")()
+  "; return { SETTINGS, INPUTS, FINGER_MM, MIN_PX, MAX_PX, KEY, SHIFT, ACROSS, setting, on, fingerPx, fit, unit, railShows, hoursAcross, rowPx, pressable, split, fitCount }")()
 const block = (text, opener) => {
   const i = text.indexOf(opener)
   assert.ok(i >= 0, "missing: " + opener)
@@ -48,9 +48,25 @@ assert.equal(T.fingerPx(undefined, undefined, 10), 44, "no density, a small unit
 assert.equal(T.fingerPx(NaN, 0, 18), 58, "a broken density and scale: units")
 assert.equal(T.fingerPx(Infinity, 1, 18), 58, "an infinite density: units")
 
-// ---- how much room ----
-const u = (h) => Math.max(10, Math.round(h / 60))   // Guide.qml's u
-const fitOf = (w, h) => T.fit(w, u(h))
+// ---- the unit, and how much room ----
+// a 60th of the height; on a narrow screen small enough for 50 across
+assert.equal(T.ACROSS, 50)
+assert.equal(T.unit(1920, 1080), 18, "16:9: a 60th of the height, as always")
+assert.equal(T.unit(1920, 1200), 20, "16:10")
+assert.equal(T.unit(1600, 941), 16, "this laptop's guide")
+assert.equal(T.unit(1024, 768), 13, "4:3")
+assert.equal(T.unit(1500, 1000), 17, "3:2")
+assert.equal(T.unit(800, 1280), 16, "a 16:10 tablet in portrait: 50 across, not 21 px")
+assert.equal(T.unit(1200, 1920), 24, "a big tablet in portrait")
+assert.equal(T.unit(900, 1000), 17, "a narrow window: its height still decides")
+assert.equal(T.unit(1600, 560), 10, "a short window: never under 10 px")
+assert.equal(T.unit(0, 0), 10, "no size yet")
+assert.equal(T.unit(NaN, 1080), 18, "no width: the height's")
+assert.equal(T.unit(800, undefined), 10, "no height")
+// every screen at least as wide as 5:6 gets what it always got
+for (const [w, h] of [[1920, 1080], [2560, 1600], [1280, 800], [1024, 768], [1366, 768], [3840, 2160], [1000, 1200], [2736, 1824], [900, 560]])
+  assert.equal(T.unit(w, h), Math.max(10, Math.round(h / 60)), "unchanged: " + w + "x" + h)
+const fitOf = (w, h) => T.fit(w, T.unit(w, h))
 assert.equal(fitOf(1920, 1080), "expanded", "16:9")
 assert.equal(fitOf(1920, 1200), "expanded", "16:10")
 assert.equal(fitOf(1600, 941), "expanded", "this laptop's guide")
@@ -62,9 +78,26 @@ assert.equal(fitOf(1200, 1920), "compact", "a big tablet in portrait")
 assert.equal(fitOf(900, 1400), "compact", "a narrow window, tiled")
 assert.equal(fitOf(1600, 560), "expanded", "a short, wide window")
 assert.equal(T.fit(800, 0), "compact", "no unit yet")
+for (const [w, h] of [[800, 1280], [800, 1200], [1200, 1920], [900, 1400], [1080, 1920]])
+  assert.ok(w / T.unit(w, h) >= 49, "a compact screen has about 50 units across: " + w + "x" + h)
+// a compact screen steps the theme's layout down; the others keep it
+assert.equal(T.railShows("always", "compact"), "focus", "the rail tucks away")
+assert.equal(T.railShows("always", "medium"), "always")
+assert.equal(T.railShows("always", "expanded"), "always")
+assert.equal(T.railShows("focus", "compact"), "focus")
+assert.equal(T.railShows("none", "compact"), "none", "none stays none")
+for (const h of [1, 1.5, 2, 2.5, 3]) assert.equal(T.hoursAcross(h, "compact"), 1, "an hour across: " + h)
+assert.equal(T.hoursAcross(1.5, "medium"), 1.5)
+assert.equal(T.hoursAcross(3, "expanded"), 3)
+assert.equal(T.rowPx(30, true, 44), 44, "tablet mode: a finger tall")
+assert.equal(T.rowPx(61, true, 44), 61, "a taller row stays")
+assert.equal(T.rowPx(30, false, 44), 30, "keys and mouse: the layout's")
 assert.ok(guideSrc.includes('import "Touch.js" as Touch'))
 assert.match(guideSrc, /readonly property real fingerPx: Touch\.fingerPx\(shownScreen \? shownScreen\.physicalPixelDensity : 0, shownScreen \? shownScreen\.devicePixelRatio : 1, u\)/)
-assert.match(guideSrc, /readonly property string screenFit: Touch\.fit\(windowed && guideWindow\.width > 100 \? guideWindow\.width : panel\.width, u\)/)
+assert.match(guideSrc, /readonly property real shownWidth: windowed && guideWindow\.width > 100 \? guideWindow\.width : panel\.width\n/)
+assert.match(guideSrc, /readonly property real shownHeight: windowed && guideWindow\.height > 100 \? guideWindow\.height : panel\.height\n/)
+assert.match(guideSrc, /readonly property real u: Touch\.unit\(shownWidth, shownHeight\)\n/)
+assert.match(guideSrc, /readonly property string screenFit: Touch\.fit\(shownWidth, u\)\n/)
 assert.match(guideSrc, /readonly property var shownScreen: windowed \? guideWindow\.screen : panel\.screen/)
 
 // ---- the guide's side: the setting, the latch ----
@@ -374,6 +407,68 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   g = make(true, true, 5); run(g, { r: 5 })
   assert.deepEqual([g.watched, g.marked], [[], [5]], f + ": in the manager a tap marks")
   assert.match(src.slice(at, at + 600), /onDoubleClicked: if \(!guide\.managing\) guide\.watch\(rowItem\.r\)/, f + ": a double click watches")
+}
+// A compact screen's layout (the mockup's portrait): the rail tucked away
+// with ☰ on the masthead, the preview no wider than half beside the words,
+// an hour across, the table across (the TV in the info area), Settings'
+// parts or rows across, the Library's tabs sliding before the clock, Home's
+// title across, three apps a row. In tablet mode a channel's row is a
+// finger tall in the grid, the table and the board.
+{
+  assert.match(guideSrc, /readonly property int slotsShown: Math\.round\(Touch\.hoursAcross\(layout\.hours, screenFit\) \* 2\)/)
+  assert.match(guideSrc, /readonly property real rowH: Touch\.rowPx\(u \* layout\.rowHeight, touchMode, fingerPx\)\n/)
+  assert.match(guideSrc, /function fingerRow\(px\) \{ return Touch\.rowPx\(px, root\.touchMode, root\.fingerPx\) \}/)
+  assert.match(guideSrc, /readonly property string railShows: Touch\.railShows\(layout\.rail, screenFit\)\n/)
+  assert.match(guideSrc, /readonly property real railSpace: railShows === "always" \? Math\.round\(u \* layout\.railWidth\) : 0\n/)
+  assert.match(guideSrc, /readonly property bool railButtonUp: railShows === "focus" && layout\.masthead === "title" && \(screenFit === "compact" \|\| touchMode\)\n/)
+  assert.match(guideSrc, /\.concat\(railShows === "focus" && !railButtonUp \? \[\{ keys: \["←"\], label: "Nav rail", touchOnly: true/, "the guide's bar: Nav rail only without ☰")
+  assert.match(guideSrc, /listLoader\.item\.videoSlot && listLoader\.item\.panes \? listLoader\.item\.videoSlot : infoPanel\.videoSlot/, "the TV: the table's preview only while it shows")
+  assert.match(guideSrc, /readonly property int appsCols: screenFit === "compact" \? 3 : 5/)
+  const mast = read("ui/Masthead.qml")
+  assert.match(mast, /height: Math\.max\(guide\.u \* 3, guide\.railButtonUp \? guide\.fingerPx : 0\)/)
+  assert.match(mast, /TouchButton \{\n\s+visible: guide\.railButtonUp\n[^}]*icon: "menu"\n\s+accessibleName: "Nav rail"\n\s+onTapped: masthead\.guide\.openRail\(\)/)
+  assert.match(read("ui/NavRail.qml"), /visible: guide\.railEditing \|\| \(guide\.railShows !== "none" && \(guide\.railShows === "always" \|\| guide\.railOpen\) && !guide\.watching\)/)
+  // what draws the rail goes by railShows; only the setting itself (its
+  // row, its panel, agents) reads layout.rail
+  for (const f of readdirSync(new URL("../ui/", import.meta.url)).filter((f) => f.endsWith(".qml")).map((f) => "ui/" + f).concat(["Guide.qml"])) {
+    for (const m of read(f).matchAll(/layout\.rail === "(focus|always)"/g)) {
+      const line = read(f).slice(0, m.index).split("\n").length
+      const text = read(f).split("\n")[line - 1]
+      assert.ok(/settingValue|key === "rail"|railModeLabel/.test(text), f + " line " + line + ": the rail drawn by layout.rail, not railShows")
+    }
+  }
+  // every screen whose rail can tuck away offers it to a finger
+  for (const f of ["ui/HomeScreen.qml", "ui/SearchScreen.qml", "ui/AppsScreen.qml", "ui/SettingsScreen.qml", "ui/LibraryScreen.qml", "ui/AppScreen.qml"])
+    assert.match(read(f), /guide\.railShows === "focus" \? (\[\{ keys: \["←"\], label: "Nav rail", touchOnly: true, touch: )?\{ run: function\(\) \{ (page|home|lib)\.guide\.openRail\(\) \}, icon: "menu" \}/, f + ": Nav rail for a finger")
+  const info = read("ui/InfoPanel.qml")
+  assert.match(info, /height: guide\.screenFit === "compact" && layout\.preview !== "none"\n\s+\? Math\.max\(0, Math\.min\(guide\.u \* layout\.infoHeight, Math\.round\(\(width - area\.padding \* 2 - guide\.u\) \/ 2 \* 9 \/ 16 \+ area\.padding \* 2\)\)\)\n\s+: guide\.u \* layout\.infoHeight/)
+  const table = read("ui/ChannelTable.qml")
+  assert.match(table, /readonly property real lineH: Math\.round\(guide\.fingerRow\(rowH\)\)/)
+  assert.match(table, /readonly property bool panes: guide\.screenFit !== "compact"/)
+  assert.match(table, /width: table\.panes \? Math\.round\(table\.width \* table\.layout\.tableWidth\) : table\.width/)
+  assert.equal((table.match(/visible: table\.panes\n/g) || []).length, 2, "the preview and lineup panes")
+  assert.equal((table.match(/height: table\.lineH\n/g) || []).length, 2, "a channel's row and a show's in the lineup")
+  assert.match(table, /height: headH \+ table\.lineH\n/)
+  assert.match(table, /model: lineup\.shows\.slice\(0, Math\.max\(1, lineup\.room\)\)/)
+  assert.match(table, /id: lineupNotes\n\s+visible: lineup\.room >= 1\n/, "the notes give way to the one show that fits")
+  const board = read("ui/FlapBoard.qml")
+  assert.match(board, /readonly property real tileH: Math\.round\(rowH \* 0\.78\)\n/, "the flaps from the layout's row")
+  assert.match(board, /readonly property real lineH: Math\.round\(guide\.fingerRow\(rowH\)\)/)
+  assert.match(board, /height: headH \+ board\.lineH\n/)
+  assert.match(board, /height: board\.lineH\n/)
+  const settings = read("ui/SettingsScreen.qml")
+  assert.match(settings, /readonly property bool stacked: guide\.screenFit === "compact"/)
+  assert.match(settings, /visible: !page\.stacked \|\| !guide\.settingsInRows\n\s+width: page\.stacked \? page\.width - page\.u \* 6 : /)
+  assert.match(settings, /x: page\.stacked \? page\.u \* 3 : parts\.x \+ parts\.width \+ page\.u \* 2\.4\n\s+anchors\.top: parts\.top\n\s+visible: !page\.stacked \|\| guide\.settingsInRows/)
+  assert.match(settings, /guide\.settingsInRows = page\.stacked; guide\.settingsArmed = ""/, "a tap on a part goes in when stacked")
+  const lib = read("ui/LibraryScreen.qml")
+  assert.match(lib, /width: Math\.max\(0, Math\.min\(tabRow\.width, clockLabel\.x - x - lib\.u \* 2\)\)/, "the tabs end before the clock")
+  assert.match(lib, /interactive: contentWidth > width/)
+  assert.match(lib, /anchors\.topMargin: -tabStrip\.reach\n\s+anchors\.bottomMargin: -tabStrip\.reach/, "a finger tall")
+  const home = read("ui/HomeScreen.qml")
+  assert.match(home, /width: home\.compact \? parent\.width - home\.u \* 6 : Math\.min\(parent\.width \* 0\.58, home\.u \* 56\)/)
+  assert.match(home, /home\.heroY \+ home\.u \* \(home\.compact \? 16 : 13\.3\)/)
+  assert.match(read("ui/AppsScreen.qml"), /interactive: guide\.touchMode/)
 }
 assert.match(guideSrc, /property var touchMore: null/)
 // the keyboard: Search's box brings it back after Hide (Search has no field)

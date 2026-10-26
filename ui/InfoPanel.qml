@@ -15,7 +15,11 @@ Box {
 
   readonly property var layout: guide.layout
 
-  height: guide.u * layout.infoHeight
+  // a compact screen: the preview no wider than half, beside the words (the
+  // area no taller than that preview)
+  height: guide.screenFit === "compact" && layout.preview !== "none"
+          ? Math.max(0, Math.min(guide.u * layout.infoHeight, Math.round((width - area.padding * 2 - guide.u) / 2 * 9 / 16 + area.padding * 2)))
+          : guide.u * layout.infoHeight
   s: guide.look.infoArea
   unit: guide.u
 

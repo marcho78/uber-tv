@@ -8,12 +8,21 @@ Item {
 
   required property var guide
 
-  height: guide.u * 3
+  height: Math.max(guide.u * 3, guide.railButtonUp ? guide.fingerPx : 0)
 
   Row {
     visible: guide.layout.masthead === "title"
     anchors.verticalCenter: parent.verticalCenter
     spacing: guide.u
+    // the rail tucked away (a compact screen, or Focus in tablet mode): ☰ opens it
+    TouchButton {
+      visible: guide.railButtonUp
+      anchors.verticalCenter: parent.verticalCenter
+      guide: masthead.guide
+      icon: "menu"
+      accessibleName: "Nav rail"
+      onTapped: masthead.guide.openRail()
+    }
     Image {
       id: mastLogo
       anchors.verticalCenter: parent.verticalCenter

@@ -61,7 +61,7 @@ Item {
     cellWidth: Math.floor(width / guide.appsCols)
     cellHeight: Math.round((cellWidth - page.u * 1.2) * 9 / 16 + page.u * 1.6)
     clip: true
-    interactive: false
+    interactive: guide.touchMode   // (a finger scrolls it; the keys move the cursor)
     model: guide.appsTiles
     currentIndex: guide.appsTile
     highlightRangeMode: GridView.ApplyRange
@@ -240,7 +240,7 @@ Item {
              .concat(page.app ? [{ keys: ["I"], label: "Details", touch: { key: Qt.Key_I, icon: "info" } }] : [])
              .concat(page.tile && page.tile.kind === "get" ? [] : [{ keys: ["G"], label: "Get apps", touch: { key: Qt.Key_G, icon: "plus" } }])
              .concat([{ keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
-                      { keys: ["←"], label: "Nav rail", touch: guide.layout.rail === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
+                      { keys: ["←"], label: "Nav rail", touch: guide.railShows === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
                       { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }])
       size: page.u * 1.55
       capStyle: guide.look.keycap

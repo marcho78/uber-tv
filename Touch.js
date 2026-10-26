@@ -33,6 +33,25 @@ function fit(width, u) {
   return across < 62 ? "compact" : across < 88 ? "medium" : "expanded"
 }
 
+// The guide's unit: a 60th of its height, and on a narrow screen (a tablet
+// in portrait, a narrow window) small enough for 50 units across, so a
+// layout made for a wide screen still fits; never under 10 px. Landscape
+// screens get a 60th of their height, as always.
+var ACROSS = 50
+function unit(width, height) {
+  var h = Number(height) > 0 ? Number(height) : 0
+  var w = Number(width) > 0 ? Number(width) : Infinity
+  return Math.max(10, Math.round(Math.min(h / 60, w / ACROSS)))
+}
+
+// A compact screen draws the theme's layout stepped down (what was chosen
+// stays as it is): the nav rail tucked away (☰ opens it), an hour across
+function railShows(rail, fit) { return rail === "always" && fit === "compact" ? "focus" : rail }
+function hoursAcross(hours, fit) { return fit === "compact" ? Math.min(hours, 1) : hours }
+
+// A row a finger taps: in tablet mode never shorter than a finger
+function rowPx(px, touch, finger) { return touch ? Math.max(px, finger) : px }
+
 // Qt's own key codes (tests/qml/tst_touchmode.qml checks they match)
 var KEY = { left: 0x01000012, up: 0x01000013, right: 0x01000014, down: 0x01000015,
             pageUp: 0x01000016, pageDown: 0x01000017, j: 0x4a, l: 0x4c }

@@ -1475,9 +1475,11 @@ Item {
                             { keys: ["ESC"], label: "Apps", touch: { key: Qt.Key_Escape, back: true } }]
            : page.cur && page.cur.kind === "page" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
                                                     { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
-           : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: "Open" }, { keys: ["I"], label: "Details", touch: { key: Qt.Key_I, icon: "info" } },
+           : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }]
+              .concat(guide.railShows === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { page.guide.openRail() }, icon: "menu" } }] : [])
+              .concat([{ keys: ["ENTER"], label: "Open" }, { keys: ["I"], label: "Details", touch: { key: Qt.Key_I, icon: "info" } },
               { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } }, { keys: ["C"], label: "Customize", touch: { key: Qt.Key_C, icon: "pencil" } },
               { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
-              { keys: ["ESC"], label: view.stack.length > 1 || view.pending ? "Back" : "Apps", touch: { key: Qt.Key_Escape, back: true } }]
+              { keys: ["ESC"], label: view.stack.length > 1 || view.pending ? "Back" : "Apps", touch: { key: Qt.Key_Escape, back: true } }])
   }
 }

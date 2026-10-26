@@ -14,6 +14,9 @@ Item {
 
   readonly property real u: guide.u
   readonly property var row: guide.settingsRows[guide.settingsCursor] || ({})
+  // a compact screen: the parts across, or the rows of the one you went into
+  // (→ or a tap goes in, ← or Back comes out)
+  readonly property bool stacked: guide.screenFit === "compact"
 
   Label {
     id: title
@@ -41,7 +44,8 @@ Item {
     x: page.u * 3
     anchors.top: title.bottom
     anchors.topMargin: page.u * 2.4
-    width: Math.min(page.u * 26, page.width * 0.28)
+    visible: !page.stacked || !guide.settingsInRows
+    width: page.stacked ? page.width - page.u * 6 : Math.min(page.u * 26, page.width * 0.28)
     spacing: page.u * 0.6
 
     Repeater {
@@ -83,7 +87,7 @@ Item {
         MouseArea {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
-          onClicked: { guide.settingsPart = part.index; guide.settingsCursor = 0; guide.settingsInRows = false; guide.settingsArmed = "" }
+          onClicked: { guide.settingsPart = part.index; guide.settingsCursor = 0; guide.settingsInRows = page.stacked; guide.settingsArmed = "" }
         }
       }
     }
@@ -92,9 +96,9 @@ Item {
   // ---- the rows of the part you're on ----
   ListView {
     id: rows
-    anchors.left: parts.right
-    anchors.leftMargin: page.u * 2.4
+    x: page.stacked ? page.u * 3 : parts.x + parts.width + page.u * 2.4
     anchors.top: parts.top
+    visible: !page.stacked || guide.settingsInRows
     // as tall as its rows (worked out from them, not measured), the note right under them
     readonly property real rowsH: guide.settingsRows.length * (Math.max(Math.round(Look.px(guide.look.menuRow.height, page.u)), guide.touchMode ? guide.fingerPx : 0) + spacing)
     height: Math.max(0, Math.min(rowsH, footer.y - y - note.implicitHeight - page.u * 4))
@@ -146,11 +150,12 @@ Item {
   // What the focused row (or part) is about
   Label {
     id: note
-    anchors.left: rows.left
-    anchors.leftMargin: Math.ceil(rows.width * 0.03)
-    anchors.top: rows.bottom
+    readonly property Item under: page.stacked && !guide.settingsInRows ? parts : rows
+    anchors.left: under.left
+    anchors.leftMargin: Math.ceil(under.width * 0.03)
+    anchors.top: under.bottom
     anchors.topMargin: page.u * 1.6
-    width: rows.width * 0.94
+    width: under.width * 0.94
     text: guide.settingsNote
     s: guide.look.menuNote
     unit: page.u
@@ -181,7 +186,7 @@ Item {
       touchWidth: footer.width - footer.padding * 2
       model: guide.channelLock && guide.channelLock.boxUp ? guide.channelLock.hints
              : !guide.settingsInRows
-             ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["→", "/", "ENTER"], label: "Open" }, { keys: ["←"], label: "Nav rail", touch: guide.layout.rail === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
+             ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["→", "/", "ENTER"], label: "Open" }, { keys: ["←"], label: "Nav rail", touch: guide.railShows === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
                 { keys: ["?"], label: "All keys" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
              : [{ keys: ["↑", "↓"], label: "Move" }].concat(page.row.key === "app" ? [{ keys: ["SPACE"], label: "On / off" }] : []).concat([
                 page.row.key === "app" ? { keys: ["ENTER"], label: "Details" }

@@ -20,7 +20,7 @@ Item {
   // the credits' room at its foot, kept whether it's wide or thin
   readonly property real creditRoom: guide.railCredits ? handle.implicitHeight + credit.spacing + site.implicitHeight + u : 0
 
-  visible: guide.railEditing || (guide.layout.rail !== "none" && (guide.layout.rail === "always" || guide.railOpen) && !guide.watching)
+  visible: guide.railEditing || (guide.railShows !== "none" && (guide.railShows === "always" || guide.railOpen) && !guide.watching)
 
   // The shade over the screen while it's open; a click closes it
   Rectangle {

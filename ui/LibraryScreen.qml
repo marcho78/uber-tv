@@ -15,45 +15,69 @@ Item {
   readonly property real u: guide.u
   readonly property var tabs: guide.libraryTabs
 
-  // Tabs, and the time
-  Row {
-    id: tabRow
+  // Tabs, and the time. Tabs that don't fit before the clock (a narrow
+  // screen) slide under a finger, the one you're on kept in view. In tablet
+  // mode the strip reaches past the tabs' words, so each is a finger tall.
+  Flickable {
+    id: tabStrip
+    readonly property real reach: guide.touchMode ? Math.max(0, (guide.fingerPx - tabRow.height) / 2) : 0
     x: lib.u * 2
-    y: lib.u * 1.6
-    spacing: lib.u * 2.6
-    Repeater {
-      model: lib.tabs
-      delegate: Item {
-        required property var modelData
-        readonly property bool on: guide.libraryTab === modelData.key
-        width: tabLabel.implicitWidth
-        height: tabLabel.implicitHeight + lib.u * 0.7
-        Label {
-          id: tabLabel
-          text: parent.modelData.label
-          s: parent.on ? guide.look["libraryTab:current"] : guide.look.libraryTab
-          unit: lib.u
-        }
-        Rectangle {
-          anchors.bottom: parent.bottom
-          width: parent.width
-          height: Math.max(2, Math.round(lib.u * 0.16))
-          visible: parent.on
-          color: guide.look["libraryTab:current"].text.color
-        }
-        MouseArea {
-          anchors.fill: parent
-          cursorShape: Qt.PointingHandCursor
-          onClicked: guide.openLibrary(parent.modelData.key)
+    y: lib.u * 1.6 - reach
+    width: Math.max(0, Math.min(tabRow.width, clockLabel.x - x - lib.u * 2))
+    height: tabRow.height + reach * 2
+    contentWidth: tabRow.width
+    clip: true
+    interactive: contentWidth > width
+    boundsBehavior: Flickable.StopAtBounds
+    function show(at, w) {
+      if (at < contentX) contentX = at
+      else if (at + w > contentX + width) contentX = Math.min(contentWidth - width, at + w - width)
+    }
+
+    Row {
+      id: tabRow
+      y: tabStrip.reach
+      spacing: lib.u * 2.6
+      Repeater {
+        model: lib.tabs
+        delegate: Item {
+          id: tab
+          required property var modelData
+          readonly property bool on: guide.libraryTab === modelData.key
+          width: tabLabel.implicitWidth
+          height: tabLabel.implicitHeight + lib.u * 0.7
+          onOnChanged: if (on) Qt.callLater(function() { tabStrip.show(tab.x, tab.width) })
+          Component.onCompleted: if (on) Qt.callLater(function() { tabStrip.show(tab.x, tab.width) })
+          Label {
+            id: tabLabel
+            text: parent.modelData.label
+            s: parent.on ? guide.look["libraryTab:current"] : guide.look.libraryTab
+            unit: lib.u
+          }
+          Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: Math.max(2, Math.round(lib.u * 0.16))
+            visible: parent.on
+            color: guide.look["libraryTab:current"].text.color
+          }
+          MouseArea {
+            anchors.fill: parent
+            anchors.topMargin: -tabStrip.reach
+            anchors.bottomMargin: -tabStrip.reach
+            cursorShape: Qt.PointingHandCursor
+            onClicked: guide.openLibrary(parent.modelData.key)
+          }
         }
       }
     }
   }
 
   Label {
+    id: clockLabel
     anchors.right: parent.right
     anchors.rightMargin: lib.u * 2
-    y: tabRow.y
+    y: lib.u * 1.6
     text: guide.clock(guide.now)
     s: guide.look.clock
     unit: lib.u
@@ -66,8 +90,8 @@ Item {
     guide: lib.guide
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.top: tabRow.bottom
-    anchors.topMargin: lib.u * 1.4
+    anchors.top: tabStrip.bottom
+    anchors.topMargin: lib.u * 1.4 - tabStrip.reach
     anchors.bottom: footer.top
     rows: guide.libraryRows
     rowIndex: guide.libRow
@@ -133,8 +157,10 @@ Item {
       scale: libKeys.touching ? 1 : Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
       touchGuide: lib.guide
       touchWidth: footer.width - footer.padding * 2
-      model: [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: guide.libraryTab === "recordings" ? "Choices" : "Details" },
-              { keys: ["SPACE"], label: ["Starting", "Recording", "Saving"].indexOf((guide.libCard || {}).recState) >= 0 ? "Watch live" : "Play", touch: { key: Qt.Key_Space, icon: "playsolid" } }]
+      model: [{ keys: ["↑", "↓", "←", "→"], label: "Move" }]
+              .concat(guide.railShows === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { lib.guide.openRail() }, icon: "menu" } }] : [])
+              .concat([{ keys: ["ENTER"], label: guide.libraryTab === "recordings" ? "Choices" : "Details" },
+              { keys: ["SPACE"], label: ["Starting", "Recording", "Saving"].indexOf((guide.libCard || {}).recState) >= 0 ? "Watch live" : "Play", touch: { key: Qt.Key_Space, icon: "playsolid" } }])
               .concat(guide.libraryTab === "recordings" ? [] : [{ keys: ["L"], label: "My List", touch: { key: Qt.Key_L, icon: "bookmark" } }])
               .concat((guide.libraryRows[guide.libRow] || { key: "" }).key.indexOf("continue") === 0 ? [{ keys: ["X"], label: "Off this row", touch: { key: Qt.Key_X } }] : [])
               .concat([{ keys: ["TAB"], label: lib.tabs.map(function(t) { return t.key === "movies" ? "Movies" : t.label }).join(" · ") }, { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } },

@@ -15,6 +15,8 @@ Item {
   readonly property var flap: guide.look.flapTile
   readonly property real rowH: Math.round(guide.u * layout.boardRowHeight)
   readonly property real tileH: Math.round(rowH * 0.78)
+  // a channel's row: in tablet mode a finger tall, its flaps as they are
+  readonly property real lineH: Math.round(guide.fingerRow(rowH))
   readonly property real step: Math.round(tileH * (flap.aspect || 0.66)) + Math.max(1, Math.round(Look.px(flap.gap, guide.u)))
   readonly property real columnGap: guide.u * 1.2
   // with logos on (L), a square logo before the name, in the room of this
@@ -116,7 +118,7 @@ Item {
       readonly property var after: show ? guide.nextShow(r, show) : null
       readonly property real headH: heads ? Math.round(guide.u * 1.6) : 0
       width: rows.width
-      height: headH + board.rowH
+      height: headH + board.lineH
 
       Label {
         visible: rowItem.heads
@@ -130,7 +132,7 @@ Item {
       Box {
         y: rowItem.headH
         width: parent.width
-        height: board.rowH
+        height: board.lineH
         s: rowItem.current ? guide.look["tableRow:current"] : guide.look.tableRow
         unit: guide.u
 

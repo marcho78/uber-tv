@@ -30,6 +30,9 @@ Item {
                                                      meta: Qt.formatDateTime(new Date(guide.now * 1000), "MMMM d, yyyy"), progress: 0 }
                            : guide.homeHero
   readonly property real heroY: clockSpot === "left" ? u * 9.2 : chips ? u * 6 : u * 3
+  // a compact screen: the big title across, and room under it for two lines
+  // of title and two of its words, so the sections never cover them
+  readonly property bool compact: guide.screenFit === "compact"
   readonly property color shade: guide.look.homeShade.color
   readonly property real titleH: Math.round(u * 2.6)
   readonly property real captionH: Math.round(u * 3.4)
@@ -135,7 +138,7 @@ Item {
     visible: home.hero
     x: home.u * 3
     y: home.heroY
-    width: Math.min(parent.width * 0.58, home.u * 56)
+    width: home.compact ? parent.width - home.u * 6 : Math.min(parent.width * 0.58, home.u * 56)
     spacing: home.u * 0.7
     Label {
       text: home.topInfo.kicker
@@ -183,7 +186,7 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.top: parent.top
-    anchors.topMargin: home.hero ? home.heroY + home.u * 13.3 : home.clockSpot === "left" ? home.u * 9 : home.chips ? home.u * 6 : home.u * 2.5
+    anchors.topMargin: home.hero ? home.heroY + home.u * (home.compact ? 16 : 13.3) : home.clockSpot === "left" ? home.u * 9 : home.chips ? home.u * 6 : home.u * 2.5
     anchors.bottom: footer.top
     anchors.bottomMargin: home.u * 0.4
     clip: true
@@ -512,7 +515,7 @@ Item {
       touchGuide: home.guide
       touchWidth: footer.width - footer.padding * 2
       model: guide.homeEditing ? [] : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }]
-                                       .concat(guide.layout.rail === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { home.guide.openRail() }, icon: "menu" } }] : [])
+                                       .concat(guide.railShows === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { home.guide.openRail() }, icon: "menu" } }] : [])
                                        .concat([{ keys: ["ENTER"], label: "Open" }, { keys: ["G"], label: "Guide", touch: { key: Qt.Key_G, icon: "tv" } },
                                        { keys: ["V"], label: "Library", touch: { key: Qt.Key_V, icon: "film" } }, { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } },
                                        { keys: ["C"], label: "Customize Home", touch: { key: Qt.Key_C, icon: "pencil" } }, { keys: ["T"], label: "Phone remote", touch: { key: Qt.Key_T } },

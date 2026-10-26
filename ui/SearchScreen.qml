@@ -207,7 +207,7 @@ Item {
       model: page.typing
              ? [{ keys: [], label: "Type to search", touch: {} }].concat(guide.searchRows.length || (!guide.searchTerms && guide.recentSearches.length) ? [{ keys: ["↓"], label: guide.searchTerms ? "Results" : "Recent searches" }] : [])
                .concat([{ keys: ["DEL"], label: "Clear", touch: { key: Qt.Key_Delete } },
-                        { keys: ["←"], label: "Nav rail", touch: guide.layout.rail === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
+                        { keys: ["←"], label: "Nav rail", touch: guide.railShows === "focus" ? { run: function() { page.guide.openRail() }, icon: "menu" } : undefined },
                         { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }])
              : !guide.searchTerms
              ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Search it" }, { keys: [], label: "or type", touch: {} }, { keys: ["ESC"], label: "Back to typing", touch: { key: Qt.Key_Escape, back: true } }]

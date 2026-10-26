@@ -15,6 +15,12 @@ Item {
 
   readonly property var layout: guide.layout
   readonly property real rowH: Math.round(guide.u * layout.tableRowHeight)
+  // a row a finger taps (a channel, a show in the lineup): in tablet mode a
+  // finger tall, its words as they are
+  readonly property real lineH: Math.round(guide.fingerRow(rowH))
+  // the preview and lineup panes beside the table; a compact screen has the
+  // table across, and the TV goes in the info area's preview
+  readonly property bool panes: guide.screenFit !== "compact"
   readonly property real titleRoom: guide.u * 0.7     // the pane names stick up into the gap above
 
   // A text style shrunk, if need be, to fit a row
@@ -50,7 +56,7 @@ Item {
     id: channels
     guide: table.guide
     y: table.titleRoom
-    width: Math.round(table.width * table.layout.tableWidth)
+    width: table.panes ? Math.round(table.width * table.layout.tableWidth) : table.width
     height: table.height - y
     title: "channels"
     note: String(guide.visibleRows.length)
@@ -103,7 +109,7 @@ Item {
         readonly property var after: show ? guide.nextShow(r, show) : null
         readonly property real headH: heads ? Math.round(table.rowH * 1.25) : 0
         width: rows.width
-        height: headH + table.rowH
+        height: headH + table.lineH
 
         // ▾ news 2
         Item {
@@ -135,7 +141,7 @@ Item {
           id: rowBox
           y: rowItem.headH
           width: parent.width
-          height: table.rowH
+          height: table.lineH
           s: rowItem.current ? guide.look["tableRow:current"] : guide.look.tableRow
           unit: guide.u
 
@@ -295,6 +301,7 @@ Item {
   Pane {
     id: previewPane
     guide: table.guide
+    visible: table.panes
     x: channels.width + guide.u
     y: table.titleRoom
     width: table.width - x
@@ -318,8 +325,11 @@ Item {
   Pane {
     id: lineup
     guide: table.guide
+    visible: table.panes
     readonly property var ch: guide.channels[guide.row]
     readonly property var shows: guide.lineupFrom(guide.row, Math.min(guide.now, guide.selected ? guide.selected.start : guide.now), 24)
+    // how many shows fit over the notes; with none, the notes give way to one
+    readonly property int room: Math.floor((height - padding * 2 - lineupHeader.height - lineupNotes.height - table.lineH) / table.lineH)
     x: previewPane.x
     y: previewPane.y + previewPane.height + table.titleRoom + guide.u * 0.4
     width: previewPane.width
@@ -349,14 +359,14 @@ Item {
       y: lineupHeader.height
       width: parent.width
       Repeater {
-        model: lineup.shows.slice(0, Math.max(1, Math.floor((lineup.height - lineup.padding * 2 - lineupHeader.height - lineupNotes.height - table.rowH) / table.rowH)))
+        model: lineup.shows.slice(0, Math.max(1, lineup.room))
         delegate: Box {
           id: showRow
           required property var modelData
           readonly property bool airing: modelData.live || (guide.now >= modelData.start && guide.now < modelData.end)
           readonly property bool picked: guide.selected !== null && guide.selected.start === modelData.start
           width: lineupRows.width
-          height: table.rowH
+          height: table.lineH
           s: picked ? guide.look["tableRow:current"] : guide.look.tableRow
           unit: guide.u
 
@@ -402,6 +412,7 @@ Item {
     // Where the channel comes from, and how its lineup is planned
     Column {
       id: lineupNotes
+      visible: lineup.room >= 1
       anchors.bottom: parent.bottom
       x: guide.u * 0.4
       width: parent.width - guide.u * 0.8

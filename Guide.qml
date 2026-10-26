@@ -153,7 +153,7 @@ Item {
   property real now: Date.now() / 1000
   readonly property int liveBucket: Math.floor(now / 900)   // quarters of an hour: a live stream's picture is asked for again in each
   readonly property int slot: 1800
-  readonly property int slotsShown: Math.round(layout.hours * 2)
+  readonly property int slotsShown: Math.round(Touch.hoursAcross(layout.hours, screenFit) * 2)   // (a compact screen: an hour)
   readonly property int span: slot * slotsShown
   readonly property int maxSlotOffset: 24
   property int slotOffset: 0
@@ -1929,12 +1929,19 @@ Item {
   property var layoutOverrides: ({})
   readonly property var layout: Look.effectiveLayout(currentTheme.layout, layoutOverrides)
 
-  readonly property real u: Math.max(10, Math.round((windowed && guideWindow.height > 100 ? guideWindow.height : panel.height) / 60))
+  // The guide's size, and its unit: a 60th of its height, smaller on a narrow
+  // screen so 50 fit across (Touch.js)
+  readonly property real shownWidth: windowed && guideWindow.width > 100 ? guideWindow.width : panel.width
+  readonly property real shownHeight: windowed && guideWindow.height > 100 ? guideWindow.height : panel.height
+  readonly property real u: Touch.unit(shownWidth, shownHeight)
   // A finger in the guide's pixels, from the screen it's on, and how much room
   // that screen gives: compact, medium or expanded (Touch.js)
   readonly property var shownScreen: windowed ? guideWindow.screen : panel.screen
   readonly property real fingerPx: Touch.fingerPx(shownScreen ? shownScreen.physicalPixelDensity : 0, shownScreen ? shownScreen.devicePixelRatio : 1, u)
-  readonly property string screenFit: Touch.fit(windowed && guideWindow.width > 100 ? guideWindow.width : panel.width, u)
+  readonly property string screenFit: Touch.fit(shownWidth, u)
+  // A row a finger taps, as tall as its layout says and in tablet mode never
+  // shorter than a finger (the table's and the board's)
+  function fingerRow(px) { return Touch.rowPx(px, root.touchMode, root.fingerPx) }
 
   // Text that reads on a fill: the color asked for, or dark on a light
   // fill and light on a dark one when the two are too alike
@@ -1953,7 +1960,7 @@ Item {
   readonly property color currentRowDim: textOn(look["listRow:current"].fill, colors.textDim)
   readonly property real gap: layout.gap > 0 ? Math.max(1, Math.round(layout.gap * u)) : 0
   readonly property real chanW: u * layout.channelWidth
-  readonly property real rowH: u * layout.rowHeight
+  readonly property real rowH: Touch.rowPx(u * layout.rowHeight, touchMode, fingerPx)
 
   function open(payloadJson) {
     if (root.windowed && root.opened && !root.windowHere()) root.bringWindowHere()
@@ -3506,7 +3513,7 @@ Item {
 
   function leaveApps() { root.go(root.appsFrom === "guide" ? "tv" : root.appsFrom === "library" ? root.libraryTab : root.appsFrom === "settings" ? "settings" : "home") }
 
-  readonly property int appsCols: 5
+  readonly property int appsCols: screenFit === "compact" ? 3 : 5   // (a compact screen: their names fit)
   function moveAppsTile(dx, dy) {
     var n = root.appsTiles.length
     dx = Number(dx) || 0
@@ -4727,7 +4734,7 @@ Item {
     { keys: ["E"], label: "Done", touch: { key: Qt.Key_E, back: true } }
   ] : [
     { keys: ["↑", "↓"], label: "Channel" }, { keys: ["←", "→"], label: "Program" }]
-    .concat(layout.rail === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { root.openRail() }, icon: "menu" } }] : [])
+    .concat(railShows === "focus" && !railButtonUp ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { root.openRail() }, icon: "menu" } }] : [])
     .concat([{ keys: ["ENTER"], label: "Watch", touch: { key: Qt.Key_Return, primary: true, icon: "playsolid" } }])
     .concat(dvr.settings.on ? [{ keys: ["I"], label: "Record…", touch: { key: Qt.Key_I, icon: "record" } }] : [])
     .concat([{ keys: ["V"], label: "Library", touch: { key: Qt.Key_V, icon: "film" } },
@@ -6271,8 +6278,14 @@ Item {
   }
 
   readonly property string railCurrent: screen === "home" ? "home" : screen === "guide" ? "tv" : screen === "library" ? libraryTab : screen === "settings" ? "settings" : screen === "search" ? "search" : screen === "apps" || screen === "app" ? "apps" : ""
+  // How the rail shows: the layout's, tucked away on a compact screen (☰ on
+  // the guide's masthead opens it)
+  readonly property string railShows: Touch.railShows(layout.rail, screenFit)
+  // ☰ on the masthead (a title masthead): on a compact screen whenever the
+  // rail is tucked away, and in tablet mode with the rail on Focus
+  readonly property bool railButtonUp: railShows === "focus" && layout.masthead === "title" && (screenFit === "compact" || touchMode)
   // what the screens leave free at the left for the thin rail
-  readonly property real railSpace: layout.rail === "always" ? Math.round(u * layout.railWidth) : 0
+  readonly property real railSpace: railShows === "always" ? Math.round(u * layout.railWidth) : 0
 
   function openRail() {
     appViewItem.userActs()
@@ -9265,7 +9278,7 @@ Item {
 
   // The list of channels on screen (the grid's or the table's), and where the TV goes
   readonly property var channelList: listLoader.item ? listLoader.item.list : null
-  readonly property Item videoSlot: root.layout.list === "table" && listLoader.item && listLoader.item.videoSlot ? listLoader.item.videoSlot : infoPanel.videoSlot
+  readonly property Item videoSlot: root.layout.list === "table" && listLoader.item && listLoader.item.videoSlot && listLoader.item.panes ? listLoader.item.videoSlot : infoPanel.videoSlot
   readonly property bool agentStripUp: !agentSkill && agentAsked && !agentSettled && !managing
   // channels shown in each category
   readonly property var categoryCounts: {
