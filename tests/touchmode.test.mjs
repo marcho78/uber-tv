@@ -696,6 +696,26 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
     assert.equal(ma.moved, false, "jitter isn't a drag")
     tap(ma, ...env, FINGER)
     assert.equal(gd.pipBannerShown, false, "it tapped (the bar, shown, went)")
+    // flush to an edge, where the window can't follow: the finger's own way
+    // across the screen (the event's spot in the window as it is), jitter at
+    // the right edge and at the bottom still taps; a drag along the edge drags
+    for (const edge of ["right", "bottom"]) {
+      const W = 1000, H = 600, w = 300, h = 169
+      const ge = Object.assign(pg(), { pipRight: edge === "right" ? 0 : 300, pipBottom: edge === "bottom" ? 0 : 200 })
+      const win = { clampPlace() { ge.pipRight = Math.max(0, Math.min(W - w, ge.pipRight)); ge.pipBottom = Math.max(0, Math.min(H - h, ge.pipBottom)) } }
+      const at = (gx, gy) => ({ x: gx - (W - ge.pipRight - w), y: gy - (H - ge.pipBottom - h), source: 2 })
+      const env2 = [ge, { forceActiveFocus() {} }, win, { styleHints: { startDragDistance: 10 } }]
+      const gx = W - ge.pipRight - w + 150, gy = H - ge.pipBottom - h + 80   // the press, across the screen
+      const m3 = { fromX: 0, fromY: 0, startRight: 0, startBottom: 0, awayX: 0, awayY: 0, moved: false, pressed: true }
+      press(m3, ...env2, at(gx, gy))
+      for (let i = 0; i < 16; i++) move(m3, ...env2, edge === "right" ? at(gx + (i % 2 ? -3 : 3), gy) : at(gx, gy + (i % 2 ? -3 : 3)))
+      assert.equal(m3.moved, false, "jitter flush to the " + edge + " edge isn't a drag")
+      tap(m3, ...env2, FINGER)
+      assert.equal(ge.shown, 1, "it taps, flush to the " + edge + " edge")
+      press(m3, ...env2, at(gx, gy))
+      for (let i = 1; i <= 8; i++) move(m3, ...env2, edge === "right" ? at(gx + 2, gy - i * 4) : at(gx - i * 4, gy + 2))
+      assert.equal(m3.moved, true, "a drag along the " + edge + " edge is a drag")
+    }
   }
   // a cancelled resize near an edge: its size and its place as they were
   {
