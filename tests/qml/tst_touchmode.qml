@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import "../../ui"
+import "../../Touch.js" as Touch
 
 // Tablet mode's watcher (ui/TouchWatch.qml), over a button and a list as the
 // guide has it over everything: a finger is noticed only once it lets go, and
@@ -104,6 +105,15 @@ Item {
       keyClick(Qt.Key_Escape)
       compare(top.escapes, 1, "its Esc still acts")
       compare(top.lastInput, "keyboard", "and notes the keyboard")
+    }
+
+    // Touch.js's own key codes are Qt's
+    function test_touch_keys_are_qts() {
+      compare(Touch.KEY.left, Qt.Key_Left); compare(Touch.KEY.right, Qt.Key_Right)
+      compare(Touch.KEY.up, Qt.Key_Up); compare(Touch.KEY.down, Qt.Key_Down)
+      compare(Touch.KEY.pageUp, Qt.Key_PageUp); compare(Touch.KEY.pageDown, Qt.Key_PageDown)
+      compare(Touch.KEY.j, Qt.Key_J); compare(Touch.KEY.l, Qt.Key_L)
+      compare(Touch.SHIFT, Qt.ShiftModifier)
     }
 
     function test_a_real_mouse_is_noticed() {

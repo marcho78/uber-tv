@@ -16,7 +16,7 @@ Item {
               "ui/AppScreen.qml", "ui/AppCard.qml", "ui/AppPlayer.qml", "ui/AppsScreen.qml", "ui/DialogBox.qml",
               "ui/AppStrip.qml", "ui/AppBackdrop.qml", "ui/AppTop.qml", "ui/AppHero.qml", "ui/AppCustomize.qml", "ui/AppChart.qml", "ui/AppTicker.qml", "ui/AppPage.qml",
               "ui/MultiviewTile.qml", "ui/Multiview.qml", "GuideKeys.qml", "ChannelLock.qml", "ui/LockBox.qml", "Authorize.qml", "DeveloperPresses.qml", "ui/OriginBadge.qml",
-              "ui/LowerThird.qml", "ui/CardRows.qml", "ui/DetailBox.qml", "ui/MenuRow.qml", "ui/LibraryScreen.qml", "ui/TvScreen.qml", "ui/Icon.qml", "Timeshift.qml", "ui/ChannelIdent.qml", "ui/AskStrip.qml", "ui/VodBar.qml", "ui/ProgramGrid.qml", "ui/ChannelTable.qml", "ui/TopBar.qml", "ui/Masthead.qml", "ui/FlapBoard.qml", "ui/TouchWatch.qml"].filter(function(f) { return /\.qml$/.test(f) }).map(function(f) { return { tag: f, file: f } })
+              "ui/LowerThird.qml", "ui/CardRows.qml", "ui/DetailBox.qml", "ui/MenuRow.qml", "ui/LibraryScreen.qml", "ui/TvScreen.qml", "ui/Icon.qml", "Timeshift.qml", "ui/ChannelIdent.qml", "ui/AskStrip.qml", "ui/VodBar.qml", "ui/ProgramGrid.qml", "ui/ChannelTable.qml", "ui/TopBar.qml", "ui/Masthead.qml", "ui/FlapBoard.qml", "ui/TouchWatch.qml", "ui/TouchButton.qml", "ui/TouchMore.qml", "ui/KeyHints.qml", "ui/Footer.qml", "ui/HomeScreen.qml", "ui/SettingsScreen.qml", "ui/NavRail.qml", "ui/StylePanel.qml"].filter(function(f) { return /\.qml$/.test(f) }).map(function(f) { return { tag: f, file: f } })
     }
 
     function test_compiles(data) {

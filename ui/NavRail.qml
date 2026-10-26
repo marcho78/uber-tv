@@ -153,11 +153,12 @@ Item {
 
     // How to customize it, while it's open
     KeyHints {
-      visible: guide.railOpen && guide.showKeyHints
+      visible: guide.railOpen && (guide.showKeyHints || guide.touchMode)
       x: strip.padding + rail.u * 0.4
       anchors.bottom: parent.bottom
       anchors.bottomMargin: rail.u * 2 + rail.creditRoom
-      model: [{ keys: ["C"], label: "Customize" }]
+      touchGuide: rail.guide
+      model: [{ keys: ["C"], label: "Customize", touch: { key: Qt.Key_C, icon: "pencil" } }]
       size: rail.u * 1.4
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel
@@ -364,6 +365,7 @@ Item {
           dim: !prow.available
           danger: prow.type === "railReset"
           onActivated: { guide.railEditCursor = prow.index; guide.railPanelAct(1) }
+          onStepped: function(dir) { guide.railEditCursor = prow.index; guide.railPanelAct(dir) }
         }
       }
     }
@@ -376,13 +378,17 @@ Item {
       anchors.margins: panel.padding
       spacing: rail.u * 0.5
       KeyHints {
-        model: [{ keys: ["SPACE"], label: "On / off" }, { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }]
+        touchGuide: rail.guide
+        touchWidth: panelHints.width
+        model: [{ keys: ["SPACE"], label: "On / off", touch: { key: Qt.Key_Space } }, { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }]
         size: rail.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel
       }
       KeyHints {
-        model: [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["C", "/", "ESC"], label: "Done" }]
+        touchGuide: rail.guide
+        touchWidth: panelHints.width
+        model: [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["C", "/", "ESC"], label: "Done", touch: { key: Qt.Key_Escape, back: true } }]
         size: rail.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel

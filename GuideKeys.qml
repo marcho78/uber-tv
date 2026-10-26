@@ -16,8 +16,19 @@ Item {
     if (k === Qt.Key_Left || k === Qt.Key_Right || k === Qt.Key_J || k === Qt.Key_L) { guide.scrubKeyUp(); event.accepted = true }
   }
   Keys.onPressed: function(event) {
-    var k = event.key
     guide.noteInput("keyboard")
+    // tablet mode's ⋯ panel goes with any key (Esc only closes it)
+    if (guide.touchMore) {
+      guide.closeTouchMore()
+      if (event.key === Qt.Key_Escape) { event.accepted = true; return }
+    }
+    keys.press(event)
+  }
+  // A key in the box that's open, then the screen: what it does there. A real
+  // key comes in above; a touch button runs it with its hint's own key
+  // (Guide.qml touchPress: never ← → J L, the arrows or Page Up and Down).
+  function press(event) {
+    var k = event.key
     // Omarchy's screen saver is up, or the key that closed it is still coming
     // (or the one that woke Uber TV's screen saver)
     if ((guide.nativeSaver && (guide.nativeSaver.up || guide.nativeSaver.settling)) || (guide.screenSaver && guide.screenSaver.settling)) { event.accepted = true; return }

@@ -446,9 +446,10 @@ Item {
                   for (var k in guide.homeCols) cols[k] = guide.homeCols[k]
                   cols[secItem.modelData.key] = card.index
                   guide.homeCols = cols
-                  if (card.modelData.kind === "app") guide.homeOpen()   // an app opens at once, as on a TV
+                  // an app opens at once, as on a TV; anything at once with a finger
+                  if (card.modelData.kind === "app" || guide.touchMode) guide.homeOpen()
                 }
-                onDoubleClicked: if (card.modelData.kind !== "app") guide.homeOpen()
+                onDoubleClicked: if (card.modelData.kind !== "app" && !guide.touchMode) guide.homeOpen()
               }
             }
             Column {
@@ -496,20 +497,28 @@ Item {
     anchors.leftMargin: home.u * 3
     anchors.rightMargin: home.u * 3
     anchors.bottomMargin: home.u * 1.6
-    height: guide.showKeyHints ? home.u * 1.9 : 0
-    visible: guide.showKeyHints
+    // tablet mode: the buttons, always there, a finger tall (a tap on a card opens it)
+    height: guide.touchMode ? guide.fingerPx + home.u * 0.6 : guide.showKeyHints ? home.u * 1.9 : 0
+    visible: guide.showKeyHints || guide.touchMode
     s: guide.look.footer
     unit: home.u
     KeyHints {
+      id: homeKeys
       anchors.left: parent.left
       anchors.leftMargin: footer.padding
       anchors.verticalCenter: parent.verticalCenter
       transformOrigin: Item.Left
-      scale: Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
-      model: guide.homeEditing ? [] : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }, { keys: ["ENTER"], label: "Open" }, { keys: ["G"], label: "Guide" },
-                                       { keys: ["V"], label: "Library" }, { keys: ["/"], label: "Search" }, { keys: ["C"], label: "Customize Home" }, { keys: ["T"], label: "Phone remote" }, { keys: ["W"], label: guide.windowed ? "Full screen" : "Window" },
-                                       { keys: ["S"], label: "Style" }, { keys: [","], label: "Settings" }, { keys: ["?"], label: "All keys" },
-                                       { keys: ["K"], label: "Hide keys" }, { keys: ["ESC"], label: "Close" }]
+      scale: homeKeys.touching ? 1 : Math.min(1, (footer.width - footer.padding * 2) / Math.max(1, implicitWidth))
+      touchGuide: home.guide
+      touchWidth: footer.width - footer.padding * 2
+      model: guide.homeEditing ? [] : [{ keys: ["↑", "↓", "←", "→"], label: "Move" }]
+                                       .concat(guide.layout.rail === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { home.guide.openRail() }, icon: "menu" } }] : [])
+                                       .concat([{ keys: ["ENTER"], label: "Open" }, { keys: ["G"], label: "Guide", touch: { key: Qt.Key_G, icon: "tv" } },
+                                       { keys: ["V"], label: "Library", touch: { key: Qt.Key_V, icon: "film" } }, { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } },
+                                       { keys: ["C"], label: "Customize Home", touch: { key: Qt.Key_C, icon: "pencil" } }, { keys: ["T"], label: "Phone remote", touch: { key: Qt.Key_T } },
+                                       { keys: ["W"], label: guide.windowed ? "Full screen" : "Window", touch: { key: Qt.Key_W, icon: guide.windowed ? "fullscreen" : "window" } },
+                                       { keys: ["S"], label: "Style", touch: { key: Qt.Key_S } }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } }, { keys: ["?"], label: "All keys" },
+                                       { keys: ["K"], label: "Hide keys" }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
       size: home.u * 1.55
       capStyle: guide.look.keycap
       labelStyle: guide.look.keyLabel
@@ -661,6 +670,8 @@ Item {
           more: prow.type === "section" && !!prow.sec && prow.sec.type !== "doors"
           danger: prow.type === "homeReset" || prow.type === "optRemove"
           onActivated: { guide.homeCursor = prow.index; guide.homePanelAct(1) }
+          onStepped: function(dir) { guide.homeCursor = prow.index; guide.homePanelAct(dir) }
+          onToggled: { guide.homeCursor = prow.index; guide.homePanelToggle() }
         }
       }
     }
@@ -672,18 +683,26 @@ Item {
       anchors.bottom: parent.bottom
       anchors.margins: panel.padding
       spacing: home.u * 0.5
+      // (tablet mode: the name field has the keys while renaming, so its
+      // buttons run what the field does)
       KeyHints {
-        model: guide.homeRenaming ? [{ keys: ["ENTER"], label: "Save the name" }, { keys: [], label: "(empty: its own)" }, { keys: ["ESC"], label: "Cancel" }]
-             : guide.homeAdding ? [{ keys: ["ENTER"], label: "Add" }, { keys: ["ESC"], label: "Back" }]
-             : guide.homeOptions >= 0 ? [{ keys: ["ENTER"], label: "Change" }, { keys: ["←", "→"], label: "Change" }, { keys: ["ESC"], label: "Back to the rows" }]
-             : [{ keys: ["SPACE"], label: "On / off" }, { keys: ["ENTER"], label: "Options" }, { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["DEL"], label: "Remove" }]
+        touchGuide: home.guide
+        touchWidth: panelHints.width
+        model: guide.homeRenaming ? [{ keys: ["ENTER"], label: "Save the name", touch: { run: function() { home.guide.renameHomeSection(renameField.text) }, primary: true } }, { keys: [], label: "(empty: its own)" },
+                                     { keys: ["ESC"], label: "Cancel", touch: { run: function() { home.guide.closeHomePanel() }, back: true } }]
+             : guide.homeAdding ? [{ keys: ["ENTER"], label: "Add", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+             : guide.homeOptions >= 0 ? [{ keys: ["ENTER"], label: "Change", touch: { key: Qt.Key_Return } }, { keys: ["←", "→"], label: "Change" }, { keys: ["ESC"], label: "Back to the rows", touch: { key: Qt.Key_Escape, back: true } }]
+             : [{ keys: ["SPACE"], label: "On / off", touch: { key: Qt.Key_Space } }, { keys: ["ENTER"], label: "Options", touch: { key: Qt.Key_Return } }, { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" },
+                { keys: ["DEL"], label: "Remove", touch: { key: Qt.Key_Delete } }]
         size: home.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel
       }
       KeyHints {
+        touchGuide: home.guide
+        touchWidth: panelHints.width
         model: guide.homeOptions >= 0 || guide.homeAdding || guide.homeRenaming ? [{ keys: ["↑", "↓"], label: "Move" }]
-             : [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["C", "/", "ESC"], label: "Done" }]
+             : [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["←", "→"], label: "Change" }, { keys: ["C", "/", "ESC"], label: "Done", touch: { key: Qt.Key_Escape, back: true } }]
         size: home.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel

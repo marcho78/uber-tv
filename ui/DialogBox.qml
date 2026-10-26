@@ -459,7 +459,7 @@ Box {
                 focused: reviewBox.focusedOn(modelData.key)
                 label: open ? "Fewer" : "And " + (modelData.lines.length - 3) + " more"
                 kind: "opens"
-                onActivated: { var i = reviewBox.foldIndex(modelData.key); if (guide.appsCursor !== i) guide.appsCursor = i; else guide.appsAct(guide.byUser) }
+                onActivated: { var i = reviewBox.foldIndex(modelData.key); if (guide.appsCursor !== i && !guide.touchMode) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
               }
               Label {
                 width: parent.width
@@ -482,7 +482,7 @@ Box {
           focused: reviewBox.focusedOn("before")
           label: "And what it had before"
           kind: "opens"
-          onActivated: { var i = reviewBox.foldIndex("before"); if (guide.appsCursor !== i) guide.appsCursor = i; else guide.appsAct(guide.byUser) }
+          onActivated: { var i = reviewBox.foldIndex("before"); if (guide.appsCursor !== i && !guide.touchMode) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
         }
         Label {
           width: parent.width
@@ -504,7 +504,7 @@ Box {
           icon: "shield"
           label: "Can't reach your files, channels, other apps or sites it didn't list"
           kind: "opens"
-          onActivated: { var i = reviewBox.foldIndex("cant"); if (guide.appsCursor !== i) guide.appsCursor = i; else guide.appsAct(guide.byUser) }
+          onActivated: { var i = reviewBox.foldIndex("cant"); if (guide.appsCursor !== i && !guide.touchMode) guide.appsCursor = i; else { guide.appsCursor = i; guide.appsAct(guide.byUser) } }
         }
         Label {
           width: parent.width
@@ -729,8 +729,9 @@ Box {
                  : ""
           onActivated: {
             if (guide.appsBusy()) return
-            if (guide.appsCursor !== index + appRows.offset) { guide.appsCursor = index + appRows.offset; guide.appsArmed = "" }
-            else guide.appsAct(guide.byUser)
+            // a finger acts at once (a removal still asks again); a click picks first
+            if (guide.appsCursor !== index + appRows.offset) { guide.appsCursor = index + appRows.offset; guide.appsArmed = ""; if (!guide.touchMode) return }
+            guide.appsAct(guide.byUser)
           }
         }
       }
@@ -827,7 +828,7 @@ Box {
             value: guide.remoteArmed === modelData.id ? "Enter again to unpair"
                  : "Paired " + Qt.formatDateTime(new Date(modelData.added * 1000), "MMM d") + " · used " + Qt.formatDateTime(new Date(modelData.seen * 1000), "MMM d")
                    + (index === guide.remoteCursor ? " · Unpair" : "")
-            onActivated: { if (guide.remoteCursor !== index) { guide.remoteCursor = index; guide.remoteArmed = "" } else guide.unpairAct() }
+            onActivated: { if (guide.remoteCursor !== index) { guide.remoteCursor = index; guide.remoteArmed = ""; if (!guide.touchMode) return } guide.unpairAct() }
           }
         }
       }
@@ -949,7 +950,7 @@ Box {
             }
             Keys.onPressed: function(event) {
               guide.noteInput("keyboard")
-              if (event.key === Qt.Key_Escape) guide.pickImages && guide.pickArea !== "home" && guide.pickArea !== "multiview" ? guide.backToStyle() : guide.closeDialog()
+              if (event.key === Qt.Key_Escape) guide.pickEscape()
               else if (event.key === Qt.Key_Up) guide.movePick(-1)
               else if (event.key === Qt.Key_Down) guide.movePick(1)
               else if (event.key === Qt.Key_PageUp) guide.movePick(-6)
@@ -1112,7 +1113,7 @@ Box {
               MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: guide.pickCursor = pickRow.index
+                onClicked: { guide.pickCursor = pickRow.index; if (guide.touchMode) guide.choosePick(guide.byUser) }
                 onDoubleClicked: { guide.pickCursor = pickRow.index; guide.choosePick(guide.byUser) }
               }
             }
@@ -1180,6 +1181,7 @@ Box {
             if (modelData.type === "source") guide.cycleSource(1)
             else guide.toggleFilter(index - guide.sourceRow)
           }
+          onStepped: function(dir) { guide.filterCursor = index; guide.cycleSource(dir) }
         }
       }
 
@@ -1204,7 +1206,7 @@ Box {
             label: modelData.label
             value: modelData.note || ""
             dim: modelData.unavailable === true
-            onActivated: { if (guide.showCursor === index) guide.showChoiceAct(index); else guide.showCursor = index }
+            onActivated: { if (guide.showCursor === index || guide.touchMode) { guide.showCursor = index; guide.showChoiceAct(index) } else guide.showCursor = index }
           }
         }
       }
@@ -1457,17 +1459,21 @@ Box {
         wrapMode: Text.Wrap
       }
 
+      // its keys; in tablet mode, its buttons (a finger tall, never shrunk)
       Item {
         width: parent.width
-        height: dialogBox.u * 2.2
+        height: guide.touchMode ? guide.fingerPx + dialogBox.u * 0.6 : dialogBox.u * 2.2
         KeyHints {
+          id: boxKeys
           anchors.verticalCenter: parent.verticalCenter
           transformOrigin: Item.Left
-          scale: Math.min(1, parent.width / Math.max(1, implicitWidth))
+          scale: boxKeys.touching ? 1 : Math.min(1, parent.width / Math.max(1, implicitWidth))
           model: guide.dialogHints
           size: dialogBox.u * 1.55
           capStyle: guide.look.keycap
           labelStyle: guide.look.keyLabel
+          touchGuide: dialogBox.guide
+          touchWidth: parent.width
         }
       }
     }

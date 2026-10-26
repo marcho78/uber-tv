@@ -419,6 +419,8 @@ Box {
       KeyHints {
         required property var modelData
         model: modelData
+        touchGuide: stylePanel.guide
+        touchWidth: styleHintsColumn.width
         size: guide.u * 1.4
         capStyle: guide.look.keycap
         labelStyle: guide.look.keyLabel

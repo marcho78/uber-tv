@@ -2425,6 +2425,24 @@ Item {
   // What was used last: every key handler, the watchers and the phone say so
   function noteInput(kind) { if (root.lastInput !== kind) root.lastInput = kind }
 
+  // A touch button (ui/KeyHints.qml, ui/TouchMore.qml): its hint's own touch,
+  // a text field's own action (run), or a key, which does what that key does
+  // there (GuideKeys.press). Only keys Touch.pressable allows: never the
+  // arrows, Page Up and Down, or ← → J L while watching.
+  function touchPress(t) {
+    root.touchMore = null
+    if (t && typeof t.run === "function") { t.run(); return true }
+    if (!Touch.pressable(t, root.watching)) return false
+    var ev = { key: t.key, modifiers: t.mods || 0, text: "", isAutoRepeat: false, accepted: false }
+    keys.press(ev)
+    return ev.accepted
+  }
+
+  // Tablet mode's ⋯ panel: the buttons that didn't fit in a row
+  property var touchMore: null
+  function openTouchMore(list) { root.touchMore = Array.isArray(list) && list.length ? list : null }
+  function closeTouchMore() { root.touchMore = null }
+
   // Uber TV closed (the guide gone, no mini player): Auto starts over next
   // time. Checked once things settle, since going between the guide and the
   // mini player passes through neither for a moment.
@@ -4501,6 +4519,13 @@ Item {
     Qt.callLater(function() { dialogBox.pickInput.forceActiveFocus() })
   }
 
+  // Esc in the file picker: back to the style panel for a picture, else away
+  // (its field's Esc, and tablet mode's Cancel)
+  function pickEscape() {
+    if (root.pickImages && root.pickArea !== "home" && root.pickArea !== "multiview") root.backToStyle()
+    else root.closeDialog()
+  }
+
   // Tab: Search (every match in your home folder) or Browse (a folder at a time)
   function pickToggleBrowse() {
     root.pickBrowse = !root.pickBrowse
@@ -4658,60 +4683,82 @@ Item {
 
   // The key hints under the guide, and in each box: keycaps, then what they
   // do. "+" between keys means together, "/" means either.
+  // The key hints along the bottom. Tablet mode makes buttons of those with
+  // their own touch (Touch.js split: a key GuideKeys runs as that key does, a
+  // text field's own action, back: Back); the rest a finger does itself.
   readonly property var footerHints: channelLockItem.boxUp ? channelLockItem.hints : managing ? [
-    { keys: ["SPACE"], label: "Mark" }, { keys: ["SHIFT", "+", "SPACE"], label: "Category" },
-    { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["N"], label: "Rename" }, { keys: ["C"], label: "Category" },
-    { keys: ["L"], label: "Lock" }, { keys: ["DEL"], label: "Remove" }, { keys: ["?"], label: "All keys" }, { keys: ["E"], label: "Done" }
+    { keys: ["SPACE"], label: "Mark", touch: { key: Qt.Key_Space } }, { keys: ["SHIFT", "+", "SPACE"], label: "Category", touch: { key: Qt.Key_Space, mods: Qt.ShiftModifier } },
+    { keys: ["SHIFT", "+", "↑", "↓"], label: "Move" }, { keys: ["N"], label: "Rename", touch: { key: Qt.Key_N, icon: "pencil" } }, { keys: ["C"], label: "Category", touch: { key: Qt.Key_C } },
+    { keys: ["L"], label: "Lock", touch: { key: Qt.Key_L, icon: "lock" } }, { keys: ["DEL"], label: "Remove", touch: { key: Qt.Key_Delete } }, { keys: ["?"], label: "All keys" },
+    { keys: ["E"], label: "Done", touch: { key: Qt.Key_E, back: true } }
   ] : [
-    { keys: ["↑", "↓"], label: "Channel" }, { keys: ["←", "→"], label: "Program" }, { keys: ["ENTER"], label: "Watch" }].concat(dvr.settings.on ? [{ keys: ["I"], label: "Record…" }] : []).concat([{ keys: ["V"], label: "Library" },
-    { keys: ["/"], label: "Search" }, { keys: ["P"], label: "Mini player" }, { keys: ["W"], label: windowed ? "Full screen" : "Window" }, { keys: ["T"], label: "Phone remote" }, { keys: ["A"], label: "Add" }, { keys: ["E"], label: "Manage" },
-    { keys: ["S"], label: "Style" }, { keys: [","], label: "Settings" }, { keys: ["?"], label: "All keys" }, { keys: ["K"], label: "Hide keys" },
-    { keys: ["ESC"], label: homeEnabled ? "Home" : "Close" }
+    { keys: ["↑", "↓"], label: "Channel" }, { keys: ["←", "→"], label: "Program" }]
+    .concat(layout.rail === "focus" ? [{ keys: ["←"], label: "Nav rail", touchOnly: true, touch: { run: function() { root.openRail() }, icon: "menu" } }] : [])
+    .concat([{ keys: ["ENTER"], label: "Watch", touch: { key: Qt.Key_Return, primary: true, icon: "playsolid" } }])
+    .concat(dvr.settings.on ? [{ keys: ["I"], label: "Record…", touch: { key: Qt.Key_I, icon: "record" } }] : [])
+    .concat([{ keys: ["V"], label: "Library", touch: { key: Qt.Key_V, icon: "film" } },
+    { keys: ["/"], label: "Search", touch: { key: Qt.Key_Slash, icon: "search" } }, { keys: ["P"], label: "Mini player", touch: { key: Qt.Key_P, icon: "mini" } },
+    { keys: ["W"], label: windowed ? "Full screen" : "Window", touch: { key: Qt.Key_W, icon: windowed ? "fullscreen" : "window" } },
+    { keys: ["T"], label: "Phone remote", touch: { key: Qt.Key_T } }, { keys: ["A"], label: "Add", touch: { key: Qt.Key_A, icon: "plus" } },
+    { keys: ["E"], label: "Manage", touch: { key: Qt.Key_E, icon: "pencil" } },
+    { keys: ["S"], label: "Style", touch: { key: Qt.Key_S } }, { keys: [","], label: "Settings", touch: { key: Qt.Key_Comma, icon: "gear" } },
+    { keys: ["?"], label: "All keys" }, { keys: ["K"], label: "Hide keys" },
+    { keys: ["ESC"], label: homeEnabled ? "Home" : "Close", touch: { key: Qt.Key_Escape, back: true } }
   ])
-  readonly property var dialogHints: dialog === "remove" ? [{ keys: ["ENTER"], label: "Remove" }, { keys: ["ESC"], label: "Keep" }]
+  // A box's hints. In a box whose rows are tapped (a list), Enter's is no
+  // button; where a text field has the keys, its buttons run the field's own
+  // action (a key would never reach it).
+  readonly property var dialogHints: dialog === "remove" ? [{ keys: ["ENTER"], label: "Remove", touch: { key: Qt.Key_Return } }, { keys: ["ESC"], label: "Keep", touch: { key: Qt.Key_Escape, back: true } }]
     : dialog === "filter" ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["SPACE"], label: "On / off" }].concat(hasIptv ? [{ keys: ["←", "→"], label: "Sources" }] : [])
-        .concat([{ keys: ["ENTER"], label: "Show" }, { keys: ["ESC"], label: "Cancel" }])
+        .concat([{ keys: ["ENTER"], label: "Show", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "pick" ? ((pickApps || pickSignedApps) && appsStore.inspecting ? [{ keys: [], label: "Checking it…" }]
-        : pickBrowse ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Open" }, { keys: ["⌫"], label: "Up a folder" }, { keys: ["TAB"], label: "Search" }, { keys: ["ESC"], label: "Cancel" }]
-        : [{ keys: [], label: "Type to search" }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: pickFolders ? "Use it" : pickApps || pickSignedApps ? "Check it" : "Open" }, { keys: ["TAB"], label: "Browse" }, { keys: ["ESC"], label: "Cancel" }])
-    : dialog === "notes" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: ["ESC"], label: "Close" }]
-    : dialog === "contributors" ? (contributors.length ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Open on GitHub" }] : []).concat([{ keys: ["ESC"], label: "Close" }])
+        : pickBrowse ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Open" }, { keys: ["⌫"], label: "Up a folder", touch: { run: function() { root.browseUp() } } },
+                        { keys: ["TAB"], label: "Search", touch: { run: function() { root.pickToggleBrowse() }, icon: "search" } }, { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.pickEscape() }, back: true } }]
+        : [{ keys: [], label: "Type to search" }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: pickFolders ? "Use it" : pickApps || pickSignedApps ? "Check it" : "Open" },
+           { keys: ["TAB"], label: "Browse", touch: { run: function() { root.pickToggleBrowse() }, icon: "folder" } }, { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.pickEscape() }, back: true } }])
+    : dialog === "notes" ? [{ keys: ["↑", "↓"], label: "Scroll" }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "contributors" ? (contributors.length ? [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: "Open on GitHub" }] : []).concat([{ keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "reset" || dialog === "restore" ? backupsItem.hints(dialog)
-    : dialog === "help" ? [{ keys: ["ESC"], label: "Close" }]
-    : dialog === "agent" ? [{ keys: ["ENTER"], label: "Turn on" }, { keys: ["N"], label: "No thanks" }, { keys: ["ESC"], label: "Later" }]
-    : dialog === "demo" ? [{ keys: ["Y"], label: "Load them" }, { keys: ["N"], label: "No thanks" }]
-    : dialog === "recStream" ? [{ keys: ["ENTER"], label: "Watch anyway" }, { keys: ["ESC"], label: "Stay" }]
-    : dialog === "showChoices" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Back" }]
-    : dialog === "remote" ? (remoteStep === "" ? [{ keys: ["ENTER"], label: "Turn on" }, { keys: ["ESC"], label: "Close" }]
-        : remoteStep === "confirm" ? [{ keys: ["ENTER"], label: "Turn on" }, { keys: ["ESC"], label: "Cancel" }]
+    : dialog === "help" ? [{ keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "agent" ? [{ keys: ["ENTER"], label: "Turn on", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["N"], label: "No thanks", touch: { key: Qt.Key_N } }, { keys: ["ESC"], label: "Later", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "demo" ? [{ keys: ["Y"], label: "Load them", touch: { key: Qt.Key_Y, primary: true } }, { keys: ["N"], label: "No thanks", touch: { key: Qt.Key_N } }]
+    : dialog === "recStream" ? [{ keys: ["ENTER"], label: "Watch anyway", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Stay", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "showChoices" ? [{ keys: ["↑", "↓"], label: "Choose" }, { keys: ["ENTER"], label: "Pick" }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "remote" ? (remoteStep === "" ? [{ keys: ["ENTER"], label: "Turn on", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+        : remoteStep === "confirm" ? [{ keys: ["ENTER"], label: "Turn on", touch: { key: Qt.Key_Return, primary: true } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
         : remoteStep === "firewall" ? [{ keys: [], label: "Waiting for your password…" }]
-        : remoteStep === "off" ? [{ keys: ["ENTER"], label: "Turn off, remove rule" }, { keys: ["N"], label: "Turn off, keep rule" }, { keys: ["ESC"], label: "Cancel" }]
-        : (remoteDevices.length ? [{ keys: ["↑", "↓"], label: "Phones" }, { keys: ["ENTER"], label: remoteArmed ? "Again to unpair" : "Unpair" }] : [])
-            .concat(remoteAllowedHere ? [] : [{ keys: ["A"], label: "Allow this network" }])
-            .concat([{ keys: ["T"], label: "Turn off" }, { keys: ["ESC"], label: "Close" }]))
-    : dialog === "rename" ? [{ keys: ["ENTER"], label: "Save" }, { keys: ["ESC"], label: "Cancel" }]
-    : dialog === "listings" ? (listingsAdding ? [{ keys: ["ENTER"], label: "Add" }, { keys: ["ESC"], label: "Back" }]
+        : remoteStep === "off" ? [{ keys: ["ENTER"], label: "Turn off, remove rule", touch: { key: Qt.Key_Return } }, { keys: ["N"], label: "Turn off, keep rule", touch: { key: Qt.Key_N } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
+        : (remoteDevices.length ? [{ keys: ["↑", "↓"], label: "Phones" }, { keys: ["ENTER"], label: remoteArmed ? "Again to unpair" : "Unpair", touch: { key: Qt.Key_Return } }] : [])
+            .concat(remoteAllowedHere ? [] : [{ keys: ["A"], label: "Allow this network", touch: { key: Qt.Key_A } }])
+            .concat([{ keys: ["T"], label: "Turn off", touch: { key: Qt.Key_T } }, { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]))
+    : dialog === "rename" ? [{ keys: ["ENTER"], label: "Save", touch: { run: function() { root.renameChannel(root.row, dialogBox.renameInput.text) }, primary: true } },
+                             { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.closeDialog() }, back: true } }]
+    : dialog === "listings" ? (listingsAdding ? [{ keys: ["ENTER"], label: "Add", touch: { run: function() { root.addListingsFrom(dialogBox.listingsInput.text) }, primary: true } },
+                                                 { keys: ["ESC"], label: "Back", touch: { run: function() { root.listingsBack() }, back: true } }]
         : [{ keys: ["↑", "↓"], label: "Move" },
            (listingRows[listingsCursor] || {}).type === "source" ? { keys: ["ENTER"], label: listingsArmed ? "Again to remove" : "Remove" }
            : (listingRows[listingsCursor] || {}).type === "add" ? { keys: ["ENTER"], label: "Add a link or file" } : { keys: ["ENTER"], label: "Fetch now" },
-           { keys: ["ESC"], label: "Close" }])
-    : dialog === "appsOn" || dialog === "unknownOn" || dialog === "devOn" ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "yes" ? "Turn on" : "Not now" }, { keys: ["ESC"], label: "Not now" }]
+           { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
+    : dialog === "appsOn" || dialog === "unknownOn" || dialog === "devOn" ? [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "yes" ? "Turn on" : "Not now" }, { keys: ["ESC"], label: "Not now", touch: { key: Qt.Key_Escape, back: true } }]
     : dialog === "appCatalog" ? (appsStore.inspecting ? [{ keys: [], label: "Checking it…" }]
         : [{ keys: ["↑", "↓"], label: "Pick" },
            { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "retry" ? "Try again" : appsStore.rowRecord(appsBoxRows[appsCursor]) && !appsStore.newer(((appsBoxRows[appsCursor] || {}).entry || {}).version, appsStore.rowRecord(appsBoxRows[appsCursor]).version) ? "Details" : "See what it asks for" },
-           { keys: ["ESC"], label: "Close" }])
+           { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "appReview" ? (appsStore.installing ? [{ keys: [], label: "Installing…" }]
         : [{ keys: ["↑", "↓"], label: "Move" }, { keys: ["ENTER"], label: (appsBoxRows[appsCursor] || {}).type === "install" ? (appsStore.review && appsStore.review.updateConsent ? "Agree" : appsStore.review && appsStore.review.have && !appsStore.review.replaces ? "Update" : "Install")
                                                                        : (appsBoxRows[appsCursor] || {}).type === "fold" ? (reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Show all") : "Cancel" },
-           { keys: ["ESC"], label: (appsBoxRows[appsCursor] || {}).type === "fold" && reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Cancel" }])
+           { keys: ["ESC"], label: (appsBoxRows[appsCursor] || {}).type === "fold" && reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Cancel", touch: { key: Qt.Key_Escape, back: true } }])
     : dialog === "appInfo" ? [{ keys: ["↑", "↓"], label: "Move" },
         (appsBoxRows[appsCursor] || {}).type === "fold" ? { keys: ["ENTER"], label: reviewOpen[appsBoxRows[appsCursor].key] ? "Fold" : "Show all" } :
         (appsBoxRows[appsCursor] || {}).type === "remove" ? { keys: ["ENTER"], label: appsArmed ? "Again to remove" : "Remove" }
         : (appsBoxRows[appsCursor] || {}).type === "toggle" ? { keys: ["ENTER"], label: "On / off" }
         : (appsBoxRows[appsCursor] || {}).type === "update" ? { keys: ["ENTER"], label: "See what it asks for" } : { keys: ["ENTER"], label: "Open it" },
-        { keys: ["ESC"], label: "Close" }]
-    : dialog === "category" ? [{ keys: [], label: "Type a new one, or" }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Set" }, { keys: ["ESC"], label: "Cancel" }]
-    : [{ keys: ["ENTER"], label: "Add" }, { keys: ["SHIFT", "+", "ENTER"], label: "New line" }, { keys: ["CTRL", "+", "O"], label: "Pick a file" }, { keys: ["ESC"], label: "Cancel" }]
+        { keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    : dialog === "category" ? [{ keys: [], label: "Type a new one, or", touch: {} }, { keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Set" },
+                               { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.closeDialog() }, back: true } }]
+    : [{ keys: ["ENTER"], label: "Add", touch: { run: function() { root.addChannel(dialogBox.addInput.text) }, primary: true } }, { keys: ["SHIFT", "+", "ENTER"], label: "New line" },
+       { keys: ["CTRL", "+", "O"], label: "Pick a file", touch: { run: function() { root.openPicker() }, icon: "file" } },
+       { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.closeDialog() }, back: true } }]
 
   // Every key, for the help box (?): [keys, what they do]; no keys is the mouse.
   readonly property var helpSections: [
@@ -5848,31 +5895,36 @@ Item {
   }
 
   readonly property var styleHintRows: {
-    if (styleNaming) return [[{ keys: [], label: "Type a name" }, { keys: ["ENTER"], label: namingArmed ? "Replace" : "Save" }, { keys: ["ESC"], label: "Cancel" }]]
+    // (tablet mode: the name field and the color picker have the keys, so
+    // their buttons run what those do)
+    if (styleNaming) return [[{ keys: [], label: "Type a name" }, { keys: ["ENTER"], label: namingArmed ? "Replace" : "Save", touch: { run: function() { root.finishNaming(true) }, primary: true } },
+                              { keys: ["ESC"], label: "Cancel", touch: { run: function() { root.finishNaming(false) }, back: true } }]]
     if (styleEditing) return [
       [{ keys: ["←", "→", "↑", "↓"], label: "Shade" }, { keys: ["PGUP", "PGDN"], label: "Hue" }],
-      [{ keys: ["[", "]"], label: "See-through" }, { keys: ["ENTER"], label: "Keep" }, { keys: ["ESC"], label: "Undo" }]
+      [{ keys: ["[", "]"], label: "See-through" }, { keys: ["ENTER"], label: "Keep", touch: { run: function() { root.finishPick(true) }, primary: true } },
+       { keys: ["ESC"], label: "Undo", touch: { run: function() { root.finishPick(false) }, back: true } }]
     ]
     var row = styleRows[styleCursor] || {}
     var t = row.type
-    var back = styleView === "main" ? [{ keys: ["S", "/", "ESC"], label: "Close" }] : [{ keys: ["ESC"], label: "Back" }, { keys: ["S"], label: "Close" }]
+    var back = styleView === "main" ? [{ keys: ["S", "/", "ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+                                    : [{ keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }, { keys: ["S"], label: "Close", touch: { key: Qt.Key_S, icon: "close" } }]
     if (t === "open" || t === "part") return [[{ keys: ["ENTER"], label: "Open" }], [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
     if (t === "state") return [[{ keys: ["←", "→"], label: "Normal or a state" }], [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
     if (t === "prop" || t === "layout" || t === "font")
       return [(t === "prop" && row.kind === "color" ? [{ keys: ["ENTER"], label: "Pick" }]
                : t === "layout" && Look.LAYOUT_BY_KEY[row.key].kind === "columns" ? [{ keys: [], label: "Set by themes and agents" }]
-               : [{ keys: ["←", "→"], label: "Change" }]).concat([{ keys: ["DEL"], label: "Theme's" }]),
+               : [{ keys: ["←", "→"], label: "Change" }]).concat([{ keys: ["DEL"], label: "Theme's", touch: { key: Qt.Key_Delete } }]),
               [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
     if (t === "resetPart") return [[{ keys: ["ENTER"], label: styleArmed === t ? "Again to reset" : "Reset" }], [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
-    var first = t === "color" ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["DEL"], label: "Theme's" }]
-              : t === "theme" ? [{ keys: ["←", "→"], label: "Change theme" }, { keys: ["DEL"], label: "Premiere" }]
+    var first = t === "color" ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["DEL"], label: "Theme's", touch: { key: Qt.Key_Delete } }]
+              : t === "theme" ? [{ keys: ["←", "→"], label: "Change theme" }, { keys: ["DEL"], label: "Premiere", touch: { key: Qt.Key_Delete } }]
               : t === "saveTheme" ? [{ keys: ["ENTER"], label: "Name it and save" }]
               : t === "image" ? (areaImages[(styleRows[styleCursor] || {}).key]
-                                 ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["←", "→"], label: "Fit" }, { keys: ["[", "]"], label: "Fade" }, { keys: ["DEL"], label: "Off" }]
-                                 : [{ keys: ["ENTER"], label: "Pick a picture" }].concat(imageOverrides[(styleRows[styleCursor] || {}).key] !== undefined ? [{ keys: ["DEL"], label: "Theme's" }] : []))
+                                 ? [{ keys: ["ENTER"], label: "Pick" }, { keys: ["←", "→"], label: "Fit" }, { keys: ["[", "]"], label: "Fade" }, { keys: ["DEL"], label: "Off", touch: { key: Qt.Key_Delete } }]
+                                 : [{ keys: ["ENTER"], label: "Pick a picture" }].concat(imageOverrides[(styleRows[styleCursor] || {}).key] !== undefined ? [{ keys: ["DEL"], label: "Theme's", touch: { key: Qt.Key_Delete } }] : []))
               : t === "bg" ? [{ keys: ["←", "→"], label: "Change" }, { keys: ["ENTER"], label: "Pick a picture" }]
               : t === "dim" ? [{ keys: ["←", "→"], label: "Less / more" }]
-              : t === "lt" || t === "card" ? [{ keys: ["SPACE"], label: "On / off" }, { keys: ["←", "→"], label: "Seconds" }]
+              : t === "lt" || t === "card" ? [{ keys: ["SPACE"], label: "On / off", touch: { key: Qt.Key_Space } }, { keys: ["←", "→"], label: "Seconds" }]
               : t === "undoReset" ? [{ keys: ["ENTER"], label: "Undo" }]
               : [{ keys: ["ENTER"], label: styleArmed === t ? "Again to reset" : "Reset" }]
     return [first, [{ keys: ["↑", "↓"], label: "Move" }].concat(back)]
@@ -9450,7 +9502,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.leftMargin: root.railSpace + root.u * 3
         anchors.rightMargin: root.u * 3
-        anchors.bottomMargin: root.showKeyHints ? root.u * 4.3 : root.u * 1.6
+        anchors.bottomMargin: root.touchMode ? root.fingerPx + root.u * 3 : root.showKeyHints ? root.u * 4.3 : root.u * 1.6
       }
 
       // The nav rail, over the screens, under the boxes and the TV
@@ -9631,12 +9683,20 @@ Item {
           anchors.horizontalCenter: parent.horizontalCenter
           anchors.bottom: parent.bottom
           anchors.bottomMargin: root.u * 2
-          visible: root.showKeyHints
-          model: [{ keys: ["ESC"], label: "Cancel" }]
+          visible: root.showKeyHints || root.touchMode
+          model: [{ keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
+          touchGuide: root
           size: root.u * 1.55
           capStyle: root.look.keycap
           labelColor: appSplash.ink
         }
+      }
+
+      // Tablet mode's ⋯ panel, over everything
+      TouchMore {
+        anchors.fill: parent
+        z: 900000
+        guide: root
       }
 
       // Tablet mode: notices a finger (or a real mouse) without taking it

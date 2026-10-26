@@ -32,3 +32,54 @@ function fit(width, u) {
   var across = Number(u) > 0 ? Number(width) / Number(u) : 0
   return across < 62 ? "compact" : across < 88 ? "medium" : "expanded"
 }
+
+// Qt's own key codes (tests/qml/tst_touchmode.qml checks they match)
+var KEY = { left: 0x01000012, up: 0x01000013, right: 0x01000014, down: 0x01000015,
+            pageUp: 0x01000016, pageDown: 0x01000017, j: 0x4a, l: 0x4c }
+var SHIFT = 0x02000000
+
+// A touch button's own key, as its hint gives it ({ key, mods }): never the
+// arrows or Page Up and Down (a finger does that), never ← → J L while
+// watching (they hold to scrub; touch has its own buttons), no modifier but
+// Shift. What a hint shows is never read for this.
+function pressable(t, watching) {
+  if (!t || typeof t.key !== "number" || t.key <= 0) return false
+  if ([KEY.left, KEY.right, KEY.up, KEY.down, KEY.pageUp, KEY.pageDown].indexOf(t.key) >= 0) return false
+  if (watching && (t.key === KEY.j || t.key === KEY.l)) return false
+  var mods = t.mods === undefined ? 0 : t.mods
+  return mods === 0 || mods === SHIFT
+}
+
+// A hint list for the touch controls: Back (the hint whose touch is back),
+// the buttons (hints with their own touch key, or a text field's action), and
+// the words with no key at all ("Checking it…"). The rest a finger does.
+function split(hints) {
+  var out = { back: null, buttons: [], notes: [] }
+  var list = Array.isArray(hints) ? hints : []
+  for (var i = 0; i < list.length; i++) {
+    var h = list[i]
+    if (!h || typeof h.label !== "string") continue
+    var t = h.touch
+    if (t && t.back === true && !out.back) out.back = h
+    else if (t && (typeof t.run === "function" || typeof t.key === "number")) out.buttons.push(h)
+    else if (!t && (!Array.isArray(h.keys) || h.keys.length === 0) && h.label) out.notes.push(h)
+  }
+  return out
+}
+
+// How many of the buttons fit in the room, given their widths and the gap,
+// leaving space for ⋯ when not all of them do (room 0: no limit)
+function fitCount(widths, gap, room, moreWidth) {
+  var n = widths.length
+  if (!(room > 0)) return n
+  var total = 0
+  for (var i = 0; i < n; i++) total += widths[i] + (i ? gap : 0)
+  if (total <= room) return n
+  var used = moreWidth
+  for (var k = 0; k < n; k++) {
+    var next = used + gap + widths[k]
+    if (next > room) return k
+    used = next
+  }
+  return n
+}

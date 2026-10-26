@@ -180,11 +180,12 @@ Item {
   }
   function hints(dialog) {
     if (dialog === "reset")
-      return backups.resetBusy() ? [{ keys: [], label: "One moment…" }] : [{ keys: ["ENTER"], label: "Reset everything" }, { keys: ["ESC"], label: "Cancel" }]
+      return backups.resetBusy() ? [{ keys: [], label: "One moment…" }]
+             : [{ keys: ["ENTER"], label: "Reset everything", touch: { key: Qt.Key_Return } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
     if (backups.restoreStep === "busy") return [{ keys: [], label: "One moment…" }]
-    if (!backups.list.length) return [{ keys: ["ESC"], label: "Close" }]
-    return backups.armed ? [{ keys: ["ENTER"], label: "Restore" }, { keys: ["ESC"], label: "Back" }]
-                         : [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Restore" }, { keys: ["ESC"], label: "Cancel" }]
+    if (!backups.list.length) return [{ keys: ["ESC"], label: "Close", touch: { key: Qt.Key_Escape, back: true } }]
+    return backups.armed ? [{ keys: ["ENTER"], label: "Restore", touch: { key: Qt.Key_Return } }, { keys: ["ESC"], label: "Back", touch: { key: Qt.Key_Escape, back: true } }]
+                         : [{ keys: ["↑", "↓"], label: "Pick" }, { keys: ["ENTER"], label: "Restore", touch: { key: Qt.Key_Return } }, { keys: ["ESC"], label: "Cancel", touch: { key: Qt.Key_Escape, back: true } }]
   }
   function value(key) {
     if (key === "backupSave") return backups.saving === "busy" ? "Saving…" : backups.saving === "done" ? "Saved" : backups.saving === "failed" ? "Couldn't save" : ""

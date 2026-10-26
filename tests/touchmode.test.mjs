@@ -15,7 +15,7 @@ const guideSrc = read("Guide.qml")
 const keysSrc = read("GuideKeys.qml")
 const cmdSrc = read("Commands.qml")
 const T = new Function(read("Touch.js").replace(/^\.pragma library\s*/, "") +
-  "; return { SETTINGS, INPUTS, FINGER_MM, MIN_PX, MAX_PX, setting, on, fingerPx, fit }")()
+  "; return { SETTINGS, INPUTS, FINGER_MM, MIN_PX, MAX_PX, KEY, SHIFT, setting, on, fingerPx, fit, pressable, split, fitCount }")()
 const block = (text, opener) => {
   const i = text.indexOf(opener)
   assert.ok(i >= 0, "missing: " + opener)
@@ -146,7 +146,9 @@ assert.match(block(guideSrc, "function applySettings(settingsText) {"), /root\.t
   r.noteInput("keyboard"); assert.equal(r.lastInput, "keyboard", "the same again changes nothing")
 }
 const pressed = block(keysSrc, "Keys.onPressed: function(event) {")
-assert.ok(pressed.indexOf('guide.noteInput("keyboard")') >= 0 && pressed.indexOf('guide.noteInput("keyboard")') < pressed.indexOf("return"), "a key, before anything returns")
+assert.match(pressed, /^\n\s+guide\.noteInput\("keyboard"\)\n/, "a real key notes the keyboard first")
+assert.match(pressed, /keys\.press\(event\)\s*$/, "then runs the router")
+assert.ok(!/noteInput/.test(block(keysSrc, "function press(event) {")), "the router itself never notes (a touch button runs it too)")
 const remote = block(guideSrc, "function remoteCommand(cmd, number, by, digits, extra) {")
 assert.match(remote, /if \(by === root\.byUser\) \{\n\s+root\.noteInput\("remote"\)/, "a press on the phone (not an agent)")
 // touch, then the mini player's keys: its own router notes the keyboard first
@@ -208,5 +210,103 @@ assert.match(cmdSrc, /keyHints: guide\.showKeyHints, touch: commands\.touchInfo\
   assert.deepEqual(run("tablet"), { ok: false, error: "auto, on, off or \"\"" })
   assert.equal(guide.touchSetting, "on", "a refused value changes nothing")
 }
+
+// ---- touch buttons: which keys, which hints, how many fit ----
+{
+  const K = T.KEY, ENTER = 0x01000004, ESC = 0x01000000, SPACE = 0x20, V = 0x56, CTRL = 0x04000000
+  assert.equal(T.pressable({ key: ENTER }, false), true)
+  assert.equal(T.pressable({ key: SPACE, mods: T.SHIFT }, false), true, "Shift+Space (managing)")
+  assert.equal(T.pressable({ key: V, mods: CTRL }, false), false, "no Ctrl, Alt or Meta")
+  for (const k of [K.left, K.right, K.up, K.down, K.pageUp, K.pageDown]) {
+    assert.equal(T.pressable({ key: k }, false), false, "never the arrows or Page Up/Down: " + k)
+  }
+  assert.equal(T.pressable({ key: K.l }, false), true, "L outside watching (My List, logos)")
+  assert.equal(T.pressable({ key: K.l }, true), false, "never L while watching (it holds to scrub)")
+  assert.equal(T.pressable({ key: K.j }, true), false, "nor J")
+  for (const bad of [null, undefined, {}, { key: "ENTER" }, { key: 0 }, { key: -1 }, { keys: ["ENTER"] }]) {
+    assert.equal(T.pressable(bad, false), false, "only a hint's own numeric key: " + JSON.stringify(bad))
+  }
+  const run = () => {}
+  const s = T.split([
+    { keys: ["↑", "↓"], label: "Channel" },
+    { keys: ["ENTER"], label: "Watch", touch: { key: ENTER } },
+    { keys: ["ESC"], label: "Home", touch: { key: ESC, back: true } },
+    { keys: ["ESC"], label: "Second back", touch: { key: ESC, back: true } },
+    { keys: ["ENTER"], label: "Save", touch: { run } },
+    { keys: [], label: "Checking it…" },
+    { keys: ["?"], label: "All keys" },
+    { keys: ["X"], label: "Bad", touch: { label: "no key" } },
+    null, { keys: ["Y"] }
+  ])
+  assert.equal(s.back.label, "Home", "the first back")
+  assert.deepEqual(s.buttons.map((h) => h.label), ["Watch", "Second back", "Save"], "own keys or a field's action; a second back is a button")
+  assert.deepEqual(s.notes.map((h) => h.label), ["Checking it…"], "words with no key")
+  assert.deepEqual(T.split(undefined), { back: null, buttons: [], notes: [] })
+  assert.equal(T.fitCount([100, 100, 100], 10, 0, 50), 3, "no limit")
+  assert.equal(T.fitCount([100, 100, 100], 10, 320, 50), 3, "all fit exactly")
+  assert.equal(T.fitCount([100, 100, 100], 10, 319, 50), 2, "not all: room left for ⋯ (50 + 10 + 100 + 10 + 100 = 270)")
+  assert.equal(T.fitCount([100, 100, 100], 10, 200, 50), 1)
+  assert.equal(T.fitCount([300], 10, 100, 50), 0, "none fit: only ⋯")
+}
+// the guide's side: touchPress runs the router with the hint's own key, a
+// field's action as it is, nothing else; it closes the ⋯ panel first
+{
+  const body = block(guideSrc, "function touchPress(t) {")
+  const ran = []
+  const keys = { press: (ev) => { ran.push(ev); ev.accepted = true } }
+  const make = (watching) => ({ watching, touchMore: [{}] })
+  const press = (root, t) => new Function("root", "Touch", "keys", "t", body)(root, T, keys, t)
+  let r = make(false)
+  assert.equal(press(r, { key: 0x01000004 }), true)
+  assert.deepEqual(ran.pop(), { key: 0x01000004, modifiers: 0, text: "", isAutoRepeat: false, accepted: true }, "a plain record: its key, no text, no repeat")
+  assert.equal(r.touchMore, null, "the ⋯ panel goes first")
+  press(r, { key: 0x20, mods: T.SHIFT })
+  assert.equal(ran.pop().modifiers, T.SHIFT)
+  assert.equal(press(make(false), { key: T.KEY.left }), false); assert.equal(ran.length, 0, "an arrow: nothing runs")
+  assert.equal(press(make(true), { key: T.KEY.l }), false); assert.equal(ran.length, 0, "L while watching: nothing runs")
+  let did = 0
+  assert.equal(press(make(false), { run: () => did++ }), true); assert.equal(did, 1, "a field's own action runs as it is")
+  assert.equal(ran.length, 0, "without the router")
+}
+// The hint lists made touch so far (the guide's, the boxes', Home's, Settings',
+// the nav rail's, the style panel's, the backups'): every hint with Esc is a
+// Back button (Back is always there), every touch key is one a finger may
+// press, and every button has its own key or action
+{
+  const files = { "Guide.qml": guideSrc, "Backups.qml": read("Backups.qml"), "ui/HomeScreen.qml": read("ui/HomeScreen.qml"),
+                  "ui/SettingsScreen.qml": read("ui/SettingsScreen.qml"), "ui/NavRail.qml": read("ui/NavRail.qml") }
+  const braced = (text, open) => {
+    let depth = 0
+    for (let i = open; i < text.length; i++) {
+      if (text[i] === "{") depth++
+      else if (text[i] === "}" && --depth === 0) return text.slice(open, i + 1)
+    }
+    assert.fail("unclosed")
+  }
+  let escs = 0, keyed = 0
+  for (const [f, src] of Object.entries(files)) {
+    for (const m of src.matchAll(/\{ keys: \[([^\]]*)\]/g)) {
+      const hint = braced(src, m.index)
+      if (/"ESC"/.test(m[1])) {
+        escs++
+        assert.match(hint, /back: true/, f + ": an Esc hint that isn't Back: " + hint.slice(0, 90))
+      }
+      for (const k of hint.matchAll(/touch: \{ key: Qt\.Key_(\w+)/g)) {
+        keyed++
+        assert.ok(!["Left", "Right", "Up", "Down", "PageUp", "PageDown"].includes(k[1]), f + ": a touch button with an arrow or Page key: " + k[1])
+      }
+      if (/touch: \{ (?!run|key)/.test(hint) && !/touch: \{\}/.test(hint)) assert.fail(f + ": a touch with neither key nor run: " + hint.slice(0, 90))
+    }
+  }
+  assert.ok(escs >= 30 && keyed >= 40, "found them: " + escs + " Esc hints, " + keyed + " touch keys")
+  // the style panel's hints come in rows, the same rules
+  const styleHints = block(guideSrc, "readonly property var styleHintRows: {")
+  for (const m of styleHints.matchAll(/\{ keys: \[([^\]]*)\]/g)) {
+    if (/"ESC"/.test(m[1])) assert.match(braced(styleHints, m.index), /back: true/, "the style panel: Esc is Back")
+  }
+}
+assert.match(guideSrc, /property var touchMore: null/)
+assert.match(guideSrc, /TouchMore \{\n\s+anchors\.fill: parent\n\s+z: 900000\n\s+guide: root\n\s+\}/, "the ⋯ panel over everything but the watcher")
+assert.match(pressed, /if \(guide\.touchMore\) \{\n\s+guide\.closeTouchMore\(\)\n\s+if \(event\.key === Qt\.Key_Escape\) \{ event\.accepted = true; return \}\n\s+\}/, "a real key closes the ⋯ panel (Esc only closes it)")
 
 console.log("touchmode: ok")

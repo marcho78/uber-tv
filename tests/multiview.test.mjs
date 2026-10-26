@@ -318,7 +318,8 @@ const block = (text, opener) => {
 // ---- cancelling the picture picker from Multiview's gear goes back to Multiview, not the style panel ----
 {
   const dialogSrc = readFileSync(new URL("../ui/DialogBox.qml", import.meta.url), "utf8")
-  assert.match(dialogSrc, /Key_Escape\) guide\.pickImages && guide\.pickArea !== "home" && guide\.pickArea !== "multiview" \? guide\.backToStyle\(\) : guide\.closeDialog\(\)/)
+  assert.match(dialogSrc, /Key_Escape\) guide\.pickEscape\(\)/, "the picker's Esc (and tablet mode's Cancel) is one function")
+  assert.match(guideSrc, /function pickEscape\(\) \{\n\s+if \(root\.pickImages && root\.pickArea !== "home" && root\.pickArea !== "multiview"\) root\.backToStyle\(\)\n\s+else root\.closeDialog\(\)/)
 }
 
 console.log("multiview: ok")
