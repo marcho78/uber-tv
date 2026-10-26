@@ -980,7 +980,9 @@ Item {
   // choice is tapped; the keys go to Multiview's own, through the guide's)
   KeyHints {
     z: 8
-    visible: mv.guide.showKeyHints || mv.guide.touchMode
+    // (tablet mode: not over a full-screen tile's banner, which a tap on the
+    // picture hides and whose choices go back)
+    visible: (mv.guide.showKeyHints || mv.guide.touchMode) && !(mv.guide.touchMode && mv.mode === "full" && mv.bannerUp)
     anchors.left: parent.left
     anchors.bottom: parent.bottom
     anchors.leftMargin: mv.u * 1.5

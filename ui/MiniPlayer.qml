@@ -19,7 +19,8 @@ PanelWindow {
   visible: guide.pip
   readonly property real screenW: screen ? screen.width : 1920
   readonly property real screenH: screen ? screen.height : 1080
-  readonly property real w: Math.round(Math.max(240, Math.min(screenW * 0.6, guide.pipW || screenW * 0.25)))
+  // tablet mode: never narrower than its bar's six finger-wide buttons need
+  readonly property real w: Math.round(Math.max(240, guide.touchMode ? guide.fingerPx * 7 : 0, Math.min(screenW * 0.6, guide.pipW || screenW * 0.25)))
   readonly property real h: Math.round(w * 9 / 16)
   readonly property real k: Math.max(10, h / 14)   // sizes inside, by the window's height
   anchors { right: true; bottom: true }
@@ -94,6 +95,7 @@ PanelWindow {
     property real fromY: 0
     property real startRight: 0
     property real startBottom: 0
+    property real travel: 0             // how far the pointer has gone, all told (the window follows it)
     property bool moved: false          // past a drag's start: letting go isn't a tap
     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     onPressed: function(mouse) {
@@ -101,12 +103,15 @@ PanelWindow {
       fromY = mouse.y
       startRight = guide.pipRight
       startBottom = guide.pipBottom
+      travel = 0
       moved = false
       pipKeys.forceActiveFocus()
     }
     onPositionChanged: function(mouse) {
       if (!pressed) return
-      if (Math.abs(mouse.x - fromX) + Math.abs(mouse.y - fromY) > Qt.styleHints.startDragDistance) moved = true
+      // each event's step, before the window catches up (so a slow drag adds up)
+      travel += Math.abs(mouse.x - fromX) + Math.abs(mouse.y - fromY)
+      if (travel > Qt.styleHints.startDragDistance) moved = true
       guide.pipRight -= mouse.x - fromX
       guide.pipBottom -= mouse.y - fromY
       pipWindow.clampPlace()
@@ -257,8 +262,11 @@ PanelWindow {
     cursorShape: Qt.SizeFDiagCursor
     property real fromX: 0
     property real startW: 0
-    onPressed: function(mouse) { fromX = mouse.x; startW = guide.pipW }
-    onCanceled: { guide.pipW = startW; pipWindow.clampPlace() }
+    property real startRight: 0
+    property real startBottom: 0
+    onPressed: function(mouse) { fromX = mouse.x; startW = guide.pipW; startRight = guide.pipRight; startBottom = guide.pipBottom }
+    // (growing near an edge moves it too: all three as they were)
+    onCanceled: { guide.pipW = startW; guide.pipRight = startRight; guide.pipBottom = startBottom; pipWindow.clampPlace() }
     onPositionChanged: function(mouse) {
       if (!pressed) return
       guide.pipW = Math.max(240, Math.min(pipWindow.screenW * 0.6, pipWindow.w - (mouse.x - fromX)))

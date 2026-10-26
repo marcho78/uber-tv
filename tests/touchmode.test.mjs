@@ -669,8 +669,49 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   p1 = pg(); miniClick(p1, true, FINGER); assert.equal(p1.shown, 0, "a drag let go isn't a tap")
   p1 = pg(); miniClick(p1, false, MOUSE); assert.equal(p1.shown, 0, "a mouse's click: as before")
   assert.match(mini, /onCanceled: \{ guide\.pipRight = startRight; guide\.pipBottom = startBottom \}/, "a cancelled move: back where it was")
-  assert.match(mini, /onCanceled: \{ guide\.pipW = startW; pipWindow\.clampPlace\(\) \}/, "a cancelled resize: the size it was")
+  assert.match(mini, /onCanceled: \{ guide\.pipW = startW; guide\.pipRight = startRight; guide\.pipBottom = startBottom; pipWindow\.clampPlace\(\) \}/, "a cancelled resize: the size and place it was")
   assert.match(mini, /onDoubleClicked: function\(mouse\) \{ if \(!guide\.isFinger\(mouse\)\) guide\.expandPip\(\) \}/)
+  // a slow drag, its window following the finger event by event (each step
+  // under the drag distance): it adds up, and letting go isn't a tap
+  {
+    const area = mini.slice(mini.indexOf("  // Moving and resizing"), mini.indexOf("  // What's on, and the controls"))
+    const handler = (name) => new Function("ma", "guide", "pipKeys", "pipWindow", "Qt", "mouse", "with (ma) { " + block(area, name + ": function(mouse) {") + " }")
+    const press = handler("onPressed"), move = handler("onPositionChanged"), tap = handler("onClicked")
+    const ma = { fromX: 0, fromY: 0, startRight: 0, startBottom: 0, travel: 0, moved: false, pressed: true }
+    const gd = Object.assign(pg(), { pipRight: 100, pipBottom: 100 })
+    const env = [gd, { forceActiveFocus() {} }, { clampPlace() {} }, { styleHints: { startDragDistance: 10 } }]
+    press(ma, ...env, { x: 50, y: 50, source: 2 })
+    for (let i = 0; i < 20; i++) move(ma, ...env, { x: 53, y: 50, source: 2 })   // 3 px a step; the window keeps up
+    assert.equal(gd.pipRight, 40, "it went 60 px")
+    assert.equal(ma.moved, true, "the steps add up past the drag distance")
+    tap(ma, ...env, FINGER)
+    assert.equal(gd.shown, 0, "letting go after a slow drag isn't a tap")
+    press(ma, ...env, { x: 50, y: 50, source: 2 })
+    move(ma, ...env, { x: 52, y: 51, source: 2 })
+    tap(ma, ...env, FINGER)
+    assert.equal(gd.shown, 1, "a finger that barely moves taps")
+  }
+  // a cancelled resize near an edge: its size and its place as they were
+  {
+    const grip = mini.slice(mini.indexOf("  // The resize grip"))
+    const g2 = { pipW: 300, pipRight: 690, pipBottom: 20 }
+    const win = { screenW: 1000, screenH: 600, w: 300, clampPlace() { win.w = g2.pipW; g2.pipRight = Math.max(0, Math.min(win.screenW - g2.pipW, g2.pipRight)); g2.pipBottom = Math.max(0, Math.min(win.screenH - g2.pipW * 9 / 16, g2.pipBottom)) } }
+    const ma2 = { fromX: 0, startW: 0, startRight: 0, startBottom: 0, pressed: true }
+    const rp = new Function("ma", "guide", "pipWindow", "mouse", "with (ma) { " + grip.match(/onPressed: function\(mouse\) \{ (.*) \}\n/)[1] + " }")
+    const rm = new Function("ma", "guide", "pipWindow", "mouse", "with (ma) { " + block(grip, "onPositionChanged: function(mouse) {") + " }")
+    const rc = new Function("ma", "guide", "pipWindow", "with (ma) { " + grip.match(/onCanceled: \{ (.*) \}\n/)[1] + " }")
+    rp(ma2, g2, win, { x: 10 })
+    rm(ma2, g2, win, { x: -190 })   // 200 px wider, at the left edge
+    assert.ok(g2.pipW > 300 && g2.pipRight < 690, "growing near the edge moved it")
+    rc(ma2, g2, win)
+    assert.deepEqual([g2.pipW, g2.pipRight, g2.pipBottom], [300, 690, 20], "cancelled: the size and the place it had")
+  }
+  // never narrower than its bar's six finger-wide buttons need
+  assert.match(mini, /readonly property real w: Math\.round\(Math\.max\(240, guide\.touchMode \? guide\.fingerPx \* 7 : 0, /)
+  for (const f of [44, 53, 66, 72]) {
+    const w = f * 7, k = Math.max(10, w * 9 / 16 / 14)
+    assert.ok(6 * f + 5 * k * 0.3 + k * 0.5 <= w, "six buttons fit a " + f + " px finger's mini player: " + w)
+  }
   // Multiview: a tap gives a tile the sound, a tap on the one with it shows it full screen; on a full-screen tile a tap shows its choices
   const mvSrc = read("ui/Multiview.qml")
   const at = mvSrc.indexOf("var finger = mv.guide.isFinger(mouse)")
@@ -686,6 +727,7 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   v1 = mvx("full", 1); mvClick(v1, { index: 1 }, { restart() {} }, FINGER)
   assert.deepEqual([v1.bannerUp, v1.bannerAct], [true, 0], "full screen, a tap: its choices")
   assert.match(mvSrc, /readonly property real footH: guide\.touchMode \? Math\.max\(u \* 5\.2, guide\.fingerPx \+ u \* 1\.6\)/, "room for its buttons")
+  assert.match(mvSrc, /visible: \(mv\.guide\.showKeyHints \|\| mv\.guide\.touchMode\) && !\(mv\.guide\.touchMode && mv\.mode === "full" && mv\.bannerUp\)/, "no buttons over a full-screen tile's banner")
   // the lock: a pad for the digits, its buttons in its box; the list of channels typed by the keyboard
   const lockBox = read("ui/LockBox.qml")
   assert.match(lockBox, /visible: lockBox\.view === "lockCode" && lockBox\.lock\.typing && guide\.touchMode/)

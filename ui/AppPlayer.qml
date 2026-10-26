@@ -165,7 +165,11 @@ Rectangle {
             enabled: guide.touchMode && screen.pb.duration > 0
             preventStealing: true
             function at(x) { return Math.max(0, Math.min(1, x / Math.max(1, track.width))) * screen.pb.duration }
-            onPressed: function(mouse) { screen.dragFor = screen.s; screen.dragAt = at(mouse.x); screen.poke() }
+            // a mouse's press isn't this one's: it goes on to the picture (a click pauses)
+            onPressed: function(mouse) {
+              if (!guide.isFinger(mouse)) { mouse.accepted = false; return }
+              screen.dragFor = screen.s; screen.dragAt = at(mouse.x); screen.poke()
+            }
             onPositionChanged: function(mouse) { if (pressed) { screen.dragAt = at(mouse.x); screen.poke() } }
             onReleased: function(mouse) { var to = at(mouse.x), was = screen.dragFor; screen.dragAt = -1; screen.dragFor = null; if (was && screen.s === was) screen.pb.seekTo(to) }
             onCanceled: { screen.dragAt = -1; screen.dragFor = null }
