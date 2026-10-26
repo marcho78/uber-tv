@@ -2,7 +2,7 @@
 
 A TV-style media center for [Omarchy](https://omarchy.org): YouTube and IPTV
 channels on a real program guide, movies and videos on demand, and apps, in
-one screen you drive with the keyboard, the mouse or your phone.
+one screen you drive with the keyboard, the mouse, your phone or a touchscreen.
 
 ![Home](docs/screenshots/home.jpg)
 
@@ -29,6 +29,10 @@ one screen you drive with the keyboard, the mouse or your phone.
   the guide. It shows when the channel on is recording, and whether the TV
   is paused or behind live, and answers the strip's questions (TURN ON,
   DISMISS).
+- **Tablet mode.** On a touchscreen, finger-sized buttons replace the keys
+  along the bottom: tap to choose, drag the guide through time, tap the
+  picture for its controls, type on an on-screen keyboard. It turns on when
+  you touch the screen, and fits a tablet in portrait.
 - **Channel lock.** A passcode for the channels you choose.
 - **Apps.** Launchers for services like Netflix and HBO Max, and sandboxed
   apps like Jellyfin and Scores. Third-party apps install from signed files.

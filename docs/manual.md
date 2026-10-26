@@ -746,8 +746,9 @@ click opens.
 - **A tablet in portrait, or a narrow window** (tablet mode or not): the nav
   rail tucks away (☰ opens it), the preview sits beside its details, and the
   grid shows an hour.
-- Everything you tap is at least about 9 mm, whatever the screen. Its buttons'
-  colors are the theme's (**S** → *Parts* → TABLET MODE).
+- Everything you tap is at least about 9 mm, whatever the screen, except a
+  short show in the grid or one cut off at its edge. Its buttons' colors are
+  the theme's (**S** → *Parts* → TABLET MODE).
 
 ## Phone remote
 
