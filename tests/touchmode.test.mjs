@@ -408,6 +408,90 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   assert.deepEqual([g.watched, g.marked], [[], [5]], f + ": in the manager a tap marks")
   assert.match(src.slice(at, at + 600), /onDoubleClicked: if \(!guide\.managing\) guide\.watch\(rowItem\.r\)/, f + ": a double click watches")
 }
+// The grid in tablet mode: a tap chooses a show, a tap on the one chosen
+// watches it (a double click too, as before), a finger held on one opens its
+// choices; with the mouse a hold does nothing. A finger dragged sideways
+// moves the window a half hour per half hour's width, never before now nor
+// past the end, the cursor kept in it; Now goes back. A channel's cell
+// watches at once, as it always has (the manager: marks).
+{
+  const grid = read("ui/ProgramGrid.qml")
+  const at = grid.indexOf("// tablet mode: a tap on the show already chosen watches it")
+  assert.ok(at > 0)
+  const area = grid.slice(at, at + 1200)
+  const tap = new Function("guide", "rowItem", "cell", "chosen", block(area, "onClicked: {"))
+  const hold = new Function("guide", "rowItem", "cell", block(area, "onPressAndHold: {"))
+  const make = (touchMode) => ({ touchMode, row: 2, cursorTime: 0, windowStart: 1000, watched: [], choices: 0,
+                                 watch(r) { this.watched.push(r) }, openShowChoices() { this.choices++ } })
+  let g = make(true); tap(g, { r: 5 }, { modelData: { start: 1600 } }, false)
+  assert.deepEqual([g.row, g.cursorTime, g.watched], [5, 1600, []], "a first tap chooses the show")
+  g = make(true); tap(g, { r: 5 }, { modelData: { start: 400 } }, false)
+  assert.equal(g.cursorTime, 1000, "a show begun before the window: the cursor at the window's start")
+  g = make(true); tap(g, { r: 5 }, { modelData: { start: 1600 } }, true)
+  assert.deepEqual(g.watched, [5], "a tap on the one chosen watches it")
+  g = make(false); tap(g, { r: 5 }, { modelData: { start: 1600 } }, true)
+  assert.deepEqual(g.watched, [], "a click only chooses")
+  assert.match(area, /onDoubleClicked: guide\.watch\(rowItem\.r\)/)
+  assert.match(area, /readonly property bool chosen: guide\.row === rowItem\.r && !!guide\.selected && guide\.selected\.start === cell\.modelData\.start/)
+  g = make(true); hold(g, { r: 7 }, { modelData: { start: 1600 } })
+  assert.deepEqual([g.row, g.cursorTime, g.choices], [7, 1600, 1], "a held finger: its choices")
+  g = make(false); hold(g, { r: 7 }, { modelData: { start: 1600 } })
+  assert.deepEqual([g.row, g.choices], [2, 0], "a held mouse button: nothing")
+  // the drag
+  assert.match(grid, /DragHandler \{\n\s+id: timeDrag\n\s+enabled: guide\.touchMode\n\s+target: null\n\s+xAxis\.enabled: true\n\s+yAxis\.enabled: false\n/)
+  assert.match(grid, /onActiveTranslationChanged: if \(active\) guide\.dragTime\(from - Math\.round\(activeTranslation\.x \/ Math\.max\(1, gridArea\.slotW\)\)\)/, "a half hour per half hour's width, to the left is later")
+  const drag = new Function("root", block(guideSrc, "function dragTime(offset) {").replace(/\boffset\b/g, "root.offset"))
+  const r = { maxSlotOffset: 24, slotOffset: 0, cursorAt: 123, cursorTime: 0 }
+  for (const [o, want] of [[3, 3], [-2, 0], [99, 24], [2.6, 3], [0, 0]]) {
+    r.offset = o; drag(r)
+    assert.equal(r.slotOffset, want, "dragged to " + o)
+  }
+  assert.equal(r.cursorTime, 123, "the cursor kept in the window")
+  const now = new Function("root", block(guideSrc, "function timeToNow() {"))
+  const n = { slotOffset: 9, cursorTime: 0 }; now(n)
+  assert.equal(n.slotOffset, 0)
+  assert.ok(Math.abs(n.cursorTime - Date.now() / 1000) < 5, "Now: the cursor now")
+  // a channel's cell
+  const chan = grid.slice(grid.indexOf("MouseArea {", grid.indexOf("color: guide.nowLine")), grid.indexOf("id: lane"))
+  const chanTap = new Function("guide", "rowItem", block(chan, "onClicked: {"))
+  g = { row: 0, managing: false, watched: [], marked: [], watch(x) { this.watched.push(x) }, toggleMark(x) { this.marked.push(x) } }
+  chanTap(g, { r: 4 })
+  assert.deepEqual([g.row, g.watched], [4, [4]], "a channel's cell watches")
+  g.managing = true; g.watched = []; chanTap(g, { r: 6 })
+  assert.deepEqual([g.watched, g.marked], [[], [6]], "the manager: it marks")
+}
+// Cards (Home, the Library, Search): a click picks and a double click
+// opens; a finger opens at once. An app's screen: a click puts the cursor
+// there and a second opens; a finger opens at once.
+{
+  const cards = read("ui/CardRows.qml")
+  const line = (name) => {
+    const m = cards.match(new RegExp("\\n\\s+" + name + ": (.*)\\n"))
+    assert.ok(m, name)
+    return m[1].replace(/^\{ | \}$/g, "")
+  }
+  const click = new Function("rowsView", "rowItem", "card", line("onClicked"))
+  const dbl = new Function("rowsView", "rowItem", "card", line("onDoubleClicked"))
+  const rv = (touchMode) => ({ guide: { touchMode }, did: [], select(r, c) { this.did.push("select " + r + "," + c) }, open(r, c) { this.did.push("open " + r + "," + c) } })
+  let v = rv(true); click(v, { index: 1 }, { index: 2 }); dbl(v, { index: 1 }, { index: 2 })
+  assert.deepEqual(v.did, ["select 1,2", "open 1,2"], "a finger opens once, at the first tap")
+  v = rv(false); click(v, { index: 1 }, { index: 2 })
+  assert.deepEqual(v.did, ["select 1,2"], "a click picks")
+  dbl(v, { index: 1 }, { index: 2 })
+  assert.deepEqual(v.did, ["select 1,2", "open 1,2"], "a double click opens")
+  const app = read("ui/AppScreen.qml")
+  const tapBody = block(app, "function tap(line, col) {")
+  const tap = new Function("page", "view", "guide", "line", "col", tapBody)
+  const make = (touchMode, sel) => ({ page: { sel }, view: { entered: 0, pick() { return true }, enter() { this.entered++ } }, guide: { touchMode, byUser: {} } })
+  let t = make(false, { line: 0, col: 0 }); tap(t.page, t.view, t.guide, 1, 3)
+  assert.equal(t.view.entered, 0, "a click: the cursor there")
+  t = make(false, { line: 1, col: 3 }); tap(t.page, t.view, t.guide, 1, 3)
+  assert.equal(t.view.entered, 1, "a second click opens")
+  t = make(true, { line: 0, col: 0 }); tap(t.page, t.view, t.guide, 1, 3)
+  assert.equal(t.view.entered, 1, "a finger opens at once")
+  t = make(true, null); t.view.pick = () => false; tap(t.page, t.view, t.guide, 1, 3)
+  assert.equal(t.view.entered, 0, "nothing there: nothing opens")
+}
 // A compact screen's layout (the mockup's portrait): the rail tucked away
 // with ☰ on the masthead, the preview no wider than half beside the words,
 // an hour across, the table across (the TV in the info area), Settings'
