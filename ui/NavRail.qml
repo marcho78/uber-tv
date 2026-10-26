@@ -43,50 +43,77 @@ Item {
 
     HoverHandler { id: hover }
 
-    Column {
+    // The parts, in the room above its foot; more than fit (finger-tall
+    // items on a short screen) slide, the cursor's kept in view
+    Flickable {
+      id: parts
+      objectName: "railParts"
       y: rail.u * 2.4
       x: strip.padding
       width: strip.width - strip.padding * 2
-      spacing: rail.u * 0.5
+      height: Math.max(0, (foot.visible ? foot.y : strip.height - rail.u * 1.6 - rail.creditRoom) - y - rail.u * 0.5)
+      contentWidth: width
+      contentHeight: partList.implicitHeight
+      clip: true
+      interactive: contentHeight > height
+      boundsBehavior: Flickable.StopAtBounds
+      function keepInView() {
+        var i = guide.railCursor
+        if (!guide.railOpen || i < 0 || i >= guide.railItems.length) return
+        var top = i * (rail.itemH + partList.spacing)
+        if (top < contentY) contentY = top
+        else if (top + rail.itemH > contentY + height) contentY = Math.min(contentHeight - height, top + rail.itemH - height)
+      }
+      Connections {
+        target: rail.guide
+        function onRailCursorChanged() { parts.keepInView() }
+        function onRailOpenChanged() { Qt.callLater(parts.keepInView) }
+      }
 
-      Repeater {
-        model: guide.railItems
-        delegate: Box {
-          id: item
-          required property var modelData
-          required property int index
-          readonly property bool current: modelData.key === guide.railCurrent
-          readonly property bool focused: guide.railOpen && index === guide.railCursor
-          readonly property var st: focused ? guide.look["railItem:focused"] : current ? guide.look["railItem:current"] : guide.look.railItem
-          width: parent.width
-          height: rail.itemH
-          s: st
-          unit: rail.u
+      Column {
+        id: partList
+        width: parent.width
+        spacing: rail.u * 0.5
 
-          Icon {
-            id: icon
-            // centered in the thin rail, so the icons don't move as it widens
-            x: Math.round((rail.thinW - strip.padding * 2 - width) / 2)
-            anchors.verticalCenter: parent.verticalCenter
-            name: item.modelData.icon
-            size: Math.round(rail.u * 1.45)
-            color: item.st.text ? item.st.text.color : "white"
-          }
-          Label {
-            anchors.left: icon.right
-            anchors.leftMargin: rail.u * 0.9
-            anchors.verticalCenter: parent.verticalCenter
-            opacity: rail.wide ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 120 } }
-            text: item.modelData.label
-            s: item.st
+        Repeater {
+          model: guide.railItems
+          delegate: Box {
+            id: item
+            required property var modelData
+            required property int index
+            readonly property bool current: modelData.key === guide.railCurrent
+            readonly property bool focused: guide.railOpen && index === guide.railCursor
+            readonly property var st: focused ? guide.look["railItem:focused"] : current ? guide.look["railItem:current"] : guide.look.railItem
+            width: parent.width
+            height: rail.itemH
+            s: st
             unit: rail.u
-          }
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            enabled: !guide.railEditing
-            onClicked: guide.railGo(item.index)
+
+            Icon {
+              id: icon
+              // centered in the thin rail, so the icons don't move as it widens
+              x: Math.round((rail.thinW - strip.padding * 2 - width) / 2)
+              anchors.verticalCenter: parent.verticalCenter
+              name: item.modelData.icon
+              size: Math.round(rail.u * 1.45)
+              color: item.st.text ? item.st.text.color : "white"
+            }
+            Label {
+              anchors.left: icon.right
+              anchors.leftMargin: rail.u * 0.9
+              anchors.verticalCenter: parent.verticalCenter
+              opacity: rail.wide ? 1 : 0
+              Behavior on opacity { NumberAnimation { duration: 120 } }
+              text: item.modelData.label
+              s: item.st
+              unit: rail.u
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              enabled: !guide.railEditing
+              onClicked: guide.railGo(item.index)
+            }
           }
         }
       }
@@ -96,10 +123,12 @@ Item {
     // after the parts for the cursor, drawn the same way
     Column {
       id: foot
+      objectName: "railFoot"
       x: strip.padding
       width: strip.width - strip.padding * 2
       anchors.bottom: parent.bottom
-      anchors.bottomMargin: rail.u * 1.6 + rail.creditRoom + (guide.railOpen && guide.showKeyHints ? rail.u * 3 : 0)
+      // over Customize while it shows (its keys, or tablet mode's button)
+      anchors.bottomMargin: rail.u * 1.6 + rail.creditRoom + (railHints.visible ? Math.max(rail.u * 3, railHints.height + rail.u) : 0)
       spacing: rail.u * 0.5
       visible: !guide.railEditing
 
@@ -155,6 +184,8 @@ Item {
 
     // How to customize it, while it's open
     KeyHints {
+      id: railHints
+      objectName: "railCustomize"
       visible: guide.railOpen && (guide.showKeyHints || guide.touchMode)
       x: strip.padding + rail.u * 0.4
       anchors.bottom: parent.bottom

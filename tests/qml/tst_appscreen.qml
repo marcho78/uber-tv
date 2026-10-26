@@ -217,6 +217,8 @@ Item {
       view.imagePaths = ({})
       guide.screen = "apps"
       guide.touchMode = false
+      guide.u = 16
+      guide.fingerPx = 44
       guide.elementOverrides = ({})
       guide.colorOverrides = ({})
       guide.currentTheme = ({ id: "retro", apps: ({}) })
@@ -426,6 +428,22 @@ Item {
       compare(rt.calls.length, calls)
       tapAt(hero, hero.width * 0.3, hero.height * 0.4)
       verify(rt.calls.length > calls, "a tap opens it")
+    }
+    function test_tablet_mode_a_details_pages_buttons_fit_their_line() {
+      guide.u = 12            // 1280×720
+      guide.fingerPx = 72     // the biggest finger
+      guide.touchMode = true
+      open({ title: "Team", subtitle: "", text: "", image: null, backdrop: null, facts: [], style: "classic",
+             actions: [{ id: "p", label: "Play", kind: "play" }, { id: "t", label: "Trailer", kind: "open" }],
+             rows: [{ id: "more", title: "More like it", layout: "row", items: [item("m0", null), item("m1", null)] }] }, "detail")
+      var b = null
+      tryVerify(function() { b = find(screen, "appAction"); return !!b && b.height > 0 }, 2000)
+      compare(b.height, 72, "a finger tall")
+      var line = view.model.lines[0], next = view.model.lines[1]
+      compare(line.layout, "actions")
+      var bottom = b.parent.y + b.y + b.height / 2 + b.height * b.scale / 2   // its middle, then half of it as drawn (the selected one grows)
+      verify(bottom <= line.height, "the selected button inside its line: " + bottom + " ≤ " + line.height)
+      compare(next.y, line.height, "the next row after the line")
     }
     function test_tablet_mode_an_article_scrolls_under_a_finger() {
       open({ title: "Team", subtitle: "", text: "", image: null, backdrop: null, facts: [], actions: [], rows: [], style: "classic" }, "detail")

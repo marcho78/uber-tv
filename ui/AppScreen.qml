@@ -515,18 +515,19 @@ Item {
         Row {
           visible: lineItem.line.layout === "actions"
           x: page.u * 3
-          y: page.u * 0.4
+          y: page.geo.actionY
           spacing: page.u * 1
           Repeater {
             model: lineItem.line.layout === "actions" ? lineItem.line.items : []
             delegate: Box {
               id: button
+              objectName: "appAction"
               required property var modelData
               required property int index
               readonly property bool current: lineItem.col === index
               MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { page.tap(lineItem.index, button.index, guide.isFinger(mouse)) } }
               width: actionLabel.implicitWidth + page.u * 3
-              height: Math.max(page.u * 3.2, guide.touchMode ? guide.fingerPx : 0)   // (a finger tall in tablet mode)
+              height: page.geo.actionH   // (a finger tall in tablet mode: AppLooks.geometry)
               s: current ? guide.look["appButton:focused"] : guide.look.appButton
               unit: page.u
               scale: current ? 1 + Looks.growOf(s) : 1                  // only the selected one grows (at most 15%)

@@ -568,7 +568,7 @@ Item {
     var theme = guide.currentTheme && guide.currentTheme.apps ? guide.currentTheme.apps : ({})
     var store = guide.appScreens
     var mine = store && view.record ? store.entryOf(view.record) : null
-    return { width: view.screenWidth, u: guide.u, layout: guide.layout, learned: view.learned[view.shapeKey] || ({}), defaults: view.rowDefaults,
+    return { width: view.screenWidth, u: guide.u, touch: guide.touchMode ? guide.fingerPx : 0, layout: guide.layout, learned: view.learned[view.shapeKey] || ({}), defaults: view.rowDefaults,
              choices: { mine: mine || ({}), all: store ? store.all : ({}), theme: theme },
              suggested: view.record && view.record.layout ? view.record.layout.look || "" : "" }
   }

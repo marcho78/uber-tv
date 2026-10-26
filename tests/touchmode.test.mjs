@@ -569,7 +569,11 @@ for (const f of ["ui/ChannelTable.qml", "ui/FlapBoard.qml"]) {
   // in tablet mode the rail's items and an app's buttons are a finger tall
   assert.match(read("ui/NavRail.qml"), /readonly property real itemH: Math\.round\(Math\.max\(u \* 3, guide\.touchMode \? guide\.fingerPx : 0\)\)/)
   assert.equal((read("ui/NavRail.qml").match(/height: rail\.itemH\n/g) || []).length, 2, "both groups")
-  assert.match(app, /height: Math\.max\(page\.u \* 3\.2, guide\.touchMode \? guide\.fingerPx : 0\)/)
+  // (an app's buttons from the model's geometry: AppLooks.geometry with tablet
+  // mode's finger, tests/applooks.test.mjs; their line makes room for them)
+  assert.match(app, /y: page\.geo\.actionY\n/)
+  assert.match(app, /height: page\.geo\.actionH   /)
+  assert.match(read("AppView.qml"), /touch: guide\.touchMode \? guide\.fingerPx : 0,/)
 }
 // A compact screen's layout (the mockup's portrait): the rail tucked away
 // with ☰ on the masthead, the preview no wider than half beside the words,

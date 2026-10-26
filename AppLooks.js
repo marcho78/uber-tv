@@ -127,9 +127,13 @@ function detailStyleOf(value, screen) {
 }
 
 // The lengths every line is made of, in pixels, for this width and unit
+// (touch: tablet mode's finger, in px, or 0: a details page's buttons are
+// at least that tall, and their line makes room for them and for the
+// selected one's growth)
 function geometry(env) {
   var u = num(env && env.u, 16)
   var lay = env && env.layout ? env.layout : {}
+  var actionH = Math.max(Math.round(u * 3.2), num(env && env.touch, 0))
   return {
     u: u,
     width: num(env && env.width, 1280),
@@ -143,7 +147,9 @@ function geometry(env) {
     tableHeadH: Math.round(u * 2.4),
     tableRowH: Math.round(u * 2.8),
     tickerH: Math.round(u * 3.2),
-    actionsH: Math.round(u * 4.2),
+    actionH: actionH,
+    actionY: Math.round(Math.max(u * 0.4, actionH * 0.12)),
+    actionsH: Math.round(actionH + Math.max(u, actionH * 0.3)),
     heroH: Math.round(u * 22),
     widths: { poster: num(lay.libraryPosterWidth, 8.6), thumb: num(lay.libraryThumbWidth, 15.5), square: num(lay.librarySquareWidth, SQUARE_WIDTH) }
   }
