@@ -52,7 +52,7 @@ or the Uber TV plugin isn't installed or is turned off.
 | Command | What it does |
 |---|---|
 | `omarchy-shell om-pg help` | these commands |
-| `omarchy-shell om-pg state` | the guide at a glance: open or not, the channel on, how many channels, the theme, what's shown, settings, `recordings` (`{on, recording, scheduled, series}`: on or not, how many recording now, how many waiting (Scheduled or Conflict), how many series), `pauseAndRewind` (`{on, running, paused, behindSeconds}`), and `multiview` (its channels in order, which has the sound, the layout) while it's on |
+| `omarchy-shell om-pg state` | the guide at a glance: open or not, the channel on, how many channels, the theme, what's shown, settings, `recordings` (`{on, recording, scheduled, series}`: on or not, how many recording now, how many waiting (Scheduled or Conflict), how many series), `pauseAndRewind` (`{on, running, paused, behindSeconds}`), and `multiview` (its channels in order, which has the sound, the layout) while it's on, and `touch` (`{setting, on, lastInput, fit}`) |
 | `omarchy-shell om-pg open` | opens the guide (full screen, over everything), on Home when Home is on |
 | `omarchy-shell om-pg display <full\|window\|"">` | how the guide shows: `full` (over everything, the Omarchy bar too) or `window` (an ordinary window, maximized under the bar, on its own desktop); `""` says which |
 | `omarchy-shell om-pg close` | closes it, and turns the TV off |
@@ -140,6 +140,7 @@ or the Uber TV plugin isn't installed or is turned off.
 | `omarchy-shell om-pg removeChannels <numbers>` | removes channels. Only when the user asks, and check the numbers with `channels` first |
 | `omarchy-shell om-pg logos <on\|off>` | channel logos in the guide |
 | `omarchy-shell om-pg keyHints <on\|off>` | the keys along the bottom |
+| `omarchy-shell om-pg touchControls <auto\|on\|off\|"">` | tablet mode's touch controls: auto (on once a finger touches the screen, until Uber TV closes), on or off; `""` says which, and whether they're on now. Only when the user asks |
 | `omarchy-shell om-pg refresh` | fetches the listings again |
 | `omarchy-shell om-pg apps` | apps: on or not, Developer mode, Third-party apps, the catalog, and the installed apps (id, name, version, on or off, on the screen now, where from, developer key for a signed app file, whether it's been checked, what each is allowed to do, any problem, an update waiting) |
 | `omarchy-shell om-pg appOff <id>` | turns one installed app off; it stays installed |
